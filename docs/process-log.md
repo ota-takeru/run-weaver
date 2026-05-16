@@ -7,6 +7,7 @@ Review:
 - Immediate fixes:
   - WSL統合テストでtmux windowが即終了し、Codexログに `mkdir: unrecognized option '--json'` が出ることを確認した。
   - tmux内コマンドの連結を空白連結から `&&` 連結へ修正した。
+  - 追加確認で `&&` がCodex引数間にも入る問題を見つけ、`mkdir -p <dir> && codex exec ...` の形に修正した。
   - 既存worktreeがある場合に `git worktree add` を再実行せず再利用するようにした。
   - runner commandとworktree再利用の単体テストを追加した。
 - Future tasks:

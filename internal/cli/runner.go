@@ -80,15 +80,16 @@ func buildCodexRunSpec(target string, issueNumber int, worktree string) codexRun
 
 func buildCodexTmuxCommand(spec codexRunSpec) string {
 	dir := shellQuote(filepath.Dir(spec.JSONLogPath))
-	return strings.Join([]string{
-		"mkdir -p " + dir,
+	codexCommand := strings.Join([]string{
 		"codex exec --json",
 		"--cd " + shellQuote(spec.Worktree),
 		"--output-last-message " + shellQuote(spec.LastMessagePath),
-		"- < " + shellQuote(spec.PromptPath),
+		"-",
+		"< " + shellQuote(spec.PromptPath),
 		"> " + shellQuote(spec.JSONLogPath),
 		"2>&1",
-	}, " && ")
+	}, " ")
+	return "mkdir -p " + dir + " && " + codexCommand
 }
 
 func shellQuote(value string) string {
