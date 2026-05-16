@@ -23,6 +23,7 @@ run-weaver doctor --target windows
 - WSL targetの場合は `tmux` の有無
 - Codex専用cloneの存在
 - worktree作成先の書き込み可否
+- state fileの読み書き可否
 - 常駐設定の有無。WSLはsystemd user、WindowsはTask Scheduler
 
 終了コード:
@@ -50,10 +51,11 @@ run-weaver status --json
 - current branch
 - current worktree
 - tmux session/window。WSL targetのみ
+- state file path
 - last GitHub comment timestamp
 - last error
 
-人間向け表示を標準にし、将来の連携用に `--json` を用意します。
+人間向け表示を標準にし、将来の連携用に `--json` を用意します。`status` はローカルstate fileを主情報源にし、process、tmux、GitHub Issueの状態を照合します。
 
 ## `run-weaver install`
 
@@ -88,8 +90,9 @@ run-weaver daemon --target windows
 
 主な処理:
 
-- 対象Issueを取得
+- `run-weaver:ready` ラベル付きのopen Issueを取得
 - `running` ラベルと開始コメントを投稿
+- ローカルstate fileにclaimを保存
 - Codex専用cloneからIssue専用worktreeを作成
 - Doppler経由で環境変数を注入
 - Codex CLIをworktree上で実行

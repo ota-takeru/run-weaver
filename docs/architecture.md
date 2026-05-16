@@ -15,9 +15,11 @@ run-weaver daemon --target windows
 
 ### Daemon
 
-GitHub Issueを定期的に監視し、実行対象を選びます。対象Issueごとに専用worktreeを作成し、Codex CLIを実行します。
+GitHub Issueを定期的に監視し、実行対象を選びます。初期実装では `run-weaver:ready` ラベルが付いたopen Issueだけを対象にします。対象Issueごとに専用worktreeを作成し、Codex CLIを実行します。
 
 初期実装ではGitHub操作に `gh` CLIを使います。これにより、既存のGitHub認証状態をそのまま利用できます。
+
+Issueを取得したagentは、`running` ラベル付与とローカルstate file更新をclaimとして扱います。別targetが同じIssueを処理しようとした場合は、GitHub上の `running` ラベルとstate commentを再確認し、既に処理中ならスキップします。
 
 ### Target Adapter
 
@@ -42,9 +44,9 @@ Codexは人間用 `src` を直接触りません。Codex専用cloneを作り、I
 
 ### Secret Manager
 
-DB認証情報や環境変数はDopplerで一元管理します。CodexにはDopplerの `dev-agent` secretだけを渡します。
+DB認証情報や環境変数はDopplerで一元管理します。CodexにはDoppler service token `dev-agent` だけを渡します。
 
-agentはCodex起動時にDoppler経由で必要な環境変数を注入します。secretの実体をログ、Issueコメント、PR本文には出しません。
+agentはCodex起動時にDoppler経由で必要な環境変数を注入します。service tokenやsecretの実体をログ、Issueコメント、PR本文には出しません。
 
 ### Runner
 
@@ -67,6 +69,15 @@ tmux window名はIssue番号を含めます。
 - `blocked`: 認証、依存関係、Codex失敗、競合、人間確認待ちなどで停止
 
 状態はGitHub Issueのラベルとコメントで返します。CLIの `status` でも同じ情報を確認できます。
+
+ローカルの正本はstate fileです。既定パスは以下です。
+
+- WSL: `$XDG_STATE_HOME/run-weaver/state.json`。未設定なら `~/.local/state/run-weaver/state.json`
+- Windows: `%LOCALAPPDATA%\\run-weaver\\state.json`
+
+`status` はstate fileを主情報源にし、process、tmux、GitHub Issueを照合して表示します。state fileとGitHubの状態が矛盾する場合はGitHubの `running` / `done` / `blocked` ラベルを優先し、矛盾を `last error` に表示します。
+
+state fileには現在のtarget、Issue番号、branch、worktree、tmux session/window、claim時刻、最終コメント時刻、最終エラーを保存します。secret値は保存しません。
 
 ## 更新方式
 

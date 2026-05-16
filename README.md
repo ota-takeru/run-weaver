@@ -9,7 +9,7 @@
 - GitHub IssueをCodex作業のタスク入口にする
 - Codex専用cloneとIssue専用worktreeで人間用作業領域を汚さない
 - DopplerでDB認証情報や環境変数を一元管理する
-- CodexにはDopplerの `dev-agent` secretだけを渡す
+- CodexにはDoppler service token `dev-agent` だけを渡す
 - 作業状態をCLI、tmux、GitHub Issue上で確認できるようにする
 - 作業後はdraft PRを作成する
 - agent自体はGitHub Releases経由で更新する
@@ -31,13 +31,15 @@ run-weaver daemon --target windows
 ## 基本フロー
 
 1. 人間がGitHub Issueを作る
-2. `run-weaver daemon` が対象Issueを検出する
-3. Issueに `running` ラベルを付け、開始コメントを投稿する
-4. Codex専用cloneからIssue専用worktreeを作る
-5. Doppler経由で必要なsecretを注入し、Codex CLIをworktree上で実行する
-6. WSL側ではtmux sessionに実行ログを残す
-7. 作業後にdraft PRを作成する
-8. Issueに結果コメントを投稿し、`done` または `blocked` ラベルへ更新する
+2. 人間が対象Issueに `run-weaver:ready` ラベルを付ける
+3. `run-weaver daemon` が対象Issueを検出する
+4. Issueに `running` ラベルを付け、開始コメントを投稿する
+5. ローカルstate fileにclaimを保存する
+6. Codex専用cloneからIssue専用worktreeを作る
+7. Doppler経由で必要なsecretを注入し、Codex CLIをworktree上で実行する
+8. WSL側ではtmux sessionに実行ログを残す
+9. 作業後にdraft PRを作成する
+10. Issueに結果コメントを投稿し、`done` または `blocked` ラベルへ更新する
 
 ## 状態確認
 
@@ -48,6 +50,7 @@ run-weaver daemon --target windows
 - current issue
 - current worktree
 - tmux session name
+- local state file path
 - last state comment timestamp
 
 WSLではtmuxで実行ログを確認できます。

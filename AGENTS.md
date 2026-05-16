@@ -10,6 +10,19 @@
 - 通常の実装、調査、テスト、軽微な設計判断、ドキュメント更新、次に明らかなタスクへの着手は、エージェントが妥当な仮定を置いて進める。
 - 仮定を置いた場合は、最終報告または関連ドキュメントにその仮定を明記する。
 
+## プロジェクト固有ルール
+
+- 製品名、CLI名、tmux session名は `run-weaver` で統一する。旧名称は新規追加しない。
+- このプロジェクトは、GitHub Issueを入口にCodex CLIをworktree上で動かすGo製agentを作る。
+- 人間用 `src` は直接触らず、Codex専用cloneとIssue専用worktreeで作業する方針を維持する。
+- 初期実装の対象Issueは、同一repository内のopen Issueかつ `run-weaver:ready` ラベル付きに限定する。
+- agent管理ラベルは `running`、`done`、`blocked` の3つで、排他的に扱う。
+- WSL/Windowsの二重実行防止は、GitHub上の `running` ラベル、開始コメント、ローカルstate fileのclaimを使う。
+- `run-weaver status` はローカルstate fileを主情報源にし、process、tmux、GitHub Issueを照合する設計にする。
+- Dopplerについては、Codexへ渡すものをDoppler service token `dev-agent` と呼ぶ。tokenやsecretの値をログ、Issueコメント、PR本文、ドキュメント例に書かない。
+- GitHub操作は初期実装では `gh` CLI優先とする。GitHub API直実装へ変更する場合はdecision logまたはADRに残す。
+- dashboardは将来拡張であり、初期実装の必須範囲に含めない。
+
 ## 最初に読む順序
 
 1. `AGENTS.md`: このリポジトリでの最上位の作業規約。
@@ -23,7 +36,7 @@
 
 - `docs/progress.md` の `Current Work Queue`、Recommended Next Step、Definition of Done を現在の作業キューとして扱う。
 - 1つのタスクが完了したら、次のタスクへ進む前に、必ず別のエージェントの視点からレビューを行う。実際にサブエージェントを使える場合は使い、使えない場合は同じエージェントがレビュー観点を切り替えてセルフレビューする。
-- サブエージェントが利用可能な場合は、カスタムサブエージェントではなく Codex の built-in subagents を優先して使う。調査・読み取り中心は `explorer`、実装・修正レビューは `worker`、汎用フォールバックは `default` を使う。
+- サブエージェントが利用可能で、かつ実行環境の上位指示が許可している場合は、カスタムサブエージェントではなく Codex の built-in subagents を優先して使う。調査・読み取り中心は `explorer`、実装・修正レビューは `worker`、汎用フォールバックは `default` を使う。
 - レビュー結果は、以下のいずれかに分類して処理する。
   - すぐ修正する: バグ、回帰、設計意図との不整合、品質チェック失敗、テスト不足で現在の変更に閉じているもの。
   - 将来タスクに追加する: 現在の Definition of Done を超える改善、スコープ拡張、後続機能で扱うべき設計課題。
@@ -51,12 +64,16 @@
 ## 品質と検証
 
 - コード変更後は、変更範囲に応じてテストと品質チェックを実行する。
+- ドキュメントのみの変更では、少なくとも関連語句の検索、リンク先ファイルの存在確認、表記揺れ確認を行う。
+- `run-weaver` から別名称へ変わる変更、Issue入口条件、ラベル仕様、state file仕様、secret運用、常駐方式を変える変更は重要判断として扱う。
 
 ## ドキュメント整合性
 
 - 未決定事項を書く場合は、`docs/decision-log.md`、`docs/progress.md`、設計メモの間で解決済みの項目を未決定として残さない。
 - `docs/progress.md` は現在状態と次タスクの正本、`docs/process-log.md` は時系列ログ、`docs/decision-log.md` と `docs/adr/` は確定判断の正本として使い分ける。
 - 設計メモは検討材料として扱い、accepted decision / ADR と矛盾する場合は accepted decision / ADR を優先して、必要なら設計メモを更新する。
+- README、`docs/architecture.md`、`docs/cli.md`、`docs/github-issue-flow.md` の同じ仕様は同時に更新する。
+- AGENTS.mdが参照する運用ドキュメントを増減させる場合は、この「最初に読む順序」と「既存ドキュメントの優先順位」も更新する。
 
 ## Git運用
 
