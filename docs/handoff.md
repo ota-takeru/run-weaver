@@ -35,6 +35,7 @@
 - 現時点ではstatus表示の細分化、GitHub照合のstatus接続、実GitHub Issueでの統合検証は未実施。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。
+- 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor checkはWindows実機で追加検証が必要。
 

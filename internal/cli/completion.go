@@ -64,6 +64,9 @@ func codexCompletionReady(target string, job *stateJob) bool {
 func markDone(ctx context.Context, client githubClient, issueNumber int, prURL, branch, worktree string) error {
 	_ = client.RemoveLabel(ctx, issueNumber, runningLabel)
 	_ = client.RemoveLabel(ctx, issueNumber, blockedLabel)
+	if err := client.EnsureLabel(ctx, doneLabel); err != nil {
+		return err
+	}
 	if err := client.AddLabel(ctx, issueNumber, doneLabel); err != nil {
 		return err
 	}

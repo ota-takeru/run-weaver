@@ -40,6 +40,9 @@ func claimIssueWithID(ctx context.Context, client githubClient, number int, targ
 		return claimResult{Outcome: claimSkipped, ClaimID: claimID, Issue: issue}, nil
 	}
 
+	if err := ensureManagedLabels(ctx, client); err != nil {
+		return claimResult{}, err
+	}
 	if err := client.AddLabel(ctx, number, runningLabel); err != nil {
 		return claimResult{}, err
 	}
@@ -58,6 +61,15 @@ func claimIssueWithID(ctx context.Context, client githubClient, number int, targ
 		return claimResult{Outcome: claimLost, ClaimID: claimID, Issue: refreshed}, nil
 	}
 	return claimResult{Outcome: claimWon, ClaimID: claimID, Issue: refreshed}, nil
+}
+
+func ensureManagedLabels(ctx context.Context, client githubClient) error {
+	for _, label := range []string{runningLabel, doneLabel, blockedLabel} {
+		if err := client.EnsureLabel(ctx, label); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func claimCommentBody(claimID, target string, issue githubIssue) string {

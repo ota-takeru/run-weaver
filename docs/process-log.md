@@ -1,5 +1,20 @@
 # Process Log
 
+## 2026-05-16 - Managed Label Creation
+
+Review:
+
+- Immediate fixes:
+  - WSL統合テストで対象repoに `running` が存在せず、`gh issue edit --add-label running` が失敗することを確認した。
+  - `running` / `done` / `blocked` を `gh label create --force` で事前作成する処理を追加した。
+  - claim前に3つの管理ラベルをensureするようにした。
+  - `blocked` / `done` 更新前にも対象ラベルをensureするようにした。
+  - 管理ラベルensureの単体テストを追加した。
+- Future tasks:
+  - WSL統合テストを再実行する。
+- Human-facing reports:
+  - 対象repositoryにはrun-weaver管理ラベルが作成または更新される。
+
 ## 2026-05-16 - Finish Check Before WSL Integration
 
 Review:

@@ -38,6 +38,11 @@ func TestClaimIssueWinsWhenLatestClaimIsOwnComment(t *testing.T) {
 	if !client.added[runningLabel] {
 		t.Fatal("running label was not added")
 	}
+	for _, label := range []string{runningLabel, doneLabel, blockedLabel} {
+		if !client.ensured[label] {
+			t.Fatalf("%s label was not ensured", label)
+		}
+	}
 	if len(client.comments) != 1 || !strings.Contains(client.comments[0].Body, "run-weaver-claim:run-weaver:wsl:test") {
 		t.Fatalf("comments = %#v, want claim comment", client.comments)
 	}
@@ -92,6 +97,7 @@ type fakeGitHubClient struct {
 	comments     []githubComment
 	afterComment func()
 	draftPR      draftPRSpec
+	ensured      map[string]bool
 }
 
 func newFakeGitHubClient(issue githubIssue) *fakeGitHubClient {
@@ -99,6 +105,7 @@ func newFakeGitHubClient(issue githubIssue) *fakeGitHubClient {
 		issue:    issue,
 		added:    map[string]bool{},
 		removed:  map[string]bool{},
+		ensured:  map[string]bool{},
 		comments: append([]githubComment(nil), issue.Comments...),
 	}
 }
@@ -116,6 +123,11 @@ func (c *fakeGitHubClient) ViewIssue(context.Context, int) (githubIssue, error) 
 func (c *fakeGitHubClient) AddLabel(_ context.Context, _ int, label string) error {
 	c.added[label] = true
 	c.issue.Labels = append(c.issue.Labels, githubLabel{Name: label})
+	return nil
+}
+
+func (c *fakeGitHubClient) EnsureLabel(_ context.Context, label string) error {
+	c.ensured[label] = true
 	return nil
 }
 

@@ -25,6 +25,7 @@ var managedLabels = map[string]struct{}{
 type githubClient interface {
 	ListReadyIssues(context.Context) ([]githubIssue, error)
 	ViewIssue(context.Context, int) (githubIssue, error)
+	EnsureLabel(context.Context, string) error
 	AddLabel(context.Context, int, string) error
 	RemoveLabel(context.Context, int, string) error
 	Comment(context.Context, int, string) error
@@ -87,6 +88,21 @@ func (c ghClient) ViewIssue(ctx context.Context, number int) (githubIssue, error
 
 func (c ghClient) AddLabel(ctx context.Context, number int, label string) error {
 	_, err := c.run(ctx, "issue", "edit", strconv.Itoa(number), "--add-label", label)
+	return err
+}
+
+func (c ghClient) EnsureLabel(ctx context.Context, label string) error {
+	color := "ededed"
+	description := "run-weaver managed state label"
+	switch label {
+	case runningLabel:
+		color = "fbca04"
+	case doneLabel:
+		color = "0e8a16"
+	case blockedLabel:
+		color = "b60205"
+	}
+	_, err := c.run(ctx, "label", "create", label, "--color", color, "--description", description, "--force")
 	return err
 }
 

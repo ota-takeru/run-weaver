@@ -118,6 +118,9 @@ func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 func markBlocked(ctx context.Context, client githubClient, issueNumber int, stage string, err error) error {
 	_ = client.RemoveLabel(ctx, issueNumber, runningLabel)
 	_ = client.RemoveLabel(ctx, issueNumber, doneLabel)
+	if ensureErr := client.EnsureLabel(ctx, blockedLabel); ensureErr != nil {
+		return ensureErr
+	}
 	if labelErr := client.AddLabel(ctx, issueNumber, blockedLabel); labelErr != nil {
 		return labelErr
 	}
