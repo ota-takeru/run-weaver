@@ -32,7 +32,7 @@
 - secretやtokenの実値をログやドキュメントに書かない。
 - stale `running` の自動奪取は初期実装では行わない。
 - 初期実装のCodex起動は `codex exec` を使う。
-- 現時点では継続poll loop、失敗時のstate file更新強化、status表示の細分化は未実装。
+- 現時点ではstatus表示の細分化、GitHub照合のstatus接続、実GitHub Issueでの統合検証は未実施。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。

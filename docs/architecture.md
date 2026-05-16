@@ -17,6 +17,8 @@ run-weaver daemon --target windows
 
 GitHub Issueを定期的に監視し、実行対象を選びます。初期実装では `run-weaver:ready` ラベルが付いたopen Issueだけを対象にします。対象Issueごとに専用worktreeを作成し、Codex CLIを実行します。
 
+daemonは `--repo-url` でCodex専用clone作成元のrepository URLを受け取ります。`--once` を指定した場合は1件だけ処理して終了し、指定しない場合は `--poll-interval` ごとに継続pollします。
+
 初期実装ではGitHub操作に `gh` CLIを使います。これにより、既存のGitHub認証状態をそのまま利用できます。
 
 Issueを取得したagentは、`running` ラベル付与、開始コメント、ローカルstate file更新をclaimとして扱います。別targetが同じIssueを処理しようとした場合は、GitHub上の `running` ラベルと最新のclaimコメントを再確認し、既に処理中ならスキップします。
@@ -63,6 +65,8 @@ tmux attach -t run-weaver
 tmux window名はIssue番号を含めます。
 
 初期実装ではCodexを非対話モードの `codex exec` で起動します。worktreeは `--cd` で指定し、JSONLログと最終応答はstate配下のIssue別ディレクトリへ保存します。終了コード `0` 以外、JSONLログの異常終了、draft PR作成失敗は `blocked` として扱います。
+
+Codex完了の初期判定は、最終応答ファイルが存在し、対象tmux windowが終了していることです。完了後はbranchをpushし、draft PRを作成してIssueを `done` に更新します。
 
 CodexにはDoppler service token `dev-agent` を環境変数経由で渡します。agentはtokenの値をstate file、tmuxログ、構造化ログ、Issueコメント、PR本文に出しません。tmux上でもtoken値が表示されないよう、コマンドライン引数ではなく環境変数として注入します。
 
