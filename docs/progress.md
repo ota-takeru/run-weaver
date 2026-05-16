@@ -2,19 +2,18 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、daemon loop化と失敗時blocked処理の強化です。
+現在の優先タスクは、実環境向けの仕上げ検証と不足ドキュメント更新です。
 
 Definition of Done:
 
-- `run-weaver daemon --target wsl` が継続pollできる
-- poll intervalを指定できる
-- 起動後の各段階で失敗した場合に `blocked` コメントとstate fileへ反映できる
-- Codex実行中と完了待ちの状態を `status` で区別できる
+- README、`docs/architecture.md`、`docs/cli.md`、`docs/github-issue-flow.md` の実装済み仕様が一致している
+- `run-weaver doctor --target wsl`、`status --json`、`daemon --help` 相当の基本動作を手元で確認している
+- 実GitHub Issueに対して試す前の手順と注意点がhandoffにある
 - 単体テストと `go test ./...` が通る
 
 Recommended Next Step:
 
-- daemon loop、poll interval、blocked state file更新を追加する。
+- 実装済みCLI仕様とドキュメントの差分を確認し、必要な追記を行う。
 
 ## Completed
 
@@ -58,10 +57,13 @@ Recommended Next Step:
 - Codex完了の最小条件としてlast message fileの存在とtmux window終了を使うようにした
 - 完了済みjobでgit push、draft PR作成、`done` ラベル、結果コメント、state更新を行う処理を追加した
 - draft PR作成flowの単体テストを追加した
+- `daemon` の継続poll loopと `--poll-interval` を追加した
+- claim後の失敗時に `blocked` ラベル、blockedコメント、state fileのblocked状態を残す処理を追加した
 
 ## Upcoming Sequence
 
-現時点ではなし。Current Work Queueを継続する。
+1. 実GitHub Issueを使ったWSL統合テスト
+2. Windows targetのdoctor / status追加検証
 
 ## Open Decisions To Watch
 

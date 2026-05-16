@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 )
 
 const (
@@ -109,6 +110,7 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 	once := fs.Bool("once", false, "process at most one issue and exit")
 	repo := fs.String("repo", "", "GitHub repository for gh, in owner/repo form")
 	repoURL := fs.String("repo-url", "", "repository URL used to create the Codex clone")
+	pollInterval := fs.Duration("poll-interval", time.Minute, "daemon poll interval")
 	if !parseFlags(fs, args, stderr) {
 		return exitUsage
 	}
@@ -116,23 +118,29 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 
-	if !*once {
-		fmt.Fprintln(stderr, "daemon loop is not implemented yet; use --once")
+	if *repoURL == "" {
+		fmt.Fprintln(stderr, "--repo-url is required for daemon")
 		return exitConfigMissing
 	}
-	if *repoURL == "" {
-		fmt.Fprintln(stderr, "--repo-url is required for daemon --once")
-		return exitConfigMissing
+	if *pollInterval <= 0 {
+		fmt.Fprintln(stderr, "--poll-interval must be greater than zero")
+		return exitUsage
 	}
 
-	result, err := processOneIssue(daemonDeps{
+	deps := daemonDeps{
 		github:   ghClient{repo: *repo},
 		worktree: newWorktreeManager(nil),
 		runner:   newTmuxRunner(nil),
-	}, daemonOptions{
+	}
+	opts := daemonOptions{
 		target:  *target,
 		repoURL: *repoURL,
-	})
+	}
+	if !*once {
+		return runDaemonLoop(stdout, stderr, deps, opts, *pollInterval)
+	}
+
+	result, err := processOneIssue(deps, opts)
 	if err != nil {
 		fmt.Fprintf(stderr, "daemon error: %v\n", err)
 		return exitConfigMissing

@@ -27,6 +27,7 @@ run-weaver install
 run-weaver daemon --target wsl
 run-weaver daemon --target windows
 run-weaver daemon --target wsl --once --repo-url https://github.com/example/repo.git
+run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --poll-interval 1m
 ```
 
 将来的に、ブラウザから状態確認するための `run-weaver dashboard` を追加します。

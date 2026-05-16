@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 )
 
@@ -15,6 +16,20 @@ type daemonDeps struct {
 type daemonOptions struct {
 	target  string
 	repoURL string
+}
+
+func runDaemonLoop(stdout, stderr io.Writer, deps daemonDeps, opts daemonOptions, interval time.Duration) int {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		result, err := processOneIssue(deps, opts)
+		if err != nil {
+			fmt.Fprintf(stderr, "daemon error: %v\n", err)
+		} else {
+			fmt.Fprintln(stdout, result)
+		}
+		<-ticker.C
+	}
 }
 
 func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
@@ -49,18 +64,21 @@ func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 	spec, err := deps.worktree.Prepare(ctx, opts.target, claim.Issue, opts.repoURL)
 	if err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "worktree", err)
+		_ = writeBlockedState(opts.target, claim.Issue, claim.ClaimID, spec, nil, "worktree", err)
 		return "", err
 	}
 
 	runSpec := buildCodexRunSpec(opts.target, issue.Number, spec.Path)
 	if err := writePromptFile(runSpec.PromptPath, claim.Issue); err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "prompt", err)
+		_ = writeBlockedState(opts.target, claim.Issue, claim.ClaimID, spec, nil, "prompt", err)
 		return "", err
 	}
 
 	tmux, err := deps.runner.StartCodex(ctx, runSpec)
 	if err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "runner", err)
+		_ = writeBlockedState(opts.target, claim.Issue, claim.ClaimID, spec, nil, "runner", err)
 		return "", err
 	}
 
@@ -105,4 +123,31 @@ func markBlocked(ctx context.Context, client githubClient, issueNumber int, stag
 	}
 	body := fmt.Sprintf("run-weaver blocked during %s.\n\nError: %s\n", stage, err)
 	return client.Comment(ctx, issueNumber, body)
+}
+
+func writeBlockedState(target string, issue githubIssue, claimID string, spec worktreeSpec, tmux *tmuxRef, stage string, cause error) error {
+	message := fmt.Sprintf("%s: %s", stage, cause)
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        target,
+		UpdatedAt:     time.Now().UTC().Format(time.RFC3339),
+		Daemon: stateDaemon{
+			Service: "run-weaver.service",
+		},
+		Job: &stateJob{
+			Issue: issueRef{
+				Number: issue.Number,
+				Title:  issue.Title,
+				URL:    issue.URL,
+			},
+			LabelState: blockedLabel,
+			Branch:     spec.Branch,
+			Worktree:   spec.Path,
+			ClaimID:    claimID,
+			ClaimedAt:  time.Now().UTC().Format(time.RFC3339),
+			Tmux:       tmux,
+			LastError:  &message,
+		},
+	}
+	return writeStateFile(defaultStateFile(target), state)
 }

@@ -1,5 +1,23 @@
 # Process Log
 
+## 2026-05-16 - Daemon Loop and Blocked State
+
+Review:
+
+- Immediate fixes:
+  - `daemon` の継続poll loopを追加した。
+  - `--poll-interval` を追加した。
+  - `daemon --once` は従来どおり1件処理して終了するようにした。
+  - claim後のworktree、prompt、runner失敗時に `blocked` ラベル、blockedコメント、state fileのblocked jobを残すようにした。
+  - blocked state file更新の単体テストを追加した。
+  - READMEと `docs/cli.md` に `--poll-interval` を追記した。
+- Future tasks:
+  - 実GitHub Issueを使ったWSL統合テストを行う。
+  - `status` でCodex実行中、完了待ち、blockedをさらに分かりやすく表示する。
+  - Windows targetの追加検証を行う。
+- Human-facing reports:
+  - daemonは外部GitHub Issueを変更するため、実行前に対象Issueと `--repo-url` を確認する必要がある。
+
 ## 2026-05-16 - Codex Completion and Draft PR
 
 Review:

@@ -71,3 +71,37 @@ func TestProcessOneIssueNoReadyIssue(t *testing.T) {
 		t.Fatalf("result = %q, want no ready issue", result)
 	}
 }
+
+func TestProcessOneIssueWritesBlockedStateAfterClaimFailure(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tempDir+"/data")
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	github := newFakeGitHubClient(githubIssue{
+		Number: 42,
+		Title:  "Add export",
+		Labels: []githubLabel{{Name: readyLabel}},
+	})
+
+	_, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(&fakeCommandRunner{}),
+		runner:   newTmuxRunner(&fakeCommandRunner{}),
+	}, daemonOptions{target: "wsl"})
+
+	if err == nil {
+		t.Fatal("expected worktree error")
+	}
+	state, readErr := readStateFile(defaultStateFile("wsl"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if state.Job == nil || state.Job.LabelState != blockedLabel {
+		t.Fatalf("state job = %#v, want blocked", state.Job)
+	}
+	if state.Job.LastError == nil || !strings.Contains(*state.Job.LastError, "worktree") {
+		t.Fatalf("last error = %#v, want worktree error", state.Job.LastError)
+	}
+	if !github.added[blockedLabel] {
+		t.Fatal("blocked label was not added")
+	}
+}

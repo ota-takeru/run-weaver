@@ -20,10 +20,11 @@
 - worktree manager、prompt file生成、draft PR作成wrapperを実装済み。
 - `daemon --once` でready Issue取得、claim、worktree作成、prompt生成、tmux起動、state保存まで接続済み。
 - Codex完了検出、git push、draft PR作成、`done` ラベル、結果コメント、state更新を実装済み。
+- `daemon` の継続poll loop、`--poll-interval`、claim後失敗時のblocked state file更新を実装済み。
 
 ## Next Step
 
-daemon loop化と失敗時blocked処理を強化する。
+実装済みCLI仕様とドキュメントの整合確認を行い、実GitHub Issueを使ったWSL統合テスト手順を固める。
 
 ## Notes
 
@@ -33,5 +34,6 @@ daemon loop化と失敗時blocked処理を強化する。
 - 初期実装のCodex起動は `codex exec` を使う。
 - 現時点では継続poll loop、失敗時のstate file更新強化、status表示の細分化は未実装。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
+- `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor checkはWindows実機で追加検証が必要。
