@@ -2,20 +2,20 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、WSL targetのtmux runner実装です。
+現在の優先タスクは、draft PR作成までのdaemon flow実装です。
 
 Definition of Done:
 
-- tmux session `run-weaver` を作成または再利用できる
-- Issueごとのwindow名 `issue-<number>` を作れる
-- `codex exec --cd <worktree>` の起動コマンドを組み立てられる
-- JSONLログと最終応答パスをstate配下に向けられる
-- runnerの単体テストと `go test ./...` が通る
+- ready Issueのclaim後にworktreeを作る
+- prompt file、Codex log path、last message pathを準備する
+- WSL tmux runnerでCodexを起動する
+- 成功時にdraft PRを作成し `done` に更新する処理枠がある
+- 失敗時に `blocked` に更新する処理枠がある
 - 単体テストと `go test ./...` が通る
 
 Recommended Next Step:
 
-- tmux runnerのinterfaceとコマンド組み立て処理を追加する。
+- worktree manager、prompt作成、draft PR作成用の `gh` wrapperを追加し、daemonの一回分処理へ接続する。
 
 ## Completed
 
@@ -48,10 +48,15 @@ Recommended Next Step:
 - `run-weaver:ready` ラベル付きopen Issue取得と管理ラベル除外処理を追加した
 - claim ID付き開始コメント投稿と、最新claimコメント再取得による勝敗判定を追加した
 - claim競合負けではstate fileを更新しない方針をコード上の境界として実装した
+- tmux session `run-weaver` の作成または再利用処理を追加した
+- Issueごとのtmux window名 `issue-<number>` を作る処理を追加した
+- `codex exec --json --cd <worktree>` の起動コマンドを組み立てる処理を追加した
+- JSONLログと最終応答パスをstate配下に向ける処理を追加した
+- tmux runnerの単体テストを追加した
 
 ## Upcoming Sequence
 
-1. draft PR作成までのdaemon flowを実装する
+現時点ではなし。Current Work Queueを継続する。
 
 ## Open Decisions To Watch
 

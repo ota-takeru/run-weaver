@@ -1,5 +1,22 @@
 # Process Log
 
+## 2026-05-16 - WSL tmux Runner
+
+Review:
+
+- Immediate fixes:
+  - tmux session `run-weaver` を作成または再利用するrunnerを追加した。
+  - Issue番号からtmux window名 `issue-<number>` を作るようにした。
+  - `codex exec --json --cd <worktree> --output-last-message <path> -` の起動コマンドを組み立てるようにした。
+  - JSONLログ、最終応答、prompt fileのパスをstate配下のIssue別ディレクトリへ向けるようにした。
+  - shell quote処理とtmux command runnerの単体テストを追加した。
+- Future tasks:
+  - worktree managerとprompt作成を実装する。
+  - daemon flowからclaim、worktree、runner、draft PR作成を接続する。
+  - tmux windowが既に存在する場合の再実行ポリシーをdaemon flow側で扱う。
+- Human-facing reports:
+  - runnerはコマンド組み立てとtmux起動境界まで実装済み。Codex完了監視とPR作成は未接続。
+
 ## 2026-05-16 - GitHub Issue Claim
 
 Review:

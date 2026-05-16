@@ -16,10 +16,11 @@
 - `status` がstate fileを読み込み、human / JSONで表示するようになった。
 - `status` のprocess、tmux、GitHub照合境界を分けた。GitHub照合は未接続。
 - `gh` CLI wrapper、ready Issue取得、管理ラベル除外、claim ID付き開始コメント、claim勝敗判定を実装済み。
+- WSL tmux runner、`run-weaver` session作成、`issue-<number>` window作成、`codex exec` コマンド組み立てを実装済み。
 
 ## Next Step
 
-WSL targetのtmux runnerを実装する。
+draft PR作成までのdaemon flowを実装する。
 
 ## Notes
 
@@ -27,7 +28,7 @@ WSL targetのtmux runnerを実装する。
 - secretやtokenの実値をログやドキュメントに書かない。
 - stale `running` の自動奪取は初期実装では行わない。
 - 初期実装のCodex起動は `codex exec` を使う。
-- 現時点ではtmux runner、worktree作成、daemon flowは未実装。
-- GitHub claim処理は実装済みだが、runner未実装のためdaemon flowにはまだ接続していない。
+- 現時点ではworktree作成、Codex完了監視、draft PR作成、daemon flow接続は未実装。
+- GitHub claim処理とrunnerは実装済みだが、worktree作成と完了処理が未実装のためdaemon flowにはまだ接続していない。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor checkはWindows実機で追加検証が必要。
