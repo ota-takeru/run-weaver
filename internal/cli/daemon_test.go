@@ -53,6 +53,8 @@ func TestProcessOneIssueStartsCodexAndWritesState(t *testing.T) {
 }
 
 func TestProcessOneIssueNoReadyIssue(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
 	github := newFakeGitHubClient(githubIssue{
 		Number: 42,
 		Labels: []githubLabel{{Name: runningLabel}},

@@ -35,7 +35,7 @@ func TestBuildCodexTmuxCommand(t *testing.T) {
 	command := buildCodexTmuxCommand(spec)
 
 	for _, want := range []string{
-		"mkdir -p '/tmp/state' && codex exec --json",
+		"mkdir -p '/tmp/state' && codex exec --json --sandbox workspace-write --ask-for-approval never",
 		"codex exec --json",
 		"--cd '/tmp/work tree'",
 		"--output-last-message '/tmp/state/last message.txt'",
@@ -78,6 +78,7 @@ func TestTmuxRunnerStartsWindow(t *testing.T) {
 
 type fakeCommandRunner struct {
 	calls               []commandCall
+	outputs             map[string][]byte
 	failFirstHasSession bool
 }
 
@@ -93,6 +94,14 @@ func (r *fakeCommandRunner) Run(_ context.Context, name string, args ...string) 
 		return errFakeCommand
 	}
 	return nil
+}
+
+func (r *fakeCommandRunner) Output(_ context.Context, name string, args ...string) ([]byte, error) {
+	r.calls = append(r.calls, commandCall{name: name, args: append([]string(nil), args...)})
+	if r.outputs == nil {
+		return nil, nil
+	}
+	return r.outputs[name+"\x00"+strings.Join(args, "\x00")], nil
 }
 
 func (r *fakeCommandRunner) ran(name string, args ...string) bool {

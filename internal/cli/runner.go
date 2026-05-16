@@ -13,17 +13,22 @@ const tmuxSessionName = "run-weaver"
 
 type commandRunner interface {
 	Run(context.Context, string, ...string) error
+	Output(context.Context, string, ...string) ([]byte, error)
 }
 
 type execCommandRunner struct{}
 
 func (execCommandRunner) Run(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
+	out, err := (execCommandRunner{}).Output(ctx, name, args...)
 	if err != nil {
 		return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+func (execCommandRunner) Output(ctx context.Context, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	return cmd.CombinedOutput()
 }
 
 type tmuxRunner struct {
@@ -82,6 +87,8 @@ func buildCodexTmuxCommand(spec codexRunSpec) string {
 	dir := shellQuote(filepath.Dir(spec.JSONLogPath))
 	codexCommand := strings.Join([]string{
 		"codex exec --json",
+		"--sandbox workspace-write",
+		"--ask-for-approval never",
 		"--cd " + shellQuote(spec.Worktree),
 		"--output-last-message " + shellQuote(spec.LastMessagePath),
 		"-",

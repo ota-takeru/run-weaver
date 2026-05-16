@@ -24,8 +24,22 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 		return "", false, nil
 	}
 
+	committed, err := deps.worktree.CommitAll(ctx, state.Job.Worktree, fmt.Sprintf("Implement issue #%d", state.Job.Issue.Number))
+	if err != nil {
+		_ = markBlocked(ctx, deps.github, state.Job.Issue.Number, "git commit", err)
+		_ = writeBlockedState(opts.target, githubIssue{Number: state.Job.Issue.Number, Title: state.Job.Issue.Title, URL: state.Job.Issue.URL}, state.Job.ClaimID, worktreeSpec{Path: state.Job.Worktree, Branch: state.Job.Branch}, state.Job.Tmux, "git commit", err)
+		return "", true, err
+	}
+	if !committed {
+		err := fmt.Errorf("codex completed without file changes")
+		_ = markBlocked(ctx, deps.github, state.Job.Issue.Number, "codex result", err)
+		_ = writeBlockedState(opts.target, githubIssue{Number: state.Job.Issue.Number, Title: state.Job.Issue.Title, URL: state.Job.Issue.URL}, state.Job.ClaimID, worktreeSpec{Path: state.Job.Worktree, Branch: state.Job.Branch}, state.Job.Tmux, "codex result", err)
+		return "", true, err
+	}
+
 	if err := deps.worktree.PushBranch(ctx, state.Job.Worktree, state.Job.Branch); err != nil {
 		_ = markBlocked(ctx, deps.github, state.Job.Issue.Number, "git push", err)
+		_ = writeBlockedState(opts.target, githubIssue{Number: state.Job.Issue.Number, Title: state.Job.Issue.Title, URL: state.Job.Issue.URL}, state.Job.ClaimID, worktreeSpec{Path: state.Job.Worktree, Branch: state.Job.Branch}, state.Job.Tmux, "git push", err)
 		return "", true, err
 	}
 
@@ -36,6 +50,7 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 	}, state.Job.Branch))
 	if err != nil {
 		_ = markBlocked(ctx, deps.github, state.Job.Issue.Number, "draft PR", err)
+		_ = writeBlockedState(opts.target, githubIssue{Number: state.Job.Issue.Number, Title: state.Job.Issue.Title, URL: state.Job.Issue.URL}, state.Job.ClaimID, worktreeSpec{Path: state.Job.Worktree, Branch: state.Job.Branch}, state.Job.Tmux, "draft PR", err)
 		return "", true, err
 	}
 	if err := markDone(ctx, deps.github, state.Job.Issue.Number, prURL, state.Job.Branch, state.Job.Worktree); err != nil {

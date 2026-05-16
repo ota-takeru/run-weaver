@@ -35,7 +35,11 @@ func TestCompleteCurrentJobCreatesDraftPR(t *testing.T) {
 		t.Fatal(err)
 	}
 	github := newFakeGitHubClient(githubIssue{Number: 42, Title: "Add export"})
-	commands := &fakeCommandRunner{}
+	commands := &fakeCommandRunner{
+		outputs: map[string][]byte{
+			"git\x00-C\x00" + tempDir + "/worktrees/issue-42\x00status\x00--porcelain": []byte(" M index.html\n"),
+		},
+	}
 
 	result, completed, err := completeCurrentJob(context.Background(), daemonDeps{
 		github:   github,
@@ -67,6 +71,53 @@ func TestCompleteCurrentJobCreatesDraftPR(t *testing.T) {
 	}
 	if updated.Job.LabelState != doneLabel {
 		t.Fatalf("state label = %q, want done", updated.Job.LabelState)
+	}
+}
+
+func TestCompleteCurrentJobBlocksWithoutChanges(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	lastMessage := tempDir + "/last-message.txt"
+	if err := os.WriteFile(lastMessage, []byte("done"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add export"},
+			LabelState: runningLabel,
+			Branch:     "codex/issue-42-add-export",
+			Worktree:   tempDir + "/worktrees/issue-42",
+			Codex:      &codexState{LastMessagePath: lastMessage},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{Number: 42, Title: "Add export"})
+
+	_, completed, err := completeCurrentJob(context.Background(), daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(&fakeCommandRunner{}),
+		runner:   newTmuxRunner(&fakeCommandRunner{}),
+	}, daemonOptions{target: "wsl"})
+
+	if err == nil {
+		t.Fatal("expected no changes error")
+	}
+	if !completed {
+		t.Fatal("expected completed blocked flow")
+	}
+	if !github.added[blockedLabel] {
+		t.Fatal("blocked label was not added")
+	}
+	updated, err := readStateFile(defaultStateFile("wsl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Job.LabelState != blockedLabel {
+		t.Fatalf("state label = %q, want blocked", updated.Job.LabelState)
 	}
 }
 

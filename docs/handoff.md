@@ -32,7 +32,9 @@
 - secretやtokenの実値をログやドキュメントに書かない。
 - stale `running` の自動奪取は初期実装では行わない。
 - 初期実装のCodex起動は `codex exec` を使う。
-- 現時点ではstatus表示の細分化、GitHub照合のstatus接続、実GitHub Issueでの統合検証は未実施。
+- Codexは `--sandbox workspace-write --ask-for-approval never` で起動する。
+- Codex完了後、daemonがworktreeの変更をcommitしてからpush / draft PR作成へ進む。変更なしなら `blocked` にする。
+- 現時点ではstatus表示の細分化、Windows実機検証、成功ケースの実GitHub Issue統合検証は未実施。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。

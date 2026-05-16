@@ -8,7 +8,11 @@ Review:
   - WSL統合テストでtmux windowが即終了し、Codexログに `mkdir: unrecognized option '--json'` が出ることを確認した。
   - tmux内コマンドの連結を空白連結から `&&` 連結へ修正した。
   - 追加確認で `&&` がCodex引数間にも入る問題を見つけ、`mkdir -p <dir> && codex exec ...` の形に修正した。
+  - Codexを `--sandbox workspace-write --ask-for-approval never` で起動するようにした。
   - 既存worktreeがある場合に `git worktree add` を再実行せず再利用するようにした。
+  - Codex完了後にworktreeの変更をcommitしてからpushする処理を追加した。
+  - Codexが変更なしで完了した場合はdraft PR作成へ進まず `blocked` にするようにした。
+  - draft PR作成失敗時にもstate fileを `blocked` へ更新するようにした。
   - runner commandとworktree再利用の単体テストを追加した。
 - Future tasks:
   - Issue #1 の `running` を外して再度WSL統合テストを行う。

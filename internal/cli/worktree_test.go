@@ -106,3 +106,44 @@ func TestBuildDraftPRSpec(t *testing.T) {
 		t.Fatalf("body = %q", spec.Body)
 	}
 }
+
+func TestWorktreeCommitAllSkipsCleanTree(t *testing.T) {
+	commands := &fakeCommandRunner{}
+	manager := newWorktreeManager(commands)
+
+	committed, err := manager.CommitAll(context.Background(), "/tmp/worktree", "message")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if committed {
+		t.Fatal("expected clean tree to skip commit")
+	}
+	if commands.ranPrefix("git", "-C", "/tmp/worktree", "commit") {
+		t.Fatalf("commands = %#v, should not commit", commands.calls)
+	}
+}
+
+func TestWorktreeCommitAllCommitsDirtyTree(t *testing.T) {
+	commands := &fakeCommandRunner{
+		outputs: map[string][]byte{
+			"git\x00-C\x00/tmp/worktree\x00status\x00--porcelain": []byte(" M index.html\n"),
+		},
+	}
+	manager := newWorktreeManager(commands)
+
+	committed, err := manager.CommitAll(context.Background(), "/tmp/worktree", "message")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !committed {
+		t.Fatal("expected dirty tree to commit")
+	}
+	if !commands.ran("git", "-C", "/tmp/worktree", "add", "-A") {
+		t.Fatalf("commands = %#v, want git add", commands.calls)
+	}
+	if !commands.ran("git", "-C", "/tmp/worktree", "commit", "-m", "message") {
+		t.Fatalf("commands = %#v, want git commit", commands.calls)
+	}
+}

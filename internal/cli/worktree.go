@@ -48,6 +48,23 @@ func (m worktreeManager) PushBranch(ctx context.Context, worktree, branch string
 	return m.commands.Run(ctx, "git", "-C", worktree, "push", "-u", "origin", branch)
 }
 
+func (m worktreeManager) CommitAll(ctx context.Context, worktree, message string) (bool, error) {
+	status, err := m.commands.Output(ctx, "git", "-C", worktree, "status", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(string(status)) == "" {
+		return false, nil
+	}
+	if err := m.commands.Run(ctx, "git", "-C", worktree, "add", "-A"); err != nil {
+		return false, err
+	}
+	if err := m.commands.Run(ctx, "git", "-C", worktree, "commit", "-m", message); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (m worktreeManager) ensureClone(ctx context.Context, cloneDir, repoURL string) error {
 	if _, err := os.Stat(filepath.Join(cloneDir, ".git")); err == nil {
 		return m.commands.Run(ctx, "git", "-C", cloneDir, "fetch", "origin")
