@@ -1,5 +1,21 @@
 # Process Log
 
+## 2026-05-16 - WSL Integration Success
+
+Review:
+
+- Immediate fixes:
+  - Issue #1 の古い `running` ラベルとローカルstateを再実行前に整理した。
+  - 本文付きIssue #1で `daemon --target wsl --once` を再実行した。
+  - Codexが `README.md` を追加し、daemon完了処理で `Implement issue #1` commit、branch push、draft PR作成、`done` ラベル更新まで進むことを確認した。
+  - `status --repo ota-takeru/truth-table-app` でGitHubとstate fileの照合conflictがないことを確認した。
+  - Issue本文をpromptに含める修正と、タイトルのみでも具体的なら実行するprompt方針を統合テストで確認した。
+- Future tasks:
+  - Windows targetのdoctor / status追加検証を行う。
+  - stale `running` を人間操作で整理した手順を、将来の自動解除設計で再検討する。
+- Human-facing reports:
+  - `ota-takeru/truth-table-app#1` は `done` になり、draft PR `https://github.com/ota-takeru/truth-table-app/pull/2` が作成された。
+
 ## 2026-05-16 - Issue Body Prompt Handling
 
 Review:
@@ -12,7 +28,7 @@ Review:
   - 再実行時に `codex exec --ask-for-approval` が不正な引数順として失敗したため、`codex --ask-for-approval never exec ...` に修正した。
   - prompt生成の単体テストを追加した。
 - Future tasks:
-  - 本文追加済みIssue #1で再実行する。
+  - 本文追加済みIssue #1で再実行したため完了。
 - Human-facing reports:
   - 今後は本文なしでも、タイトルが「README追加」など具体的な変更を示していればCodexへ進める。
 

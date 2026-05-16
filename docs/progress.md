@@ -2,20 +2,18 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、実GitHub Issueを使ったWSL統合テストです。
+現在の優先タスクは、Windows targetのdoctor / status追加検証です。
 
 Definition of Done:
 
-- ユーザーが対象repositoryとテスト用Issueを確認している
-- テスト用Issueに `run-weaver:ready` が付いている
-- テスト用Issueに `running` / `done` / `blocked` が付いていない
-- `run-weaver daemon --target wsl --once --repo <owner/repo> --repo-url <repo-url>` を実行する
-- Issueコメント、ラベル、tmux、state file、branch、draft PRの結果を確認する
-- 単体テストと `go test ./...` が通る
+- Windows実機またはWindows相当環境で `run-weaver doctor --target windows` を実行する
+- Windows targetのstatus表示でstate file、process、GitHub照合の挙動を確認する
+- Windows固有の未実装または環境依存事項をdocsに記録する
+- 変更があれば単体テストと `go test ./...` が通る
 
 Recommended Next Step:
 
-- ユーザーに対象repository、テストIssue番号、repo URLを確認してからWSL統合テストを実行する。
+- Windows targetを実行できる環境を用意して、doctor / statusの実機挙動を確認する。
 
 ## Completed
 
@@ -65,6 +63,8 @@ Recommended Next Step:
 - 実GitHub Issueで試す前のWSL統合テスト手順を `docs/handoff.md` に追加した
 - README、`docs/architecture.md`、`docs/cli.md`、`docs/github-issue-flow.md` の実装済み仕様を確認した
 - `run-weaver doctor --target wsl --json`、`status --json`、`daemon -h` 相当の基本動作を手元で確認した
+- 実GitHub Issue `ota-takeru/truth-table-app#1` でWSL統合テストを行い、本文付きIssueからCodex実行、README追加、commit、branch push、draft PR #2作成、`done` ラベル更新まで確認した
+- Issue本文をCodex promptへ渡し、本文なしでもタイトルが具体的なら実行できるようにした
 
 ## Upcoming Sequence
 

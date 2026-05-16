@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Go実装の初期skeletonフェーズ。
+- Go実装の初期WSL flowは成功ケースまで確認済み。
 - CLI名は `run-weaver` に統一済み。
 - Issue入口条件、状態ラベル、二重実行防止、state file、Doppler service tokenの方針を文書化済み。
 - `doctor` / `status` の人間向け出力例とJSON出力例を文書化済み。
@@ -21,10 +21,12 @@
 - `daemon --once` でready Issue取得、claim、worktree作成、prompt生成、tmux起動、state保存まで接続済み。
 - Codex完了検出、git push、draft PR作成、`done` ラベル、結果コメント、state更新を実装済み。
 - `daemon` の継続poll loop、`--poll-interval`、claim後失敗時のblocked state file更新を実装済み。
+- 実GitHub Issue `ota-takeru/truth-table-app#1` で、本文付きIssueからCodex実行、README追加、commit、branch push、draft PR #2作成、`done` ラベル更新まで確認済み。
+- Issue本文と人間コメントはCodex promptへ渡される。本文なしでもタイトルが具体的なら実行し、情報不足の場合だけblockする方針。
 
 ## Next Step
 
-ユーザーに対象repository、テストIssue番号、repo URLを確認してからWSL統合テストを実行する。
+Windows targetのdoctor / statusを実機または相当環境で追加検証する。
 
 ## Notes
 
@@ -35,7 +37,7 @@
 - Codexは `--sandbox workspace-write --ask-for-approval never` で起動する。
 - Codex完了後、daemonがworktreeの変更をcommitしてからpush / draft PR作成へ進む。変更なしなら `blocked` にする。
 - Codex promptにはIssueタイトル、本文、run-weaver管理コメントを除いた人間コメントを渡す。本文なしでもタイトルが具体的なら実行する。
-- 現時点ではstatus表示の細分化、Windows実機検証、成功ケースの実GitHub Issue統合検証は未実施。
+- 現時点ではstatus表示の細分化とWindows実機検証は未実施。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
