@@ -19,6 +19,10 @@ type daemonOptions struct {
 
 func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 	ctx := context.Background()
+	if result, completed, err := completeCurrentJob(ctx, deps, opts); completed || err != nil {
+		return result, err
+	}
+
 	issues, err := deps.github.ListReadyIssues(ctx)
 	if err != nil {
 		return "", err

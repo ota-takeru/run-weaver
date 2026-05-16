@@ -19,10 +19,11 @@
 - WSL tmux runner、`run-weaver` session作成、`issue-<number>` window作成、`codex exec` コマンド組み立てを実装済み。
 - worktree manager、prompt file生成、draft PR作成wrapperを実装済み。
 - `daemon --once` でready Issue取得、claim、worktree作成、prompt生成、tmux起動、state保存まで接続済み。
+- Codex完了検出、git push、draft PR作成、`done` ラベル、結果コメント、state更新を実装済み。
 
 ## Next Step
 
-Codex完了監視とdraft PR作成のdaemon flowを実装する。
+daemon loop化と失敗時blocked処理を強化する。
 
 ## Notes
 
@@ -30,6 +31,7 @@ Codex完了監視とdraft PR作成のdaemon flowを実装する。
 - secretやtokenの実値をログやドキュメントに書かない。
 - stale `running` の自動奪取は初期実装では行わない。
 - 初期実装のCodex起動は `codex exec` を使う。
-- 現時点ではCodex完了監視、draft PR作成のdaemon接続、`done` 更新は未実装。
+- 現時点では継続poll loop、失敗時のstate file更新強化、status表示の細分化は未実装。
+- Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor checkはWindows実機で追加検証が必要。

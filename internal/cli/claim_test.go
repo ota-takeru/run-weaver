@@ -91,6 +91,7 @@ type fakeGitHubClient struct {
 	removed      map[string]bool
 	comments     []githubComment
 	afterComment func()
+	draftPR      draftPRSpec
 }
 
 func newFakeGitHubClient(issue githubIssue) *fakeGitHubClient {
@@ -132,5 +133,6 @@ func (c *fakeGitHubClient) Comment(_ context.Context, _ int, body string) error 
 }
 
 func (c *fakeGitHubClient) CreateDraftPR(_ context.Context, spec draftPRSpec) (string, error) {
+	c.draftPR = spec
 	return "https://github.com/example/repo/pull/1", nil
 }

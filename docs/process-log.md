@@ -1,5 +1,23 @@
 # Process Log
 
+## 2026-05-16 - Codex Completion and Draft PR
+
+Review:
+
+- Immediate fixes:
+  - Codex完了の最小条件を、last message fileが存在し、tmux windowが残っていないこととして実装した。
+  - 完了済みstate fileを検出した場合、branchをpushする処理を追加した。
+  - `gh pr create --draft` を呼び出し、draft PR URLを取得する処理をdaemon flowへ接続した。
+  - draft PR作成後に `done` ラベルを付け、`running` / `blocked` を外し、結果コメントを投稿する処理を追加した。
+  - state fileのjob label stateを `done` に更新する処理を追加した。
+  - 完了待ち、draft PR作成成功の単体テストを追加した。
+- Future tasks:
+  - `daemon --once` だけでなく継続poll loopを実装する。
+  - 失敗時のstate file更新を強化する。
+  - `status` でCodex実行中と完了待ちをより明確に表示する。
+- Human-facing reports:
+  - 完了判定は初期実装の最小条件。tmux window終了とlast message file作成を前提にしている。
+
 ## 2026-05-16 - Daemon Start Flow
 
 Review:

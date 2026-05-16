@@ -2,19 +2,19 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、Codex完了監視とdraft PR作成のdaemon flow実装です。
+現在の優先タスクは、daemon loop化と失敗時blocked処理の強化です。
 
 Definition of Done:
 
-- 成功時にdraft PRを作成し `done` に更新する処理枠がある
-- 失敗時に `blocked` に更新する処理枠がある
-- Codex完了状態を判定する最小条件がある
-- `run-weaver daemon --once` が完了済みCodex結果をPR作成へ進められる
+- `run-weaver daemon --target wsl` が継続pollできる
+- poll intervalを指定できる
+- 起動後の各段階で失敗した場合に `blocked` コメントとstate fileへ反映できる
+- Codex実行中と完了待ちの状態を `status` で区別できる
 - 単体テストと `go test ./...` が通る
 
 Recommended Next Step:
 
-- Codex完了監視の最小条件を実装し、draft PR作成と `done` / `blocked` 更新を接続する。
+- daemon loop、poll interval、blocked state file更新を追加する。
 
 ## Completed
 
@@ -55,6 +55,9 @@ Recommended Next Step:
 - worktree manager、prompt file生成、draft PR作成wrapperを追加した
 - `daemon --once` でready Issue取得、claim、worktree作成、prompt作成、tmux起動、state保存まで接続した
 - `daemon --once` の `--repo-url` と `--repo` の仕様を `docs/cli.md` に追加した
+- Codex完了の最小条件としてlast message fileの存在とtmux window終了を使うようにした
+- 完了済みjobでgit push、draft PR作成、`done` ラベル、結果コメント、state更新を行う処理を追加した
+- draft PR作成flowの単体テストを追加した
 
 ## Upcoming Sequence
 

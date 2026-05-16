@@ -41,6 +41,10 @@ func (m worktreeManager) Prepare(ctx context.Context, target string, issue githu
 	return spec, nil
 }
 
+func (m worktreeManager) PushBranch(ctx context.Context, worktree, branch string) error {
+	return m.commands.Run(ctx, "git", "-C", worktree, "push", "-u", "origin", branch)
+}
+
 func (m worktreeManager) ensureClone(ctx context.Context, cloneDir, repoURL string) error {
 	if _, err := os.Stat(filepath.Join(cloneDir, ".git")); err == nil {
 		return m.commands.Run(ctx, "git", "-C", cloneDir, "fetch", "origin")
