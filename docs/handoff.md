@@ -24,7 +24,7 @@
 
 ## Next Step
 
-実装済みCLI仕様とドキュメントの整合確認を行い、実GitHub Issueを使ったWSL統合テスト手順を固める。
+ユーザーに対象repository、テストIssue番号、repo URLを確認してからWSL統合テストを実行する。
 
 ## Notes
 

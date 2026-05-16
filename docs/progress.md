@@ -2,19 +2,20 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、実環境向けの仕上げ検証と不足ドキュメント更新です。
+現在の優先タスクは、実GitHub Issueを使ったWSL統合テストです。
 
 Definition of Done:
 
-- README、`docs/architecture.md`、`docs/cli.md`、`docs/github-issue-flow.md` の実装済み仕様が一致している
-- `run-weaver doctor --target wsl`、`status --json`、`daemon --help` 相当の基本動作を手元で確認している
-- 実GitHub Issueに対して試す前の手順と注意点がhandoffにある
-- `status --repo` でGitHub管理ラベルを照合できる
+- ユーザーが対象repositoryとテスト用Issueを確認している
+- テスト用Issueに `run-weaver:ready` が付いている
+- テスト用Issueに `running` / `done` / `blocked` が付いていない
+- `run-weaver daemon --target wsl --once --repo <owner/repo> --repo-url <repo-url>` を実行する
+- Issueコメント、ラベル、tmux、state file、branch、draft PRの結果を確認する
 - 単体テストと `go test ./...` が通る
 
 Recommended Next Step:
 
-- 実装済みCLI仕様とドキュメントの差分を確認し、必要な追記を行う。
+- ユーザーに対象repository、テストIssue番号、repo URLを確認してからWSL統合テストを実行する。
 
 ## Completed
 
@@ -62,11 +63,12 @@ Recommended Next Step:
 - claim後の失敗時に `blocked` ラベル、blockedコメント、state fileのblocked状態を残す処理を追加した
 - `status --repo` でGitHub管理ラベルを照合し、state fileと矛盾する場合にconflictを出すようにした
 - 実GitHub Issueで試す前のWSL統合テスト手順を `docs/handoff.md` に追加した
+- README、`docs/architecture.md`、`docs/cli.md`、`docs/github-issue-flow.md` の実装済み仕様を確認した
+- `run-weaver doctor --target wsl --json`、`status --json`、`daemon -h` 相当の基本動作を手元で確認した
 
 ## Upcoming Sequence
 
-1. 実GitHub Issueを使ったWSL統合テスト
-2. Windows targetのdoctor / status追加検証
+1. Windows targetのdoctor / status追加検証
 
 ## Open Decisions To Watch
 

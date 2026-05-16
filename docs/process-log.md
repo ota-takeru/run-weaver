@@ -1,5 +1,22 @@
 # Process Log
 
+## 2026-05-16 - Finish Check Before WSL Integration
+
+Review:
+
+- Immediate fixes:
+  - `go test ./...` を再実行した。
+  - `go build ./cmd/run-weaver` を再実行した。
+  - `status -h` と `daemon -h` の基本表示を確認した。
+  - `doctor --target wsl --json` と `status --json` の基本出力を確認した。
+  - 実装済みCLI仕様とREADME / CLI / Architecture / GitHub Issue Flowの差分を確認した。
+  - `docs/progress.md` のCurrent Work Queueを実GitHub Issue統合テストへ進めた。
+- Future tasks:
+  - ユーザー確認後に実GitHub IssueでWSL統合テストを行う。
+  - Windows targetのdoctor / statusをWindows実機で検証する。
+- Human-facing reports:
+  - WSL統合テストはGitHub Issueのラベル、コメント、branch、draft PRを実際に作るため、人間による対象確認が必要。
+
 ## 2026-05-16 - Status GitHub Reconciliation and WSL Test Prep
 
 Review:
