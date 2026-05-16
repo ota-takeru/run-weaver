@@ -14,7 +14,7 @@
 - `doctor --target windows` のWindows target確認とTask Scheduler確認枠を実装済み。
 - state fileの型とread/write処理を実装済み。
 - `status` がstate fileを読み込み、human / JSONで表示するようになった。
-- `status` のprocess、tmux、GitHub照合境界を分けた。GitHub照合は未接続。
+- `status` のprocess、tmux、GitHub照合を実装済み。`--repo` で `gh` CLIへowner/repoを渡せる。
 - `gh` CLI wrapper、ready Issue取得、管理ラベル除外、claim ID付き開始コメント、claim勝敗判定を実装済み。
 - WSL tmux runner、`run-weaver` session作成、`issue-<number>` window作成、`codex exec` コマンド組み立てを実装済み。
 - worktree manager、prompt file生成、draft PR作成wrapperを実装済み。
@@ -37,3 +37,17 @@
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor checkはWindows実機で追加検証が必要。
+
+## WSL Integration Test Prep
+
+実GitHub Issueで試す前に、以下を確認する。
+
+1. `gh auth status` が対象repositoryへread/writeできる。
+2. 対象repositoryにopen Issueを1つ用意し、`run-weaver:ready` を付ける。
+3. 対象Issueに `running` / `done` / `blocked` が付いていないことを確認する。
+4. `go build ./cmd/run-weaver` でローカルバイナリを作る。
+5. `./run-weaver doctor --target wsl` で `git`、`gh`、`codex`、`doppler`、`tmux`、`systemctl --user` を確認する。
+6. 初回は `./run-weaver daemon --target wsl --once --repo <owner/repo> --repo-url <repo-url>` だけを使い、継続pollは使わない。
+7. 実行後に `./run-weaver status --repo <owner/repo>`、GitHub Issueコメント、tmux windowを確認する。
+
+この手順はIssueラベル、Issueコメント、branch、draft PRを実際に作る。対象Issueを間違えた場合の自動巻き戻しはない。

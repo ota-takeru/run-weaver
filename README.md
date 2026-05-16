@@ -23,6 +23,7 @@ run-weaver doctor
 run-weaver doctor --json
 run-weaver status
 run-weaver status --json
+run-weaver status --repo example/repo
 run-weaver install
 run-weaver daemon --target wsl
 run-weaver daemon --target windows

@@ -99,6 +99,7 @@ JSON出力例:
 ```sh
 run-weaver status
 run-weaver status --json
+run-weaver status --repo example/repo
 ```
 
 表示項目:
@@ -115,6 +116,8 @@ run-weaver status --json
 - last error
 
 人間向け表示を標準にし、将来の連携用に `--json` を用意します。`status` はローカルstate fileを主情報源にし、process、tmux、GitHub Issueの状態を照合します。
+
+`--repo` は `gh` CLIへ渡すowner/repo指定です。未指定の場合はカレントディレクトリのGitHub repository解決に任せます。
 
 人間向け出力例:
 

@@ -1,5 +1,22 @@
 # Process Log
 
+## 2026-05-16 - Status GitHub Reconciliation and WSL Test Prep
+
+Review:
+
+- Immediate fixes:
+  - `status --repo` を追加し、`gh issue view` でGitHub上の `running` / `done` / `blocked` ラベルを照合するようにした。
+  - state fileとGitHub管理ラベルが矛盾する場合、表示上のlabel stateはGitHubを優先し、`github_label_mismatch` をconflictに残すようにした。
+  - GitHub照合ができない場合は `github_unavailable` として終了コード2を返すようにした。
+  - READMEと `docs/cli.md` に `status --repo` を追記した。
+  - 実GitHub Issueで試す前のWSL統合テスト手順と注意点を `docs/handoff.md` に追加した。
+- Future tasks:
+  - 実GitHub Issueを使ったWSL統合テストを行う。
+  - 統合テスト結果に応じてdaemon flow、status表示、docsを修正する。
+  - Windows targetのdoctor / statusをWindows実機で追加検証する。
+- Human-facing reports:
+  - 実IssueテストはGitHubのラベル、コメント、branch、draft PRを作成するため、対象repositoryとIssueを確認してから実行する必要がある。
+
 ## 2026-05-16 - Daemon Loop and Blocked State
 
 Review:

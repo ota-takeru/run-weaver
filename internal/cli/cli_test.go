@@ -107,7 +107,6 @@ func TestStatusJSON(t *testing.T) {
 }
 
 func TestStatusReadsStateFile(t *testing.T) {
-	var stdout, stderr bytes.Buffer
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
@@ -141,14 +140,10 @@ func TestStatusReadsStateFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	code := Run([]string{"status", "--json"}, &stdout, &stderr)
-
-	if code != exitOK {
-		t.Fatalf("exit code = %d, want %d; stderr = %q", code, exitOK, stderr.String())
-	}
-	var got statusOutput
-	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
-		t.Fatalf("stdout is not JSON: %q: %v", stdout.String(), err)
+	result := collectStatus(newFakeGitHubClient(githubIssue{Number: 42, Labels: []githubLabel{{Name: blockedLabel}}}))
+	got := result.Output
+	if result.ExitCode != exitOK {
+		t.Fatalf("exit code = %d, want %d; err = %v", result.ExitCode, exitOK, result.Err)
 	}
 	if got.Job == nil || got.Job.Issue.Number != 42 {
 		t.Fatalf("job = %#v, want issue 42", got.Job)
@@ -156,4 +151,44 @@ func TestStatusReadsStateFile(t *testing.T) {
 	if got.Reconciliation.ProcessState != "not_recorded" {
 		t.Fatalf("process state = %q, want not_recorded", got.Reconciliation.ProcessState)
 	}
+}
+
+func TestStatusDetectsGitHubLabelMismatch(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir)
+	err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add export"},
+			LabelState: runningLabel,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result := collectStatus(newFakeGitHubClient(githubIssue{
+		Number: 42,
+		Labels: []githubLabel{{Name: blockedLabel}},
+	}))
+
+	if result.ExitCode != exitStatusConflict {
+		t.Fatalf("exit code = %d, want %d", result.ExitCode, exitStatusConflict)
+	}
+	if result.Output.Job == nil || result.Output.Job.LabelState != blockedLabel {
+		t.Fatalf("job = %#v, want GitHub label to win", result.Output.Job)
+	}
+	if !containsString(result.Output.Reconciliation.Conflicts, "github_label_mismatch") {
+		t.Fatalf("conflicts = %#v, want github_label_mismatch", result.Output.Reconciliation.Conflicts)
+	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

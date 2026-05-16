@@ -9,6 +9,7 @@ Definition of Done:
 - README、`docs/architecture.md`、`docs/cli.md`、`docs/github-issue-flow.md` の実装済み仕様が一致している
 - `run-weaver doctor --target wsl`、`status --json`、`daemon --help` 相当の基本動作を手元で確認している
 - 実GitHub Issueに対して試す前の手順と注意点がhandoffにある
+- `status --repo` でGitHub管理ラベルを照合できる
 - 単体テストと `go test ./...` が通る
 
 Recommended Next Step:
@@ -59,6 +60,8 @@ Recommended Next Step:
 - draft PR作成flowの単体テストを追加した
 - `daemon` の継続poll loopと `--poll-interval` を追加した
 - claim後の失敗時に `blocked` ラベル、blockedコメント、state fileのblocked状態を残す処理を追加した
+- `status --repo` でGitHub管理ラベルを照合し、state fileと矛盾する場合にconflictを出すようにした
+- 実GitHub Issueで試す前のWSL統合テスト手順を `docs/handoff.md` に追加した
 
 ## Upcoming Sequence
 

@@ -73,11 +73,12 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 func runStatus(args []string, stdout, stderr io.Writer) int {
 	fs := newFlagSet("status", stderr)
 	jsonOutput := fs.Bool("json", false, "print JSON output")
+	repo := fs.String("repo", "", "GitHub repository for gh, in owner/repo form")
 	if !parseFlags(fs, args, stderr) {
 		return exitUsage
 	}
 
-	result := collectStatus()
+	result := collectStatus(ghClient{repo: *repo})
 	if *jsonOutput {
 		writeJSON(stdout, result.Output)
 		return result.ExitCode

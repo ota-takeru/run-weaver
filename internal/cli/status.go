@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 type statusResult struct {
@@ -18,7 +20,7 @@ type statusResult struct {
 	Err      error
 }
 
-func collectStatus() statusResult {
+func collectStatus(client githubClient) statusResult {
 	target := defaultStatusTarget()
 	statePath := defaultStateFile(target)
 	output := statusOutput{
@@ -53,7 +55,17 @@ func collectStatus() statusResult {
 
 	if state.Job != nil {
 		output.Job = stateJobToStatusJob(state.Job)
-		output.Reconciliation.GitHubLabelState = "not_checked"
+		githubState, err := githubLabelState(client, state.Job.Issue.Number)
+		if err != nil {
+			output.Reconciliation.GitHubLabelState = "unavailable"
+			output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, "github_unavailable")
+			return statusResult{Output: output, ExitCode: exitStatusAuthRequired, Err: err}
+		}
+		output.Reconciliation.GitHubLabelState = githubState
+		if githubState != "none" && githubState != state.Job.LabelState {
+			output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, "github_label_mismatch")
+			output.Job.LabelState = githubState
+		}
 		output.Reconciliation.TmuxState = tmuxState(state.Target, state.Job.Tmux)
 	} else {
 		output.Reconciliation.GitHubLabelState = "not_applicable"
@@ -187,6 +199,26 @@ func detectStatusConflicts(output statusOutput) []string {
 		conflicts = append(conflicts, "unknown_target")
 	}
 	return conflicts
+}
+
+func githubLabelState(client githubClient, issueNumber int) (string, error) {
+	if client == nil || issueNumber == 0 {
+		return "not_applicable", nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	issue, err := client.ViewIssue(ctx, issueNumber)
+	if err != nil {
+		return "", err
+	}
+	for _, state := range []string{runningLabel, doneLabel, blockedLabel} {
+		for _, label := range issue.Labels {
+			if label.Name == state {
+				return state, nil
+			}
+		}
+	}
+	return "none", nil
 }
 
 func runningWord(running bool) string {
