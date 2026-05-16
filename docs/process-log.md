@@ -1,5 +1,41 @@
 # Process Log
 
+## 2026-05-16 - Go Module and CLI Skeleton
+
+Review:
+
+- Immediate fixes:
+  - `go.mod` を追加した。
+  - `cmd/run-weaver` にCLI entrypointを追加した。
+  - `internal/cli` に `doctor` / `status` / `install` / `daemon` のサブコマンド枠を追加した。
+  - `doctor` / `install` / `daemon` で `--target` 必須validationを追加した。
+  - `wsl` / `windows` 以外のtargetをusage errorにした。
+  - `status --json` と `doctor --json` の最小placeholder出力を追加した。
+  - root build artifactを誤コミットしないよう `.gitignore` を追加した。
+- Future tasks:
+  - `doctor` の実checkを実装する。
+  - `status` でstate file読み込みとreconciliationを実装する。
+  - CLI usageの文面を `docs/cli.md` の終了コード方針にさらに寄せる。
+- Human-facing reports:
+  - 現時点のCLIはskeletonであり、実際の依存関係検査やdaemon処理は未実装。
+
+## 2026-05-16 - Doctor Implementation
+
+Review:
+
+- Immediate fixes:
+  - `doctor --target wsl` でOS target、`git`、`gh auth`、`codex`、`doppler`、`tmux`、`systemctl --user`、Codex専用clone、worktree root、state file、systemd user serviceを確認するようにした。
+  - `doctor --target windows` でWindows target確認とTask Scheduler確認枠を追加した。
+  - `doctor --json` を `encoding/json` による構造化出力にした。
+  - `doctor` の終了コードをtarget mismatch、missing、auth_required、config不足に分類した。
+  - `doctor` の単体テストを実環境の依存有無に左右されにくい形に更新した。
+- Future tasks:
+  - `status` のstate file読み込みとreconciliationを実装する。
+  - `doctor` のWindows targetはWindows実機で追加検証する。
+  - Doppler checkの失敗理由を将来もう少し細分化する。
+- Human-facing reports:
+  - 現在の環境で `doctor` を実行すると、Codex専用cloneやservice未作成ならblockedになる想定。
+
 ## 2026-05-16 - CLI Output and State Schema
 
 Review:
