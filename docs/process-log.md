@@ -9,6 +9,7 @@ Review:
   - Codex promptにIssue本文を含めるようにした。
   - run-weaver claim/statusコメントを除外したうえで、人間コメントをpromptに含めるようにした。
   - Issue本文が空でもタイトルが具体的なら実行し、タイトル・本文・人間コメントを合わせても不十分な場合だけblockするようpromptを明記した。
+  - 再実行時に `codex exec --ask-for-approval` が不正な引数順として失敗したため、`codex --ask-for-approval never exec ...` に修正した。
   - prompt生成の単体テストを追加した。
 - Future tasks:
   - 本文追加済みIssue #1で再実行する。

@@ -86,9 +86,8 @@ func buildCodexRunSpec(target string, issueNumber int, worktree string) codexRun
 func buildCodexTmuxCommand(spec codexRunSpec) string {
 	dir := shellQuote(filepath.Dir(spec.JSONLogPath))
 	codexCommand := strings.Join([]string{
-		"codex exec --json",
+		"codex --ask-for-approval never exec --json",
 		"--sandbox workspace-write",
-		"--ask-for-approval never",
 		"--cd " + shellQuote(spec.Worktree),
 		"--output-last-message " + shellQuote(spec.LastMessagePath),
 		"-",
