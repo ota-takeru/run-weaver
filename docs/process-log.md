@@ -1,5 +1,24 @@
 # Process Log
 
+## 2026-05-16 - GitHub Issue Claim
+
+Review:
+
+- Immediate fixes:
+  - `gh` CLI wrapperを追加した。
+  - `run-weaver:ready` ラベル付きopen Issue取得を追加した。
+  - `running` / `done` / `blocked` ラベル付きIssueの除外処理を追加した。
+  - claim ID付き開始コメント本文と投稿処理を追加した。
+  - 開始コメント再取得で最新claim IDを確認し、claim勝敗を判定する処理を追加した。
+  - claim競合に負けた場合はstate file更新側へ進まない結果を返すようにした。
+  - claim勝ち、claim負け、管理ラベルskipの単体テストを追加した。
+- Future tasks:
+  - tmux runnerとworktree作成を実装してから、daemon flowへclaim処理を接続する。
+  - GitHub照合を `status` のreconciliationへ接続する。
+  - `gh` CLIの実リポジトリ操作は統合テスト方針を決めてから追加検証する。
+- Human-facing reports:
+  - runner未実装のままIssueを `running` にすると放置リスクがあるため、daemonからの実claim接続はまだ行っていない。
+
 ## 2026-05-16 - State File and Status
 
 Review:

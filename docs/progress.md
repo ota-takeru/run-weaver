@@ -2,20 +2,20 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、GitHub Issue取得とclaim処理の実装です。
+現在の優先タスクは、WSL targetのtmux runner実装です。
 
 Definition of Done:
 
-- `run-weaver:ready` ラベル付きopen Issueを取得できる
-- `running` / `done` / `blocked` ラベル付きIssueを除外する
-- claim ID付き開始コメントを投稿する処理がある
-- 開始コメント再取得でclaim勝敗を判定する
-- 競合に負けた場合はstate fileを更新せずスキップする
+- tmux session `run-weaver` を作成または再利用できる
+- Issueごとのwindow名 `issue-<number>` を作れる
+- `codex exec --cd <worktree>` の起動コマンドを組み立てられる
+- JSONLログと最終応答パスをstate配下に向けられる
+- runnerの単体テストと `go test ./...` が通る
 - 単体テストと `go test ./...` が通る
 
 Recommended Next Step:
 
-- `gh` CLI wrapperを追加し、Issue一覧取得とclaimコメント投稿のテスト可能な境界を作る。
+- tmux runnerのinterfaceとコマンド組み立て処理を追加する。
 
 ## Completed
 
@@ -44,11 +44,14 @@ Recommended Next Step:
 - `status` がstate fileを読み込むようにした
 - state file未作成時の `status --json` は構造化出力と終了コード1を返すようにした
 - `status` のprocess、tmux、GitHub照合境界を分けた
+- `gh` CLI wrapperを追加した
+- `run-weaver:ready` ラベル付きopen Issue取得と管理ラベル除外処理を追加した
+- claim ID付き開始コメント投稿と、最新claimコメント再取得による勝敗判定を追加した
+- claim競合負けではstate fileを更新しない方針をコード上の境界として実装した
 
 ## Upcoming Sequence
 
-1. WSL targetのtmux runnerを実装する
-2. draft PR作成までのdaemon flowを実装する
+1. draft PR作成までのdaemon flowを実装する
 
 ## Open Decisions To Watch
 
