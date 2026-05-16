@@ -28,6 +28,7 @@ type githubClient interface {
 	AddLabel(context.Context, int, string) error
 	RemoveLabel(context.Context, int, string) error
 	Comment(context.Context, int, string) error
+	CreateDraftPR(context.Context, draftPRSpec) (string, error)
 }
 
 type ghClient struct {
@@ -50,6 +51,14 @@ type githubComment struct {
 	Body      string `json:"body"`
 	CreatedAt string `json:"createdAt"`
 	URL       string `json:"url"`
+}
+
+type draftPRSpec struct {
+	Title string
+	Body  string
+	Head  string
+	Base  string
+	Issue int
 }
 
 func (c ghClient) ListReadyIssues(ctx context.Context) ([]githubIssue, error) {
@@ -89,6 +98,27 @@ func (c ghClient) RemoveLabel(ctx context.Context, number int, label string) err
 func (c ghClient) Comment(ctx context.Context, number int, body string) error {
 	_, err := c.run(ctx, "issue", "comment", strconv.Itoa(number), "--body", body)
 	return err
+}
+
+func (c ghClient) CreateDraftPR(ctx context.Context, spec draftPRSpec) (string, error) {
+	args := []string{"pr", "create", "--draft", "--title", spec.Title, "--body", spec.Body, "--head", spec.Head}
+	if spec.Base != "" {
+		args = append(args, "--base", spec.Base)
+	}
+	out, err := c.run(ctx, args...)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func buildDraftPRSpec(issue githubIssue, branch string) draftPRSpec {
+	return draftPRSpec{
+		Title: "Draft: " + issue.Title,
+		Body:  fmt.Sprintf("Closes #%d\n", issue.Number),
+		Head:  branch,
+		Issue: issue.Number,
+	}
 }
 
 func (c ghClient) run(ctx context.Context, args ...string) ([]byte, error) {

@@ -1,5 +1,22 @@
 # Process Log
 
+## 2026-05-16 - Worktree and Draft PR Building Blocks
+
+Review:
+
+- Immediate fixes:
+  - Codex専用cloneとIssue専用worktreeのパス・branch名を作るworktree managerを追加した。
+  - clone未作成時は `git clone`、作成済みなら `git fetch origin` する処理を追加した。
+  - Issue専用worktreeを `git worktree add -B <branch> <path> origin/HEAD` で作る処理を追加した。
+  - Codexへ渡すprompt file生成処理を追加した。
+  - draft PR作成用の `gh pr create --draft` wrapperとPR spec生成処理を追加した。
+- Future tasks:
+  - daemonの一回分処理として、ready Issue取得、claim、worktree、prompt、runnerを接続する。
+  - Codex完了監視後にdraft PR作成と `done` / `blocked` ラベル更新を接続する。
+  - default branchが `origin/HEAD` で取れないrepositoryへのフォールバックを追加検討する。
+- Human-facing reports:
+  - draft PR wrapperは実装済みだが、Codex完了監視が未実装のためdaemon flowからはまだ呼び出していない。
+
 ## 2026-05-16 - WSL tmux Runner
 
 Review:

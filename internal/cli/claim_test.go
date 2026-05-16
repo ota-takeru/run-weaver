@@ -130,3 +130,7 @@ func (c *fakeGitHubClient) Comment(_ context.Context, _ int, body string) error 
 	}
 	return nil
 }
+
+func (c *fakeGitHubClient) CreateDraftPR(_ context.Context, spec draftPRSpec) (string, error) {
+	return "https://github.com/example/repo/pull/1", nil
+}
