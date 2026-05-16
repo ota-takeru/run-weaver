@@ -1,0 +1,104 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+	"time"
+)
+
+type daemonDeps struct {
+	github   githubClient
+	worktree worktreeManager
+	runner   tmuxRunner
+}
+
+type daemonOptions struct {
+	target  string
+	repoURL string
+}
+
+func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
+	ctx := context.Background()
+	issues, err := deps.github.ListReadyIssues(ctx)
+	if err != nil {
+		return "", err
+	}
+	if len(issues) == 0 {
+		return "no ready issue", nil
+	}
+
+	issue := issues[0]
+	claim, err := claimIssue(ctx, deps.github, issue.Number, opts.target)
+	if err != nil {
+		return "", err
+	}
+	switch claim.Outcome {
+	case claimSkipped:
+		return fmt.Sprintf("skipped issue #%d", issue.Number), nil
+	case claimLost:
+		return fmt.Sprintf("lost claim for issue #%d", issue.Number), nil
+	case claimWon:
+	default:
+		return "", fmt.Errorf("unknown claim outcome %q", claim.Outcome)
+	}
+
+	spec, err := deps.worktree.Prepare(ctx, opts.target, claim.Issue, opts.repoURL)
+	if err != nil {
+		_ = markBlocked(ctx, deps.github, issue.Number, "worktree", err)
+		return "", err
+	}
+
+	runSpec := buildCodexRunSpec(opts.target, issue.Number, spec.Path)
+	if err := writePromptFile(runSpec.PromptPath, claim.Issue); err != nil {
+		_ = markBlocked(ctx, deps.github, issue.Number, "prompt", err)
+		return "", err
+	}
+
+	tmux, err := deps.runner.StartCodex(ctx, runSpec)
+	if err != nil {
+		_ = markBlocked(ctx, deps.github, issue.Number, "runner", err)
+		return "", err
+	}
+
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        opts.target,
+		UpdatedAt:     time.Now().UTC().Format(time.RFC3339),
+		Daemon: stateDaemon{
+			Service: "run-weaver.service",
+		},
+		Job: &stateJob{
+			Issue: issueRef{
+				Number: issue.Number,
+				Title:  claim.Issue.Title,
+				URL:    claim.Issue.URL,
+			},
+			LabelState: "running",
+			Branch:     spec.Branch,
+			Worktree:   spec.Path,
+			ClaimID:    claim.ClaimID,
+			ClaimedAt:  time.Now().UTC().Format(time.RFC3339),
+			Tmux:       &tmux,
+			Codex: &codexState{
+				LastMessagePath: runSpec.LastMessagePath,
+				JSONLogPath:     runSpec.JSONLogPath,
+			},
+		},
+	}
+	if err := writeStateFile(defaultStateFile(opts.target), state); err != nil {
+		_ = markBlocked(ctx, deps.github, issue.Number, "state file", err)
+		return "", err
+	}
+
+	return fmt.Sprintf("started issue #%d in tmux %s:%s", issue.Number, tmux.Session, tmux.Window), nil
+}
+
+func markBlocked(ctx context.Context, client githubClient, issueNumber int, stage string, err error) error {
+	_ = client.RemoveLabel(ctx, issueNumber, runningLabel)
+	_ = client.RemoveLabel(ctx, issueNumber, doneLabel)
+	if labelErr := client.AddLabel(ctx, issueNumber, blockedLabel); labelErr != nil {
+		return labelErr
+	}
+	body := fmt.Sprintf("run-weaver blocked during %s.\n\nError: %s\n", stage, err)
+	return client.Comment(ctx, issueNumber, body)
+}

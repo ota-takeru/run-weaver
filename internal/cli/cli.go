@@ -106,6 +106,9 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 func runDaemon(args []string, stdout, stderr io.Writer) int {
 	fs := newFlagSet("daemon", stderr)
 	target := fs.String("target", "", "target environment: wsl or windows")
+	once := fs.Bool("once", false, "process at most one issue and exit")
+	repo := fs.String("repo", "", "GitHub repository for gh, in owner/repo form")
+	repoURL := fs.String("repo-url", "", "repository URL used to create the Codex clone")
 	if !parseFlags(fs, args, stderr) {
 		return exitUsage
 	}
@@ -113,7 +116,28 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 
-	fmt.Fprintf(stdout, "daemon skeleton for target %s\n", *target)
+	if !*once {
+		fmt.Fprintln(stderr, "daemon loop is not implemented yet; use --once")
+		return exitConfigMissing
+	}
+	if *repoURL == "" {
+		fmt.Fprintln(stderr, "--repo-url is required for daemon --once")
+		return exitConfigMissing
+	}
+
+	result, err := processOneIssue(daemonDeps{
+		github:   ghClient{repo: *repo},
+		worktree: newWorktreeManager(nil),
+		runner:   newTmuxRunner(nil),
+	}, daemonOptions{
+		target:  *target,
+		repoURL: *repoURL,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "daemon error: %v\n", err)
+		return exitConfigMissing
+	}
+	fmt.Fprintln(stdout, result)
 	return exitOK
 }
 

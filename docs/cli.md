@@ -262,6 +262,7 @@ Issue監視とCodex実行を行う常駐プロセスです。
 ```sh
 run-weaver daemon --target wsl
 run-weaver daemon --target windows
+run-weaver daemon --target wsl --once --repo-url https://github.com/example/repo.git
 ```
 
 主な処理:
@@ -286,6 +287,8 @@ Codex CLI起動の初期仕様:
 - Codexに渡すDoppler service tokenは環境変数から注入し、ログ、Issueコメント、PR本文、state fileには値を出さない
 
 WSL targetでは、この `codex exec` をtmux window内で起動します。tmux session名は `run-weaver`、window名は `issue-<number>` とします。
+
+初期実装のdaemon loopが完成するまでは、`--once` で1件だけ処理します。`--repo-url` はCodex専用cloneを新規作成する場合に使うrepository URLです。`--repo` は `gh` CLIへ渡すowner/repo指定で、未指定の場合はカレントディレクトリのGitHub repository解決に任せます。
 
 ## `run-weaver dashboard`
 

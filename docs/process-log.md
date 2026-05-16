@@ -1,5 +1,22 @@
 # Process Log
 
+## 2026-05-16 - Daemon Start Flow
+
+Review:
+
+- Immediate fixes:
+  - `daemon --once` を追加し、1件だけ処理する入口を作った。
+  - `--repo-url` をCodex専用clone作成用のrepository URLとして追加した。
+  - ready Issue取得、claim、worktree作成、prompt生成、tmux runner起動、state file保存を一回分のdaemon flowとして接続した。
+  - worktree、prompt、runner、state fileのいずれかで失敗した場合にIssueを `blocked` へ寄せる処理を追加した。
+  - daemon flowの単体テストを追加した。
+- Future tasks:
+  - Codex完了監視を実装する。
+  - draft PR作成後に `done` ラベルと結果コメントを接続する。
+  - `daemon --once` ではなく継続loopとして動かす処理を追加する。
+- Human-facing reports:
+  - 現時点のdaemonはCodex起動まで。draft PR作成と `done` 更新は次タスク。
+
 ## 2026-05-16 - Worktree and Draft PR Building Blocks
 
 Review:
