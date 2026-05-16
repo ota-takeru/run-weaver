@@ -88,7 +88,7 @@ func buildCodexTmuxCommand(spec codexRunSpec) string {
 		"- < " + shellQuote(spec.PromptPath),
 		"> " + shellQuote(spec.JSONLogPath),
 		"2>&1",
-	}, " ")
+	}, " && ")
 }
 
 func shellQuote(value string) string {

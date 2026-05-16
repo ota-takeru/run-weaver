@@ -35,6 +35,7 @@ func TestBuildCodexTmuxCommand(t *testing.T) {
 	command := buildCodexTmuxCommand(spec)
 
 	for _, want := range []string{
+		"mkdir -p '/tmp/state' && codex exec --json",
 		"codex exec --json",
 		"--cd '/tmp/work tree'",
 		"--output-last-message '/tmp/state/last message.txt'",

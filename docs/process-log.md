@@ -1,5 +1,19 @@
 # Process Log
 
+## 2026-05-16 - Runner Command Fix
+
+Review:
+
+- Immediate fixes:
+  - WSL統合テストでtmux windowが即終了し、Codexログに `mkdir: unrecognized option '--json'` が出ることを確認した。
+  - tmux内コマンドの連結を空白連結から `&&` 連結へ修正した。
+  - 既存worktreeがある場合に `git worktree add` を再実行せず再利用するようにした。
+  - runner commandとworktree再利用の単体テストを追加した。
+- Future tasks:
+  - Issue #1 の `running` を外して再度WSL統合テストを行う。
+- Human-facing reports:
+  - 1回目の統合テストでIssue #1にはclaimコメントと `running` ラベルが残っている。
+
 ## 2026-05-16 - Managed Label Creation
 
 Review:

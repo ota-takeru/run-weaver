@@ -35,6 +35,9 @@ func (m worktreeManager) Prepare(ctx context.Context, target string, issue githu
 	if err := os.MkdirAll(filepath.Dir(spec.Path), 0o755); err != nil {
 		return spec, err
 	}
+	if _, err := os.Stat(filepath.Join(spec.Path, ".git")); err == nil {
+		return spec, nil
+	}
 	if err := m.commands.Run(ctx, "git", "-C", spec.CloneDir, "worktree", "add", "-B", spec.Branch, spec.Path, "origin/HEAD"); err != nil {
 		return spec, err
 	}

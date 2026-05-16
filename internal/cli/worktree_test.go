@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -62,6 +63,33 @@ func TestWorktreePrepareClonesAndAddsWorktree(t *testing.T) {
 	}
 	if !commands.ran("git", "-C", tempDir+"/run-weaver/src", "worktree", "add", "-B", spec.Branch, spec.Path, "origin/HEAD") {
 		t.Fatalf("commands = %#v, want git worktree add", commands.calls)
+	}
+}
+
+func TestWorktreePrepareReusesExistingWorktree(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tempDir)
+	worktreePath := tempDir + "/run-weaver/worktrees/issue-42"
+	if err := os.MkdirAll(filepath.Join(worktreePath, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	clonePath := tempDir + "/run-weaver/src"
+	if err := os.MkdirAll(filepath.Join(clonePath, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	commands := &fakeCommandRunner{}
+	manager := newWorktreeManager(commands)
+
+	spec, err := manager.Prepare(context.Background(), "wsl", githubIssue{Number: 42, Title: "Test issue"}, "https://example.test/repo.git")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Path != worktreePath {
+		t.Fatalf("path = %q", spec.Path)
+	}
+	if commands.ranPrefix("git", "-C", clonePath, "worktree", "add") {
+		t.Fatalf("commands = %#v, should not add existing worktree", commands.calls)
 	}
 }
 
