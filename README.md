@@ -20,7 +20,9 @@
 
 ```sh
 run-weaver doctor
+run-weaver doctor --json
 run-weaver status
+run-weaver status --json
 run-weaver install
 run-weaver daemon --target wsl
 run-weaver daemon --target windows
@@ -33,8 +35,8 @@ run-weaver daemon --target windows
 1. 人間がGitHub Issueを作る
 2. 人間が対象Issueに `run-weaver:ready` ラベルを付ける
 3. `run-weaver daemon` が対象Issueを検出する
-4. Issueに `running` ラベルを付け、開始コメントを投稿する
-5. ローカルstate fileにclaimを保存する
+4. Issueに `running` ラベルを付け、claim ID付きの開始コメントを投稿する
+5. 最新claimコメントを再確認し、勝ったagentだけがローカルstate fileにclaimを保存する
 6. Codex専用cloneからIssue専用worktreeを作る
 7. Doppler経由で必要なsecretを注入し、Codex CLIをworktree上で実行する
 8. WSL側ではtmux sessionに実行ログを残す
@@ -52,6 +54,7 @@ run-weaver daemon --target windows
 - tmux session name
 - local state file path
 - last state comment timestamp
+- reconciliation result
 
 WSLではtmuxで実行ログを確認できます。
 
@@ -68,10 +71,13 @@ tmux attach -t run-weaver
 - `codex`
 - `doppler`
 - `tmux`。WSL targetのみ必須
+- `systemctl --user`。WSL targetのみ必須
 - GitHub認証状態
 - Doppler認証またはtoken設定
 - Codex CLI認証状態
 - target別の常駐設定状態
+
+JSON出力は初期実装から提供し、`doctor --json` と `status --json` は自動検査や将来のdashboard連携に使います。
 
 ## 設計文書
 

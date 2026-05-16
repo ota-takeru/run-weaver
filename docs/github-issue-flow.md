@@ -36,14 +36,16 @@ agentがIssueを処理対象にしたら、以下を行います。
 1. Issueの現在ラベルを再取得する
 2. `running`、`done`、`blocked` が付いていないことを確認する
 3. `running` ラベルを付ける
-4. `done` と `blocked` ラベルを外す
-5. 開始コメントを投稿する
-6. ローカルstate fileにclaimを保存する
-7. Issue専用worktreeとbranchを作成する
-8. Codex CLIを起動する
+4. claim IDを含む開始コメントを投稿する
+5. Issueのラベルと最新claimコメントを再取得する
+6. 自分のclaim IDが最新claimとして確認できた場合だけ続行する
+7. ローカルstate fileにclaimを保存する
+8. Issue専用worktreeとbranchを作成する
+9. Codex CLIを起動する
 
 開始コメントには以下を含めます。
 
+- claim ID
 - target
 - worktree名
 - branch名
@@ -57,15 +59,21 @@ secretや環境変数の値はコメントに含めません。
 
 WSL targetとWindows targetが同じIssueを同時に拾う可能性があるため、`running` ラベルと開始コメントをclaimとして扱います。
 
+claim IDは `run-weaver:<target>:<UTC timestamp>` を基本形にし、同一秒に複数起動する可能性に備えて短いランダムsuffixを付けます。
+
 claim手順:
 
 1. `run-weaver:ready` 付きopen Issueを取得する
 2. 対象Issueのラベルを直前に再取得する
 3. `running`、`done`、`blocked` がなければ `running` を付ける
-4. 開始コメントを投稿する
-5. ローカルstate fileにIssue番号、target、branch、worktree、claim時刻を保存する
+4. claim IDを含む開始コメントを投稿する
+5. Issueのラベルと最新claimコメントを再取得する
+6. 最新claimコメントのclaim IDが自分のものなら、ローカルstate fileにIssue番号、target、branch、worktree、claim ID、claim時刻を保存する
+7. 最新claimコメントのclaim IDが別agentのものなら、ローカルstate fileを更新せず、そのIssueはスキップする
 
-別agentが直前に `running` を付けていた場合、そのIssueはスキップします。`running` ラベルだけが残っていてstate commentや更新が古い場合は、初期実装では自動奪取せず `blocked` コメントで人間確認に回します。
+GitHubのラベル更新はCASではないため、`running` 付与だけでclaim成功とは扱いません。開始コメント投稿後の再取得で、自分のclaim IDが最新claimコメントとして確認できた場合だけ作業を開始します。
+
+別agentが直前に `running` を付けていた場合、または開始コメント競合に負けた場合、そのIssueはスキップします。`running` ラベルだけが残っていてstate commentや更新が古い場合は、初期実装では自動奪取せず `blocked` コメントで人間確認に回します。
 
 ## 完了
 

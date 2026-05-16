@@ -12,6 +12,9 @@
 - 2026-05-16: `status` はローカルstate fileを主情報源にし、GitHub Issue、process、tmuxを照合する。
 - 2026-05-16: Codexへ渡すDoppler資格情報はDoppler service token `dev-agent` と呼ぶ。
 - 2026-05-16: stale `running` は初期実装では自動奪取せず、人間確認に回す。
+- 2026-05-16: `doctor --json` と `status --json` は初期実装から提供する。
+- 2026-05-16: GitHub Issueのclaim成功は、`running` ラベル付与だけでなく、claim ID付き開始コメントの再取得で判定する。
+- 2026-05-16: Codex CLIは初期実装では非対話モードの `codex exec` で起動する。
 
 ## Superseded Decisions
 
