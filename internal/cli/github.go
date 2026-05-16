@@ -39,6 +39,7 @@ type ghClient struct {
 type githubIssue struct {
 	Number   int             `json:"number"`
 	Title    string          `json:"title"`
+	Body     string          `json:"body"`
 	URL      string          `json:"url"`
 	Labels   []githubLabel   `json:"labels"`
 	Comments []githubComment `json:"comments"`
@@ -75,7 +76,7 @@ func (c ghClient) ListReadyIssues(ctx context.Context) ([]githubIssue, error) {
 }
 
 func (c ghClient) ViewIssue(ctx context.Context, number int) (githubIssue, error) {
-	out, err := c.run(ctx, "issue", "view", strconv.Itoa(number), "--json", "number,title,url,labels,comments")
+	out, err := c.run(ctx, "issue", "view", strconv.Itoa(number), "--json", "number,title,body,url,labels,comments")
 	if err != nil {
 		return githubIssue{}, err
 	}

@@ -95,9 +95,32 @@ func writePromptFile(path string, issue githubIssue) error {
 Title: %s
 URL: %s
 
-Implement the requested change in this issue. Follow the repository AGENTS.md instructions, run focused verification, and leave a concise final summary.
-`, issue.Number, issue.Title, issue.URL)
+Body:
+%s
+
+Relevant comments:
+%s
+
+Implement the requested change using the issue title, body, and relevant human comments as the task source. If the body is empty but the title clearly describes a concrete change, proceed from the title. Ignore run-weaver claim/status comments. Only block when the title, body, and human comments together are not specific enough to identify an actionable change.
+
+Follow the repository AGENTS.md instructions, run focused verification, and leave a concise final summary.
+`, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments))
 	return os.WriteFile(path, []byte(body), 0o600)
+}
+
+func relevantIssueComments(comments []githubComment) string {
+	lines := make([]string, 0, len(comments))
+	for _, comment := range comments {
+		text := strings.TrimSpace(comment.Body)
+		if text == "" || strings.Contains(text, claimMarkerPrefix) || strings.HasPrefix(text, "run-weaver blocked") {
+			continue
+		}
+		lines = append(lines, "- "+text)
+	}
+	if len(lines) == 0 {
+		return "none"
+	}
+	return strings.Join(lines, "\n")
 }
 
 var nonSlugCharRE = regexp.MustCompile(`[^a-z0-9]+`)

@@ -34,6 +34,7 @@
 - 初期実装のCodex起動は `codex exec` を使う。
 - Codexは `--sandbox workspace-write --ask-for-approval never` で起動する。
 - Codex完了後、daemonがworktreeの変更をcommitしてからpush / draft PR作成へ進む。変更なしなら `blocked` にする。
+- Codex promptにはIssueタイトル、本文、run-weaver管理コメントを除いた人間コメントを渡す。本文なしでもタイトルが具体的なら実行する。
 - 現時点ではstatus表示の細分化、Windows実機検証、成功ケースの実GitHub Issue統合検証は未実施。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。

@@ -1,5 +1,20 @@
 # Process Log
 
+## 2026-05-16 - Issue Body Prompt Handling
+
+Review:
+
+- Immediate fixes:
+  - Issue本文を `gh issue view --json body` で取得するようにした。
+  - Codex promptにIssue本文を含めるようにした。
+  - run-weaver claim/statusコメントを除外したうえで、人間コメントをpromptに含めるようにした。
+  - Issue本文が空でもタイトルが具体的なら実行し、タイトル・本文・人間コメントを合わせても不十分な場合だけblockするようpromptを明記した。
+  - prompt生成の単体テストを追加した。
+- Future tasks:
+  - 本文追加済みIssue #1で再実行する。
+- Human-facing reports:
+  - 今後は本文なしでも、タイトルが「README追加」など具体的な変更を示していればCodexへ進める。
+
 ## 2026-05-16 - Runner Command Fix
 
 Review:

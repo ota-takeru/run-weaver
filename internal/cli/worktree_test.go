@@ -31,7 +31,7 @@ func TestBuildWorktreeSpec(t *testing.T) {
 func TestWritePromptFile(t *testing.T) {
 	path := t.TempDir() + "/issues/42/prompt.md"
 
-	if err := writePromptFile(path, githubIssue{Number: 42, Title: "Test", URL: "https://example.test/42"}); err != nil {
+	if err := writePromptFile(path, githubIssue{Number: 42, Title: "Test", Body: "Add a README.", URL: "https://example.test/42"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -39,8 +39,24 @@ func TestWritePromptFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := string(data); !strings.Contains(got, "GitHub Issue #42") || !strings.Contains(got, "https://example.test/42") {
+	if got := string(data); !strings.Contains(got, "GitHub Issue #42") || !strings.Contains(got, "https://example.test/42") || !strings.Contains(got, "Add a README.") {
 		t.Fatalf("prompt = %q", got)
+	}
+}
+
+func TestWritePromptFileAllowsTitleOnly(t *testing.T) {
+	path := t.TempDir() + "/issues/42/prompt.md"
+
+	if err := writePromptFile(path, githubIssue{Number: 42, Title: "Add README", URL: "https://example.test/42"}); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(data); !strings.Contains(got, "If the body is empty but the title clearly describes a concrete change") {
+		t.Fatalf("prompt = %q, want title-only guidance", got)
 	}
 }
 
