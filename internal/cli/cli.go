@@ -2,14 +2,19 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"os"
 )
 
 const (
-	exitOK    = 0
-	exitUsage = 64
+	exitOK                 = 0
+	exitUsage              = 64
+	exitStateUnavailable   = 1
+	exitStatusAuthRequired = 2
+	exitStatusConflict     = 3
 )
 
 var validTargets = map[string]struct{}{
@@ -71,28 +76,17 @@ func runStatus(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 
+	result := collectStatus()
 	if *jsonOutput {
-		writeJSON(stdout, statusOutput{
-			SchemaVersion: 1,
-			Target:        "",
-			StateFile:     "",
-			Daemon: daemonStatus{
-				Running: false,
-			},
-			Job: nil,
-			Reconciliation: reconciliationStatus{
-				Conflicts: []string{},
-			},
-		})
-		return exitOK
+		writeJSON(stdout, result.Output)
+		return result.ExitCode
 	}
 
-	fmt.Fprintln(stdout, "Target: unknown")
-	fmt.Fprintln(stdout, "Daemon: unknown")
-	fmt.Fprintln(stdout, "State file: unknown")
-	fmt.Fprintln(stdout)
-	fmt.Fprintln(stdout, "Current job: none")
-	return exitOK
+	printStatusHuman(stdout, result.Output)
+	if result.Err != nil && !errors.Is(result.Err, os.ErrNotExist) {
+		fmt.Fprintf(stderr, "status error: %v\n", result.Err)
+	}
+	return result.ExitCode
 }
 
 func runInstall(args []string, stdout, stderr io.Writer) int {
@@ -192,14 +186,50 @@ type statusOutput struct {
 	Target         string               `json:"target"`
 	StateFile      string               `json:"stateFile"`
 	Daemon         daemonStatus         `json:"daemon"`
-	Job            any                  `json:"job"`
+	Job            *statusJob           `json:"job"`
 	Reconciliation reconciliationStatus `json:"reconciliation"`
 }
 
 type daemonStatus struct {
-	Running bool `json:"running"`
+	Running bool   `json:"running"`
+	PID     int    `json:"pid,omitempty"`
+	Service string `json:"service,omitempty"`
+}
+
+type statusJob struct {
+	Issue               issueRef    `json:"issue"`
+	LabelState          string      `json:"labelState"`
+	Branch              string      `json:"branch"`
+	Worktree            string      `json:"worktree"`
+	ClaimID             string      `json:"claimId"`
+	ClaimedAt           string      `json:"claimedAt"`
+	Tmux                *tmuxRef    `json:"tmux,omitempty"`
+	LastGitHubCommentAt string      `json:"lastGitHubCommentAt,omitempty"`
+	LastError           *string     `json:"lastError"`
+	Codex               *codexState `json:"codex,omitempty"`
+}
+
+type issueRef struct {
+	Number     int    `json:"number"`
+	Title      string `json:"title,omitempty"`
+	URL        string `json:"url,omitempty"`
+	Repository string `json:"repository,omitempty"`
+}
+
+type tmuxRef struct {
+	Session string `json:"session"`
+	Window  string `json:"window"`
+}
+
+type codexState struct {
+	SessionID       *string `json:"sessionId"`
+	LastMessagePath string  `json:"lastMessagePath,omitempty"`
+	JSONLogPath     string  `json:"jsonLogPath,omitempty"`
 }
 
 type reconciliationStatus struct {
-	Conflicts []string `json:"conflicts"`
+	GitHubLabelState string   `json:"githubLabelState"`
+	ProcessState     string   `json:"processState"`
+	TmuxState        string   `json:"tmuxState,omitempty"`
+	Conflicts        []string `json:"conflicts"`
 }

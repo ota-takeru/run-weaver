@@ -1,5 +1,23 @@
 # Process Log
 
+## 2026-05-16 - State File and Status
+
+Review:
+
+- Immediate fixes:
+  - state file schemaに対応するGo型を追加した。
+  - state fileのread/write処理を追加した。
+  - `status` が既定state fileを読み込み、human / JSONで表示するようにした。
+  - state file未作成時は構造化出力を返し、終了コード1にした。
+  - daemon process照合、WSL tmux照合、GitHub照合の境界を分けた。GitHub照合はIssue処理実装まで `not_checked` とする。
+  - `status` の単体テストを追加した。
+- Future tasks:
+  - GitHub Issue取得とclaim処理を実装する。
+  - GitHub照合を `status` のreconciliationへ接続する。
+  - Windows targetのprocess確認はWindows実機で追加検証する。
+- Human-facing reports:
+  - state fileがない状態での `status` は異常終了ではなく、状態未作成を示す終了コード1として扱う。
+
 ## 2026-05-16 - Go Module and CLI Skeleton
 
 Review:

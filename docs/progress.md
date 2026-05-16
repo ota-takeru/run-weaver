@@ -2,19 +2,20 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、state file読み書きと `run-weaver status` の実装です。
+現在の優先タスクは、GitHub Issue取得とclaim処理の実装です。
 
 Definition of Done:
 
-- state fileの読み込み処理がある
-- state file未作成時の `status` 表示と終了コードが決まっている
-- `status --json` が文書化済みトップレベル構造で出力する
-- process、tmux、GitHub照合の実装境界が分かれている
+- `run-weaver:ready` ラベル付きopen Issueを取得できる
+- `running` / `done` / `blocked` ラベル付きIssueを除外する
+- claim ID付き開始コメントを投稿する処理がある
+- 開始コメント再取得でclaim勝敗を判定する
+- 競合に負けた場合はstate fileを更新せずスキップする
 - 単体テストと `go test ./...` が通る
 
 Recommended Next Step:
 
-- state fileの型と読み込み処理を追加し、`status` のplaceholderを実データ読み込みへ置き換える。
+- `gh` CLI wrapperを追加し、Issue一覧取得とclaimコメント投稿のテスト可能な境界を作る。
 
 ## Completed
 
@@ -39,12 +40,15 @@ Recommended Next Step:
 - `doctor --target windows` のOS targetとTask Scheduler確認枠を実装した
 - `doctor --json` を構造化出力にした
 - `doctor` の終了コードを `docs/cli.md` の方針に合わせた
+- state fileの型と読み書き処理を追加した
+- `status` がstate fileを読み込むようにした
+- state file未作成時の `status --json` は構造化出力と終了コード1を返すようにした
+- `status` のprocess、tmux、GitHub照合境界を分けた
 
 ## Upcoming Sequence
 
-1. GitHub Issue取得とclaim処理を実装する
-2. WSL targetのtmux runnerを実装する
-3. draft PR作成までのdaemon flowを実装する
+1. WSL targetのtmux runnerを実装する
+2. draft PR作成までのdaemon flowを実装する
 
 ## Open Decisions To Watch
 

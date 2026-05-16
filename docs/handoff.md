@@ -12,10 +12,13 @@
 - `doctor` / `status` / `install` / `daemon` のサブコマンド枠と基本target validationを実装済み。
 - `doctor --target wsl` の実checkと `doctor --json` の構造化出力を実装済み。
 - `doctor --target windows` のWindows target確認とTask Scheduler確認枠を実装済み。
+- state fileの型とread/write処理を実装済み。
+- `status` がstate fileを読み込み、human / JSONで表示するようになった。
+- `status` のprocess、tmux、GitHub照合境界を分けた。GitHub照合は未接続。
 
 ## Next Step
 
-state file読み書きと `run-weaver status` を実装する。
+GitHub Issue取得とclaim処理を実装する。
 
 ## Notes
 
@@ -23,5 +26,6 @@ state file読み書きと `run-weaver status` を実装する。
 - secretやtokenの実値をログやドキュメントに書かない。
 - stale `running` の自動奪取は初期実装では行わない。
 - 初期実装のCodex起動は `codex exec` を使う。
-- 現時点ではstate file読み書き、GitHub処理、tmux runner、daemon flowは未実装。
+- 現時点ではGitHub処理、tmux runner、daemon flowは未実装。
+- state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor checkはWindows実機で追加検証が必要。

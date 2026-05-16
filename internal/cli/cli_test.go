@@ -93,13 +93,67 @@ func TestDoctorStopsOnTargetMismatch(t *testing.T) {
 
 func TestStatusJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir)
+
+	code := Run([]string{"status", "--json"}, &stdout, &stderr)
+
+	if code != exitStateUnavailable {
+		t.Fatalf("exit code = %d, want %d; stderr = %q", code, exitStateUnavailable, stderr.String())
+	}
+	if got := stdout.String(); !bytes.Contains([]byte(got), []byte(`"schemaVersion":1`)) {
+		t.Fatalf("stdout = %q, want status schema version", got)
+	}
+}
+
+func TestStatusReadsStateFile(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir)
+
+	path := defaultStateFile("wsl")
+	lastError := "previous failure"
+	err := writeStateFile(path, stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		UpdatedAt:     "2026-05-16T09:31:10Z",
+		Daemon: stateDaemon{
+			PID:     0,
+			Service: "run-weaver.service",
+		},
+		Job: &stateJob{
+			Issue: issueRef{
+				Number:     42,
+				Title:      "Add account export",
+				URL:        "https://github.com/example/repo/issues/42",
+				Repository: "example/repo",
+			},
+			LabelState:          "blocked",
+			Branch:              "codex/issue-42-add-account-export",
+			Worktree:            tempDir + "/worktrees/issue-42",
+			ClaimID:             "run-weaver:wsl:20260516T093000Z",
+			ClaimedAt:           "2026-05-16T09:30:00Z",
+			LastGitHubCommentAt: "2026-05-16T09:31:10Z",
+			LastError:           &lastError,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	code := Run([]string{"status", "--json"}, &stdout, &stderr)
 
 	if code != exitOK {
 		t.Fatalf("exit code = %d, want %d; stderr = %q", code, exitOK, stderr.String())
 	}
-	if got := stdout.String(); !bytes.Contains([]byte(got), []byte(`"schemaVersion":1`)) {
-		t.Fatalf("stdout = %q, want status schema version", got)
+	var got statusOutput
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("stdout is not JSON: %q: %v", stdout.String(), err)
+	}
+	if got.Job == nil || got.Job.Issue.Number != 42 {
+		t.Fatalf("job = %#v, want issue 42", got.Job)
+	}
+	if got.Reconciliation.ProcessState != "not_recorded" {
+		t.Fatalf("process state = %q, want not_recorded", got.Reconciliation.ProcessState)
 	}
 }
