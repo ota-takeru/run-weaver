@@ -401,6 +401,11 @@ func defaultDaemonLogFile(target string) string {
 }
 
 func homeDir() string {
+	if currentGOOS != "windows" {
+		if home := os.Getenv("HOME"); home != "" {
+			return home
+		}
+	}
 	if home, err := os.UserHomeDir(); err == nil {
 		return home
 	}
