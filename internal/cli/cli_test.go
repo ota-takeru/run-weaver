@@ -4,7 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -71,7 +77,7 @@ func TestDoctorJSON(t *testing.T) {
 }
 
 func TestDoctorStopsOnTargetMismatch(t *testing.T) {
-	if runtime.GOOS == "windows" {
+	if currentGOOS == "windows" {
 		t.Skip("windows target is not a mismatch on Windows")
 	}
 	var stdout, stderr bytes.Buffer
@@ -89,6 +95,72 @@ func TestDoctorStopsOnTargetMismatch(t *testing.T) {
 	}
 	if len(got.Checks) != 1 || got.Checks[0].ID != "os_target" {
 		t.Fatalf("checks = %#v, want only os_target", got.Checks)
+	}
+}
+
+func TestWindowsDoctorChecksDependenciesAndTaskScheduler(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "windows")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", tempDir)
+	if err := os.MkdirAll(filepath.Join(tempDir, "run-weaver", "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	commands := map[string]error{
+		"gh\x00auth\x00status":                    nil,
+		"codex\x00exec\x00--help":                 nil,
+		"codex\x00login\x00status":                nil,
+		"doppler\x00configure\x00get\x00project":  nil,
+		"schtasks\x00/Query\x00/TN\x00run-weaver": nil,
+	}
+	restoreCommands := stubCommandEnvironment(t, commands)
+	defer restoreCommands()
+
+	result := collectDoctor("windows")
+
+	if result.ExitCode != exitOK {
+		t.Fatalf("exit code = %d, want %d; output = %#v", result.ExitCode, exitOK, result.Output)
+	}
+	if result.Output.StateFile != filepath.Join(tempDir, "run-weaver", "state.json") {
+		t.Fatalf("state file = %q", result.Output.StateFile)
+	}
+	checks := checksByID(result.Output.Checks)
+	for _, id := range []string{"os_target", "git", "gh_auth", "codex", "doppler", "codex_clone", "worktree_root", "state_file", "service"} {
+		if _, ok := checks[id]; !ok {
+			t.Fatalf("missing check %q in %#v", id, result.Output.Checks)
+		}
+	}
+	if checks["service"].Status != "ok" {
+		t.Fatalf("service check = %#v, want ok", checks["service"])
+	}
+	if checks["worktree_root"].Status != "ok" || !strings.Contains(checks["worktree_root"].Message, filepath.Join(tempDir, "run-weaver", "worktrees")) {
+		t.Fatalf("worktree root check = %#v", checks["worktree_root"])
+	}
+}
+
+func TestWindowsDoctorReportsMissingTaskSchedulerTask(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "windows")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", tempDir)
+	if err := os.MkdirAll(filepath.Join(tempDir, "run-weaver", "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	commands := map[string]error{
+		"gh\x00auth\x00status":                    nil,
+		"codex\x00exec\x00--help":                 nil,
+		"codex\x00login\x00status":                nil,
+		"doppler\x00configure\x00get\x00project":  nil,
+		"schtasks\x00/Query\x00/TN\x00run-weaver": errors.New("task missing"),
+	}
+	restoreCommands := stubCommandEnvironment(t, commands)
+	defer restoreCommands()
+
+	result := collectDoctor("windows")
+	checks := checksByID(result.Output.Checks)
+
+	if checks["service"].Status != "missing" {
+		t.Fatalf("service check = %#v, want missing", checks["service"])
 	}
 }
 
@@ -186,16 +258,13 @@ func TestStatusDetectsGitHubLabelMismatch(t *testing.T) {
 }
 
 func TestWindowsProcessRunningParsesTasklistCSV(t *testing.T) {
-	original := runShortCommandOutput
-	t.Cleanup(func() {
-		runShortCommandOutput = original
-	})
-	runShortCommandOutput = func(name string, args ...string) ([]byte, error) {
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
 		if name != "tasklist" {
 			t.Fatalf("command = %q, want tasklist", name)
 		}
 		return []byte("\"run-weaver.exe\",\"4321\",\"Console\",\"1\",\"12,345 K\"\r\n"), nil
-	}
+	})
+	defer restoreCommands()
 
 	if !windowsProcessRunning(4321) {
 		t.Fatal("windowsProcessRunning returned false, want true")
@@ -203,13 +272,10 @@ func TestWindowsProcessRunningParsesTasklistCSV(t *testing.T) {
 }
 
 func TestWindowsProcessRunningReturnsFalseWhenTasklistHasNoMatch(t *testing.T) {
-	original := runShortCommandOutput
-	t.Cleanup(func() {
-		runShortCommandOutput = original
-	})
-	runShortCommandOutput = func(name string, args ...string) ([]byte, error) {
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
 		return []byte("INFO: No tasks are running which match the specified criteria.\r\n"), nil
-	}
+	})
+	defer restoreCommands()
 
 	if windowsProcessRunning(4321) {
 		t.Fatal("windowsProcessRunning returned true, want false")
@@ -217,24 +283,212 @@ func TestWindowsProcessRunningReturnsFalseWhenTasklistHasNoMatch(t *testing.T) {
 }
 
 func TestWindowsProcessRunningReturnsFalseOnTasklistError(t *testing.T) {
-	original := runShortCommandOutput
-	t.Cleanup(func() {
-		runShortCommandOutput = original
-	})
-	runShortCommandOutput = func(name string, args ...string) ([]byte, error) {
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
 		return nil, errors.New("tasklist failed")
-	}
+	})
+	defer restoreCommands()
 
 	if windowsProcessRunning(4321) {
 		t.Fatal("windowsProcessRunning returned true, want false")
 	}
 }
 
-func containsString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
+func TestWindowsStatusUsesTasklistForProcessAndNoTmux(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "windows")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", tempDir)
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		if name != "tasklist" {
+			t.Fatalf("command = %q, want tasklist", name)
+		}
+		return []byte("\"run-weaver.exe\",\"4321\",\"Console\",\"1\",\"12,345 K\"\r\n"), nil
+	})
+	defer restoreCommands()
+	if err := writeStateFile(defaultStateFile("windows"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "windows",
+		Daemon:        stateDaemon{PID: 4321, Service: "run-weaver"},
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Windows status"},
+			LabelState: blockedLabel,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result := collectStatus(newFakeGitHubClient(githubIssue{
+		Number: 42,
+		Labels: []githubLabel{{Name: blockedLabel}},
+	}))
+
+	if result.ExitCode != exitOK {
+		t.Fatalf("exit code = %d, want %d; output = %#v", result.ExitCode, exitOK, result.Output)
+	}
+	if result.Output.Reconciliation.ProcessState != "running" {
+		t.Fatalf("process state = %q, want running", result.Output.Reconciliation.ProcessState)
+	}
+	if result.Output.Reconciliation.TmuxState != "not_applicable" {
+		t.Fatalf("tmux state = %q, want not_applicable", result.Output.Reconciliation.TmuxState)
+	}
+}
+
+func TestWindowsStatusReportsNotRunningFromTasklist(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "windows")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", tempDir)
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		return []byte("INFO: No tasks are running which match the specified criteria.\r\n"), nil
+	})
+	defer restoreCommands()
+	if err := writeStateFile(defaultStateFile("windows"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "windows",
+		Daemon:        stateDaemon{PID: 4321, Service: "run-weaver"},
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Windows status"},
+			LabelState: blockedLabel,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result := collectStatus(newFakeGitHubClient(githubIssue{
+		Number: 42,
+		Labels: []githubLabel{{Name: blockedLabel}},
+	}))
+
+	if result.ExitCode != exitOK {
+		t.Fatalf("exit code = %d, want %d; output = %#v", result.ExitCode, exitOK, result.Output)
+	}
+	if result.Output.Reconciliation.ProcessState != "not_running" {
+		t.Fatalf("process state = %q, want not_running", result.Output.Reconciliation.ProcessState)
+	}
+}
+
+func TestWindowsStatusRepoUsesFakeGHFromPath(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "windows")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", tempDir)
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		if name == "tasklist" {
+			return []byte("\"run-weaver.exe\",\"4321\",\"Console\",\"1\",\"12,345 K\"\r\n"), nil
+		}
+		return nil, fmt.Errorf("unexpected command %s %v", name, args)
+	})
+	defer restoreCommands()
+	writeFakeGH(t, tempDir)
+	if err := writeStateFile(defaultStateFile("windows"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "windows",
+		Daemon:        stateDaemon{PID: 4321, Service: "run-weaver"},
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Windows status"},
+			LabelState: blockedLabel,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+
+	code := runStatus([]string{"--json", "--repo", "example/repo"}, &stdout, &stderr)
+
+	if code != exitOK {
+		t.Fatalf("exit code = %d, want %d; stderr = %q; stdout = %q", code, exitOK, stderr.String(), stdout.String())
+	}
+	var got statusOutput
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("stdout is not JSON: %q: %v", stdout.String(), err)
+	}
+	if got.Reconciliation.GitHubLabelState != blockedLabel {
+		t.Fatalf("github label state = %q, want %q", got.Reconciliation.GitHubLabelState, blockedLabel)
+	}
+}
+
+func setTestGOOS(t *testing.T, goos string) func() {
+	t.Helper()
+	original := currentGOOS
+	currentGOOS = goos
+	return func() {
+		currentGOOS = original
+	}
+}
+
+func stubCommandEnvironment(t *testing.T, commands map[string]error) func() {
+	t.Helper()
+	restoreOutput := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		err, ok := commands[commandKey(name, args...)]
+		if !ok {
+			return nil, fmt.Errorf("unexpected command %s %v", name, args)
+		}
+		return nil, err
+	})
+	originalLookPath := lookPath
+	lookPath = func(name string) (string, error) {
+		switch name {
+		case "git", "gh", "codex", "doppler", "schtasks", "tasklist", "tmux", "systemctl":
+			return filepath.Join("fake-bin", name), nil
+		default:
+			return "", exec.ErrNotFound
 		}
 	}
-	return false
+	return func() {
+		restoreOutput()
+		lookPath = originalLookPath
+	}
+}
+
+func stubCommandOutput(t *testing.T, fn func(string, ...string) ([]byte, error)) func() {
+	t.Helper()
+	original := runShortCommandOutput
+	runShortCommandOutput = fn
+	return func() {
+		runShortCommandOutput = original
+	}
+}
+
+func commandKey(name string, args ...string) string {
+	return strings.Join(append([]string{name}, args...), "\x00")
+}
+
+func checksByID(checks []doctorCheck) map[string]doctorCheck {
+	result := make(map[string]doctorCheck, len(checks))
+	for _, check := range checks {
+		result[check.ID] = check
+	}
+	return result
+}
+
+func writeFakeGH(t *testing.T, dir string) {
+	t.Helper()
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS == "windows" {
+		path := filepath.Join(binDir, "gh.cmd")
+		script := "@echo off\r\n" +
+			"echo {\"number\":42,\"title\":\"Windows status\",\"labels\":[{\"name\":\"blocked\"}],\"comments\":[]}\r\n"
+		if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		path := filepath.Join(binDir, "gh")
+		script := "#!/bin/sh\n" +
+			"printf '%s\\n' '{\"number\":42,\"title\":\"Windows status\",\"labels\":[{\"name\":\"blocked\"}],\"comments\":[]}'\n"
+		if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pathValue := binDir
+	if existing := os.Getenv("PATH"); existing != "" {
+		pathValue += string(os.PathListSeparator) + existing
+	}
+	t.Setenv("PATH", pathValue)
+}
+
+func containsString(values []string, want string) bool {
+	return slices.Contains(values, want)
 }

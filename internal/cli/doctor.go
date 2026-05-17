@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -21,6 +20,7 @@ const (
 )
 
 var runShortCommandOutput = defaultRunShortCommandOutput
+var lookPath = exec.LookPath
 
 type doctorResult struct {
 	Output   doctorOutput
@@ -92,7 +92,7 @@ func printDoctorHuman(w io.Writer, output doctorOutput) {
 func checkOSTarget(target string) doctorCheck {
 	switch target {
 	case "wsl":
-		if runtime.GOOS != "linux" {
+		if currentGOOS != "linux" {
 			return newDoctorCheck("os_target", "OS target", "blocked", "WSL target must run on Linux under WSL")
 		}
 		if isWSL() {
@@ -100,7 +100,7 @@ func checkOSTarget(target string) doctorCheck {
 		}
 		return newDoctorCheck("os_target", "OS target", "blocked", "Linux detected, but WSL markers were not found")
 	case "windows":
-		if runtime.GOOS == "windows" {
+		if currentGOOS == "windows" {
 			return newDoctorCheck("os_target", "OS target", "ok", "Windows detected")
 		}
 		return newDoctorCheck("os_target", "OS target", "blocked", "Windows target must run on Windows")
@@ -110,7 +110,7 @@ func checkOSTarget(target string) doctorCheck {
 }
 
 func checkCommand(id, name string) doctorCheck {
-	path, err := exec.LookPath(name)
+	path, err := lookPath(name)
 	if err != nil {
 		return newDoctorCheck(id, name, "missing", name+" not found in PATH")
 	}
@@ -118,7 +118,7 @@ func checkCommand(id, name string) doctorCheck {
 }
 
 func checkGHAuth() doctorCheck {
-	if _, err := exec.LookPath("gh"); err != nil {
+	if _, err := lookPath("gh"); err != nil {
 		return newDoctorCheck("gh_auth", "gh auth", "missing", "gh not found in PATH")
 	}
 	if err := runShortCommand("gh", "auth", "status"); err != nil {
@@ -128,7 +128,7 @@ func checkGHAuth() doctorCheck {
 }
 
 func checkCodex() doctorCheck {
-	if _, err := exec.LookPath("codex"); err != nil {
+	if _, err := lookPath("codex"); err != nil {
 		return newDoctorCheck("codex", "codex", "missing", "codex not found in PATH")
 	}
 	if err := runShortCommand("codex", "exec", "--help"); err != nil {
@@ -141,7 +141,7 @@ func checkCodex() doctorCheck {
 }
 
 func checkDoppler() doctorCheck {
-	if _, err := exec.LookPath("doppler"); err != nil {
+	if _, err := lookPath("doppler"); err != nil {
 		return newDoctorCheck("doppler", "doppler", "missing", "doppler not found in PATH")
 	}
 	if os.Getenv("DOPPLER_TOKEN") != "" {
@@ -154,7 +154,7 @@ func checkDoppler() doctorCheck {
 }
 
 func checkSystemdUser() doctorCheck {
-	if _, err := exec.LookPath("systemctl"); err != nil {
+	if _, err := lookPath("systemctl"); err != nil {
 		return newDoctorCheck("systemd_user", "systemd user", "missing", "systemctl not found in PATH")
 	}
 	if err := runShortCommand("systemctl", "--user", "is-system-running"); err != nil {
@@ -212,7 +212,7 @@ func checkService(target string) doctorCheck {
 		}
 		return newDoctorCheck("service", "service", "missing", "run-weaver.service is not installed")
 	case "windows":
-		if runtime.GOOS != "windows" {
+		if currentGOOS != "windows" {
 			return newDoctorCheck("service", "service", "blocked", "Task Scheduler check requires Windows")
 		}
 		if err := runShortCommand("schtasks", "/Query", "/TN", "run-weaver"); err != nil {

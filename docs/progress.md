@@ -2,18 +2,18 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、Windows targetのdoctor / status追加検証です。
+現在の優先タスクは、Windows targetのCI検証結果確認です。
 
 Definition of Done:
 
-- Windows実機またはWindows相当環境で `run-weaver doctor --target windows` を実行する
-- Windows targetのstatus表示でstate file、process、GitHub照合の挙動を確認する
+- GitHub ActionsのWindows jobで `go test ./...`、`go build ./cmd/run-weaver`、`go test ./internal/cli -run Windows` が通る
+- Windows targetのdoctor / statusについて、state file、process、GitHub照合相当の挙動をfake command込みのテストで確認する
 - Windows固有の未実装または環境依存事項をdocsに記録する
-- 変更があれば単体テストと `go test ./...` が通る
+- 手元Windows確認は任意とし、必要な場合は `scripts/check-windows.ps1` を実行するだけで済む
 
 Recommended Next Step:
 
-- Windows targetを実行できる環境を用意して、doctor / statusの実機挙動を確認する。
+- GitHub ActionsのWindows job結果を確認し、失敗があればWindows固有差分を修正する。
 
 ## Completed
 
@@ -66,10 +66,14 @@ Recommended Next Step:
 - 実GitHub Issue `ota-takeru/truth-table-app#1` でWSL統合テストを行い、本文付きIssueからCodex実行、README追加、commit、branch push、draft PR #2作成、`done` ラベル更新まで確認した
 - Issue本文をCodex promptへ渡し、本文なしでもタイトルが具体的なら実行できるようにした
 - Windows targetのstatus process照合を `tasklist` ベースにし、CSV解析の単体テストを追加した
+- Windows targetのdoctor / status検証用にOS判定、LookPath、外部コマンド出力をテスト注入可能にした
+- Windows targetのdoctor、Task Scheduler、state file path、status process、tmux不使用、fake `gh` 照合の単体テストを追加した
+- Linux / WindowsのGitHub Actions CIと任意の手元確認用 `scripts/check-windows.ps1` を追加した
 
 ## Upcoming Sequence
 
-1. Windows targetのdoctor / status追加検証
+1. GitHub ActionsのWindows job結果確認
+2. Windows daemon常駐方式とログ保存場所の設計
 
 ## Open Decisions To Watch
 

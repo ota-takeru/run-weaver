@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -202,7 +201,7 @@ func tmuxState(target string, tmux *tmuxRef) string {
 	if tmux == nil || tmux.Session == "" || tmux.Window == "" {
 		return "not_recorded"
 	}
-	if _, err := exec.LookPath("tmux"); err != nil {
+	if _, err := lookPath("tmux"); err != nil {
 		return "tmux_missing"
 	}
 	if err := runShortCommand("tmux", "has-session", "-t", tmux.Session+":"+tmux.Window); err != nil {

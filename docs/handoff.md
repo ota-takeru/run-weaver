@@ -23,11 +23,14 @@
 - `daemon` の継続poll loop、`--poll-interval`、claim後失敗時のblocked state file更新を実装済み。
 - 実GitHub Issue `ota-takeru/truth-table-app#1` で、本文付きIssueからCodex実行、README追加、commit、branch push、draft PR #2作成、`done` ラベル更新まで確認済み。
 - Issue本文と人間コメントはCodex promptへ渡される。本文なしでもタイトルが具体的なら実行し、情報不足の場合だけblockする方針。
-- Windows targetの `status` は、PID照合に `tasklist` のCSV出力を使うようにした。CSV解析の単体テストは追加済みだが、Windows実機では未検証。
+- Windows targetの `status` は、PID照合に `tasklist` のCSV出力を使うようにした。
+- Windows targetのdoctor / statusは、OS判定、Task Scheduler、state file path、process照合、tmux不使用、fake `gh` GitHub照合を単体テストで確認済み。
+- GitHub ActionsにLinux / Windows jobを追加済み。Windows jobでは `go test ./...`、`go build ./cmd/run-weaver`、`go test ./internal/cli -run Windows` を実行する。
+- 任意の手元Windows確認用に `scripts/check-windows.ps1` を追加済み。
 
 ## Next Step
 
-Windows targetのdoctor / statusを実機または相当環境で追加検証する。
+GitHub ActionsのWindows job結果を確認し、失敗があればWindows固有差分を修正する。
 
 ## Notes
 
@@ -38,13 +41,30 @@ Windows targetのdoctor / statusを実機または相当環境で追加検証す
 - Codexは `--sandbox workspace-write --ask-for-approval never` で起動する。
 - Codex完了後、daemonがworktreeの変更をcommitしてからpush / draft PR作成へ進む。変更なしなら `blocked` にする。
 - Codex promptにはIssueタイトル、本文、run-weaver管理コメントを除いた人間コメントを渡す。本文なしでもタイトルが具体的なら実行する。
-- 現時点ではstatus表示の細分化とWindows実機検証は未実施。
+- 現時点ではstatus表示の細分化は未実施。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
-- Windows targetのdoctor checkはWindows実機で追加検証が必要。
-- Windows targetのstatus process照合は `tasklist` に依存するため、Windows実機で終了済みPIDと稼働中PIDの両方を確認する。
+- Windows targetのdoctor / statusはGitHub Actionsの `windows-latest` で自動検証する方針。実GitHub IssueへのWindowsからの書き込み検証は、認証と外部副作用を増やすため今回の範囲外。
+- Windows targetのdaemon常駐方式とログ保存場所は未決定。初期daemon flowの実GitHub連携はWSL統合テストの実績を優先する。
+- 手元Windowsで追加確認する場合は、PowerShellで `.\scripts\check-windows.ps1` を実行する。このscriptはGitHub書き込みやsecret表示を行わない。
+
+## Windows CI / Local Check
+
+GitHub Actions:
+
+1. Linux jobで `go test ./...` と `go build ./cmd/run-weaver` を実行する。
+2. Windows jobで `go test ./...`、`go build ./cmd/run-weaver`、`go test ./internal/cli -run Windows` を実行する。
+3. fake commandを使うため、GitHub token、Doppler token、実GitHub repositoryは不要。
+
+任意の手元Windows確認:
+
+```powershell
+.\scripts\check-windows.ps1
+```
+
+このscriptは `run-weaver.exe` をbuildし、`doctor --target windows --json`、稼働中PIDの `status --json`、存在しないPIDの `status --json` を順に実行する。`status` 用stateは `job: null` にするため、GitHub接続は不要。
 
 ## WSL Integration Test Prep
 

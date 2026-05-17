@@ -82,6 +82,16 @@ tmux attach -t run-weaver
 
 JSON出力は初期実装から提供し、`doctor --json` と `status --json` は自動検査や将来のdashboard連携に使います。
 
+## Windows確認
+
+Windows固有のdoctor / status挙動はGitHub Actionsの `windows-latest` jobで検証します。手元Windowsで追加確認する場合は、PowerShellで以下を実行します。
+
+```powershell
+.\scripts\check-windows.ps1
+```
+
+このscriptはGitHub Issueへの書き込みやsecret表示を行いません。
+
 ## 設計文書
 
 - [Architecture](docs/architecture.md)

@@ -1,5 +1,21 @@
 # Process Log
 
+## 2026-05-17 - Windows CI Validation
+
+Review:
+
+- Immediate fixes:
+  - `doctor` / `status` のOS判定、PATH探索、外部コマンド出力をテスト注入可能にした。
+  - Windows targetのdoctor、Task Scheduler、`%LOCALAPPDATA%` 配下state file / worktree root、`tasklist` process照合、tmux不使用、fake `gh` によるGitHubラベル照合のテストを追加した。
+  - GitHub ActionsにLinux / Windows jobを追加し、Windowsでは `go test ./...`、`go build ./cmd/run-weaver`、`go test ./internal/cli -run Windows` を実行するようにした。
+  - 任意の手元Windows確認用に `scripts/check-windows.ps1` を追加した。
+  - `go test ./...`、`go build ./cmd/run-weaver`、`go test ./internal/cli -run Windows` を確認した。
+- Future tasks:
+  - GitHub ActionsのWindows job結果を確認する。
+  - Windows daemon常駐方式とWindowsログ保存場所を決める。
+- Human-facing reports:
+  - 今回のWindows GitHub照合はfake `gh` によるCLI境界テストで、実GitHub IssueへのWindowsからの書き込み検証は行っていない。
+
 ## 2026-05-17 - Windows Status Process Check
 
 Review:
