@@ -141,9 +141,13 @@ func TestInstallWindowsRequiresWindows(t *testing.T) {
 	}
 }
 
-func TestRunInstallWindowsRequiresRepoURL(t *testing.T) {
+func TestRunInstallWindowsRequiresRepoURLOrGitOrigin(t *testing.T) {
 	restorePlatform := setTestGOOS(t, "windows")
 	defer restorePlatform()
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		return nil, errors.New("not a git repository")
+	})
+	defer restoreCommands()
 	var stdout, stderr strings.Builder
 
 	code := runInstall([]string{"--target", "windows"}, &stdout, &stderr)
@@ -151,8 +155,48 @@ func TestRunInstallWindowsRequiresRepoURL(t *testing.T) {
 	if code != exitConfigMissing {
 		t.Fatalf("exit code = %d, want %d", code, exitConfigMissing)
 	}
-	if !strings.Contains(stderr.String(), "--repo-url is required") {
+	if !strings.Contains(stderr.String(), "requires --repo-url or a git origin remote") {
 		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestRunInstallWSLInfersRepoURLFromGitOrigin(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tempDir, "data"))
+	t.Setenv("WSL_INTEROP", "1")
+	var calls []string
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		calls = append(calls, commandKey(name, args...))
+		if commandKey(name, args...) == "git\x00remote\x00get-url\x00origin" {
+			return []byte("https://github.com/example/repo.git\n"), nil
+		}
+		return nil, nil
+	})
+	defer restoreCommands()
+	var stdout, stderr strings.Builder
+
+	code := runInstall([]string{"--target", "wsl", "--binary", "/home/me/.local/bin/run-weaver"}, &stdout, &stderr)
+
+	if code != exitOK {
+		t.Fatalf("exit code = %d, want %d; stderr = %q", code, exitOK, stderr.String())
+	}
+	servicePath := filepath.Join(tempDir, ".config", "systemd", "user", "run-weaver.service")
+	data, err := os.ReadFile(servicePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := string(data)
+	if !strings.Contains(service, `--repo-url "https://github.com/example/repo.git"`) {
+		t.Fatalf("service = %q, want inferred repo URL", service)
+	}
+	if !strings.Contains(service, `--repo "example/repo"`) {
+		t.Fatalf("service = %q, want inferred GitHub repo", service)
+	}
+	if !containsString(calls, "git\x00remote\x00get-url\x00origin") {
+		t.Fatalf("calls = %#v, want git origin lookup", calls)
 	}
 }
 

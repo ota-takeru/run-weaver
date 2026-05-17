@@ -1,5 +1,21 @@
 # Process Log
 
+## 2026-05-17 - Current Repository Install Shortcut
+
+Review:
+
+- Immediate fixes:
+  - `install` / `daemon` で `--repo-url` が未指定の場合、カレントディレクトリの `git remote get-url origin` からCodex専用clone用URLを推定するようにした。
+  - GitHub URLからowner/repoを推定する既存処理と接続し、対象repo内から `run-weaver install --target wsl` だけでserviceに `--repo-url` と `--repo` が入るようにした。
+  - README、CLI docs、architecture、handoffに簡略化後の手順を反映した。
+  - `go test ./...` と `go build ./cmd/run-weaver` で既存挙動とbuildを確認した。
+- Future tasks:
+  - install scriptをpipe実行する場合も、対象repository内で実行する前提をREADMEに維持する。
+  - 複数repository管理を始める場合は、単一service前提のままでよいか別途検討する。
+- Human-facing reports:
+  - Git remoteがないディレクトリでは従来どおり `--repo-url` 指定が必要。
+  - 外部アカウント、secret、GitHub Issue、release、pushには触れていない。
+
 ## 2026-05-17 - Release Asset Extraction Refactor
 
 Review:

@@ -28,18 +28,19 @@
 - GitHub ActionsにLinux / Windows jobを追加済み。Windows jobでは `go test ./...`、`go build ./cmd/run-weaver`、`go test ./internal/cli -run Windows` を実行する。
 - 任意の手元Windows確認用に `scripts/check-windows.ps1` を追加済み。
 - Windows targetの常駐方式はper-user Task Scheduler、ログ保存場所は `%LOCALAPPDATA%\run-weaver\logs\daemon.log` に決定済み。
-- `run-weaver install --target windows --repo-url <url>` はper-user Task Scheduler task `run-weaver` を作成または更新する。
+- `run-weaver install --target windows` はper-user Task Scheduler task `run-weaver` を作成または更新する。
 - GitHub ActionsのLinux / Windows jobは最新確認時点で成功済み。
 - `status` は `labelState` に加えて表示用の `runtimeState` を返す。`codex_running`、`codex_completed`、`needs_attention` を区別する。
 - Codexがrate limitで中断した場合、daemonはJSONLログからsession idを取得し、同じworktreeで `codex exec resume <session>` を起動する。session idが取れない場合は同じworktreeで `codex exec resume --last` を試す。
-- `install` は常駐設定を作るが、実際に使える状態には `doctor` が確認する依存関係と認証、`--repo-url`、対象Issueの `run-weaver:ready` ラベルが必要。
+- `install` は常駐設定を作るが、実際に使える状態には `doctor` が確認する依存関係と認証、対象repositoryの `git origin` または `--repo-url`、対象Issueの `run-weaver:ready` ラベルが必要。
 - release buildの `run-weaver daemon` は起動時にGitHub Releases latestを確認し、新しいassetがあればself-updateしてから処理を続ける。開発ビルドはversion `dev` のため自動更新しない。
 - `run-weaver update --check` / `run-weaver update` を追加済み。
 - release assetのzip / tar.gz展開処理は共通のbinary書き込み helper を使うように整理済み。
 - `.github/workflows/release.yml` はtag `v*` push時にLinux / Windows、amd64 / arm64のrelease assetを作成する。
 - `scripts/install.sh` と `scripts/install.ps1` はGitHub Releasesからbinaryを取得するため、ローカルにproject cloneがなくても初回導入できる。
-- `run-weaver install --target wsl --repo-url <url>` はsystemd user service `run-weaver.service` を作成または更新し、`systemctl --user enable --now run-weaver.service` を実行する。
+- `run-weaver install --target wsl` はsystemd user service `run-weaver.service` を作成または更新し、`systemctl --user enable --now run-weaver.service` を実行する。
 - `--repo` 未指定でも `--repo-url` がGitHub URLならowner/repoを自動推定し、service / Task Schedulerのdaemon起動引数へ渡す。
+- `install` / `daemon` の `--repo-url` 未指定時は、カレントディレクトリの `git remote get-url origin` から対象repository URLを自動推定する。対象repository内なら `run-weaver install --target wsl` だけで導入できる。
 
 ## Next Step
 
@@ -59,7 +60,7 @@ self-updateとclone不要install手順のCI結果を確認し、tag release work
 - self-updateはGitHub Releasesからbinary assetを取得するだけで、GitHub Issueや外部アカウント設定は変更しない。release作成にはtag pushが必要なため、実release workflow検証は人間のpush判断後に行う。
 - 自動更新を止める場合は `RUN_WEAVER_NO_UPDATE=1` を設定する。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
-- `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。
+- `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、対象repositoryの `git origin` または `--repo-url` を確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor / statusはGitHub Actionsの `windows-latest` で自動検証する方針。実GitHub IssueへのWindowsからの書き込み検証は、認証と外部副作用を増やすため今回の範囲外。
@@ -91,7 +92,7 @@ GitHub Actions:
 3. 対象Issueに `running` / `done` / `blocked` が付いていないことを確認する。
 4. `go build ./cmd/run-weaver` でローカルバイナリを作る。
 5. `./run-weaver doctor --target wsl` で `git`、`gh`、`codex`、`doppler`、`tmux`、`systemctl --user` を確認する。
-6. 初回は `./run-weaver daemon --target wsl --once --repo <owner/repo> --repo-url <repo-url>` だけを使い、継続pollは使わない。
+6. 初回は対象repository内で `./run-weaver daemon --target wsl --once` だけを使い、継続pollは使わない。
 7. 実行後に `./run-weaver status --repo <owner/repo>`、GitHub Issueコメント、tmux windowを確認する。
 
 この手順はIssueラベル、Issueコメント、branch、draft PRを実際に作る。対象Issueを間違えた場合の自動巻き戻しはない。

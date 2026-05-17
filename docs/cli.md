@@ -52,7 +52,7 @@ Checks:
   [missing] service           run-weaver.service is not installed
 
 Next:
-  run-weaver install --target wsl --repo-url https://github.com/example/repo.git
+  run-weaver install --target wsl
 ```
 
 JSON出力例:
@@ -251,6 +251,7 @@ agentの導入と常駐設定を行います。
 curl -fsSL https://raw.githubusercontent.com/ota-takeru/run-weaver/main/scripts/install.sh | sh -s -- --target wsl --repo-url https://github.com/example/repo.git --repo example/repo
 iwr https://raw.githubusercontent.com/ota-takeru/run-weaver/main/scripts/install.ps1 -OutFile $env:TEMP\install-run-weaver.ps1
 powershell -ExecutionPolicy Bypass -File $env:TEMP\install-run-weaver.ps1 -RepoUrl https://github.com/example/repo.git -Repo example/repo
+run-weaver install --target wsl
 run-weaver install --target wsl --repo-url https://github.com/example/repo.git
 run-weaver install --target windows --repo-url https://github.com/example/repo.git
 ```
@@ -265,13 +266,13 @@ Windows target:
 
 - `scripts/install.ps1` がGitHub Releasesからバイナリを `%LOCALAPPDATA%\\run-weaver\\bin\\run-weaver.exe` に配置
 - per-user Task Schedulerに `run-weaver` taskを登録
-- `--repo-url` でCodex専用clone作成元のrepository URLを指定
+- `--repo-url` でCodex専用clone作成元のrepository URLを明示指定できる。未指定時はカレントディレクトリの `git remote get-url origin` を使う
 - `--repo` を指定した場合はdaemonのGitHub CLI操作にowner/repoを渡す。未指定でも `--repo-url` がGitHub URLならowner/repoを自動推定する
 - 標準出力と標準エラーを `%LOCALAPPDATA%\\run-weaver\\logs\\daemon.log` に追記
 
 `install.sh` と `install.ps1` は、初回取得と `run-weaver install` 呼び出しを行う薄いラッパーです。ローカルにこのprojectのcloneがなくても使えます。release asset名は `run-weaver_linux_amd64.tar.gz`、`run-weaver_linux_arm64.tar.gz`、`run-weaver_windows_amd64.zip`、`run-weaver_windows_arm64.zip` です。
 
-`install` は常駐設定を作成します。実際にIssue処理を開始できる状態にするには、事前に `doctor` が確認する依存関係と認証、Codex専用clone作成用の `--repo-url`、対象repositoryの `run-weaver:ready` Issueが必要です。
+`install` は常駐設定を作成します。対象repository内で実行する場合、`--repo-url` は省略でき、`git remote get-url origin` からCodex専用clone作成用URLを推定します。`--repo` 未指定でもrepository URLがGitHub URLならowner/repoを自動推定します。実際にIssue処理を開始できる状態にするには、事前に `doctor` が確認する依存関係と認証、対象repositoryの `run-weaver:ready` Issueが必要です。
 
 ## `run-weaver update`
 
@@ -322,7 +323,7 @@ Codex CLI起動の初期仕様:
 
 WSL targetでは、この `codex exec` をtmux window内で起動します。tmux session名は `run-weaver`、window名は `issue-<number>` とします。
 
-`--once` は1件だけ処理して終了します。指定しない場合は `--poll-interval` ごとに継続pollします。`--repo-url` はCodex専用cloneを新規作成する場合に使うrepository URLです。`--repo` は `gh` CLIへ渡すowner/repo指定で、未指定の場合はカレントディレクトリのGitHub repository解決に任せます。
+`--once` は1件だけ処理して終了します。指定しない場合は `--poll-interval` ごとに継続pollします。`--repo-url` はCodex専用cloneを新規作成する場合に使うrepository URLです。省略時はカレントディレクトリの `git remote get-url origin` を使います。`--repo` は `gh` CLIへ渡すowner/repo指定で、未指定でもrepository URLがGitHub URLならowner/repoを自動推定します。
 
 ## `run-weaver dashboard`
 

@@ -17,7 +17,7 @@ run-weaver daemon --target windows
 
 GitHub Issueを定期的に監視し、実行対象を選びます。初期実装では `run-weaver:ready` ラベルが付いたopen Issueだけを対象にします。対象Issueごとに専用worktreeを作成し、Codex CLIを実行します。
 
-daemonは `--repo-url` でCodex専用clone作成元のrepository URLを受け取ります。`--once` を指定した場合は1件だけ処理して終了し、指定しない場合は `--poll-interval` ごとに継続pollします。
+daemonは `--repo-url` でCodex専用clone作成元のrepository URLを受け取ります。未指定の場合はカレントディレクトリの `git remote get-url origin` から推定します。`--once` を指定した場合は1件だけ処理して終了し、指定しない場合は `--poll-interval` ごとに継続pollします。
 
 初期実装ではGitHub操作に `gh` CLIを使います。これにより、既存のGitHub認証状態をそのまま利用できます。
 

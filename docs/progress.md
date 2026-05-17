@@ -81,6 +81,7 @@ Recommended Next Step:
 - `run-weaver update --check` / `run-weaver update` を追加した
 - GitHub Release asset作成workflowと、project clone不要の `scripts/install.sh` / `scripts/install.ps1` を追加した
 - `run-weaver install --target wsl --repo-url <url>` でsystemd user serviceを作成または更新する処理を追加した
+- `install` / `daemon` の `--repo-url` 未指定時に、カレントディレクトリの `git remote get-url origin` から対象repository URLを自動推定するようにした
 
 ## Upcoming Sequence
 

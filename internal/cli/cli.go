@@ -148,15 +148,16 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "--poll-interval must be greater than zero")
 		return exitUsage
 	}
-	if *repoURL == "" {
-		fmt.Fprintf(stderr, "--repo-url is required for install --target %s\n", *target)
+	resolvedRepoURL, err := resolveRepoURL(*repoURL)
+	if err != nil {
+		fmt.Fprintf(stderr, "install requires --repo-url or a git origin remote: %v\n", err)
 		return exitConfigMissing
 	}
-	repoName := resolveRepoName(*repo, *repoURL)
+	repoName := resolveRepoName(*repo, resolvedRepoURL)
 	if *target == "windows" {
 		if err := installWindows(windowsInstallOptions{
 			Repo:         repoName,
-			RepoURL:      *repoURL,
+			RepoURL:      resolvedRepoURL,
 			Binary:       *binary,
 			PollInterval: *pollInterval,
 		}); err != nil {
@@ -169,7 +170,7 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 
 	if err := installWSL(installOptions{
 		Repo:         repoName,
-		RepoURL:      *repoURL,
+		RepoURL:      resolvedRepoURL,
 		Binary:       *binary,
 		PollInterval: *pollInterval,
 	}); err != nil {
@@ -194,8 +195,9 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 
-	if *repoURL == "" {
-		fmt.Fprintln(stderr, "--repo-url is required for daemon")
+	resolvedRepoURL, err := resolveRepoURL(*repoURL)
+	if err != nil {
+		fmt.Fprintf(stderr, "daemon requires --repo-url or a git origin remote: %v\n", err)
 		return exitConfigMissing
 	}
 	if *pollInterval <= 0 {
@@ -204,13 +206,13 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 	}
 
 	deps := daemonDeps{
-		github:   ghClient{repo: resolveRepoName(*repo, *repoURL)},
+		github:   ghClient{repo: resolveRepoName(*repo, resolvedRepoURL)},
 		worktree: newWorktreeManager(nil),
 		runner:   newTmuxRunner(nil),
 	}
 	opts := daemonOptions{
 		target:  *target,
-		repoURL: *repoURL,
+		repoURL: resolvedRepoURL,
 	}
 	if !*once {
 		return runDaemonLoop(stdout, stderr, deps, opts, *pollInterval)
@@ -263,6 +265,21 @@ func resolveRepoName(repo, repoURL string) string {
 		return repo
 	}
 	return inferGitHubRepo(repoURL)
+}
+
+func resolveRepoURL(repoURL string) (string, error) {
+	if strings.TrimSpace(repoURL) != "" {
+		return strings.TrimSpace(repoURL), nil
+	}
+	out, err := runShortCommandOutput("git", "remote", "get-url", "origin")
+	if err != nil {
+		return "", err
+	}
+	value := strings.TrimSpace(string(out))
+	if value == "" {
+		return "", fmt.Errorf("git origin remote is empty")
+	}
+	return value, nil
 }
 
 func inferGitHubRepo(repoURL string) string {
