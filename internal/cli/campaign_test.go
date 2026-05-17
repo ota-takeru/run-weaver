@@ -31,6 +31,9 @@ func TestPlanCampaignBuildsTasksAndDecisionGates(t *testing.T) {
 	if len(plan.Tasks[1].Dependencies) != 1 || plan.Tasks[1].Dependencies[0] != "task-build-planner" {
 		t.Fatalf("dependencies = %#v", plan.Tasks[1].Dependencies)
 	}
+	if !strings.Contains(plan.Tasks[0].Body, "Campaign context:") || !strings.Contains(plan.Tasks[0].Body, "Add dispatcher") {
+		t.Fatalf("task body = %q, want campaign context", plan.Tasks[0].Body)
+	}
 }
 
 func TestProcessOneIssuePlansCampaignAndCreatesChildIssues(t *testing.T) {
@@ -75,6 +78,47 @@ func TestProcessOneIssuePlansCampaignAndCreatesChildIssues(t *testing.T) {
 	}
 	if !strings.Contains(github.comments[len(github.comments)-1].Body, "## blocked tasks") {
 		t.Fatalf("comments = %#v, want decision request", github.comments)
+	}
+}
+
+func TestProcessOneIssuePlansCampaignPreservesCompletedIssues(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	t.Setenv("XDG_DATA_HOME", tempDir+"/data")
+	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		CompletedIssues: []completedIssue{{
+			Issue:  issueRef{Number: 3, Title: "Done"},
+			Branch: "codex/issue-3-done",
+			PRURL:  "https://github.com/example/repo/pull/3",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{
+		Number: 7,
+		Title:  "Campaign",
+		Body:   "- Add planner",
+		URL:    "https://github.com/example/repo/issues/7",
+		Labels: []githubLabel{{Name: readyLabel}, {Name: campaignLabel}},
+	})
+
+	_, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(&fakeCommandRunner{}),
+		runner:   newTmuxRunner(&fakeCommandRunner{}),
+	}, daemonOptions{target: "wsl", repoURL: "https://github.com/example/repo.git"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := readStateFile(defaultStateFile("wsl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated.CompletedIssues) != 1 || updated.CompletedIssues[0].Issue.Number != 3 {
+		t.Fatalf("completed issues = %#v", updated.CompletedIssues)
 	}
 }
 

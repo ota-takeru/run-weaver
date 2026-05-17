@@ -1,5 +1,26 @@
 # Process Log
 
+## 2026-05-17 - Truth Table App E2E And Campaign Context Fix
+
+Review:
+
+- Immediate fixes:
+  - `ota-takeru/truth-table-app#3` / `#4` を作成し、同一repository内のIssue番号順処理、依存待機、stacked draft PR作成を実GitHubで確認した。
+  - #3 はdraft PR #5を `main` baseで作成し、#4 は依存先 #3 のbranchをbaseにしたdraft PR #6として作成された。
+  - `ota-takeru/truth-table-app#7` をCampaignとして作成し、子Issue #8 / #9、Decision Request、`plan` / `implement` / `review` / `verify` pipeline、draft PR #10 / #11、Campaign progress、decision gate停止/再開を確認した。
+  - Campaign子Issue #8 / #9 が `run-weaver:campaign-task` 付きで通常ready Issue取得から除外され、Campaign完了後のdaemonが `no ready issue` になることを確認した。
+  - E2E中に、Campaign task promptがroadmapの1行だけを渡して親Campaign本文の詳細指示を落とす問題を発見した。task bodyへ親Campaign本文contextを含めるよう修正し、単体テストを追加した。
+  - Campaign planning時に既存stateの `completedIssues` を落とさないよう修正し、単体テストを追加した。
+- Future tasks:
+  - 複数repository登録後の実GitHub Issue処理を確認する。
+  - Windows target direct runnerを実機で確認する。
+  - tag push後にrelease workflowとGitHub Release assetを確認する。
+  - Doppler必須repoでの実blocked確認を、secret値を出さずに検証できる対象repoで行う。
+- Human-facing reports:
+  - `ota-takeru/truth-table-app` にはE2E用Issue #3 / #4 / #7 / #8 / #9 とdraft PR #5 / #6 / #10 / #11 が作成済み。
+  - #10 / #11 は修正前のCampaign context不足を含むE2Eで作られたため、task詳細どおりのdocs追加ではなく `index.html` 変更になっている。原因はこの作業内で修正済み。
+  - secret値、外部アカウント設定、release tag push、GitHub Release作成は行っていない。
+
 ## 2026-05-17 - Release Preflight Cross-Build
 
 Review:

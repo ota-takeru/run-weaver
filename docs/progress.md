@@ -2,21 +2,18 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、Campaign Planner / Dispatcher導入後の統合確認です。
+現在の優先タスクは、リリース前の残り実機確認です。
 
 Definition of Done:
 
-- `run-weaver:campaign` + `run-weaver:ready` の親IssueをCampaignとして検出する
-- Campaign本文のroadmapからtask graphとdecision gateを抽出する
-- 子Issueを作成し、taskごとの `plan` / `implement` / `review` / `verify` pipelineをstateに保存する
-- task完了時にdraft PR URLをCampaign progressへ記録する
-- `status --json` とhuman outputでCampaign progressを確認できる
-- Campaign子Issueを通常ready Issue取得から除外し、decision gateで実行可能taskを制限する
-- Doppler不要repositoryではDoppler未インストールでも続行し、Doppler必須repositoryではCodex起動前にblockedへ止める
+- 複数repository登録後の実GitHub Issue処理を確認する
+- Windows target direct runnerを実機で確認する
+- self-updateとclone不要install手順のCI / release workflow結果を確認する
+- Doppler必須repositoryでCodex起動前にblockedへ止まることを実repoまたは明示的な検証repoで確認する
 
 Recommended Next Step:
 
-- 実GitHub Campaign IssueでPlanner / Dispatcherの統合テストを行う。あわせて同一repository内に複数の `run-weaver:ready` Issueを作り、古いIssue順の順次処理、依存Issueの待機、stacked PR作成を確認する。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repositoryを確認してから実行する。
+- `ota-takeru/truth-table-app` でのWSL E2Eは完了済み。次は複数repository登録後の実GitHub Issue処理、Windows direct runner実機確認、release workflow結果確認を進める。Doppler必須repoの実blocked確認は、secret値を出さずに検証できる対象repoを用意して行う。
 
 ## Completed
 
@@ -109,15 +106,17 @@ Recommended Next Step:
 - `status` のJSONとhuman outputに `readyQueue` を追加した
 - maintainer用 `scripts/release.sh` を追加し、dry-run既定で次tag計算、事前検証、明示的なtag pushによるrelease workflow起動を行えるようにした
 - `scripts/release.sh` の事前検証にLinux / Windows、amd64 / arm64のrelease cross-buildを追加した
+- 実GitHub Issue `ota-takeru/truth-table-app#3` / `#4` で同一repository内のIssue番号順処理、依存待機、依存先branchをbaseにしたstacked draft PR #5 / #6作成を確認した
+- 実GitHub Campaign Issue `ota-takeru/truth-table-app#7` でCampaign検出、子Issue #8 / #9 作成、decision request、`plan` / `implement` / `review` / `verify` pipeline、draft PR #10 / #11作成、Campaign progress表示、decision gate停止/再開、Campaign子Issueの通常ready除外を確認した
+- Campaign task promptに親Campaign本文の詳細contextを含めるように修正し、Campaign planning時に既存の `completedIssues` を保持するようにした
 
 ## Upcoming Sequence
 
-1. 実GitHub Campaign IssueでPlanner / DispatcherとDoppler auto判定の統合テスト
-2. 同一repository内の複数ready Issue順次処理とstacked PRの実GitHub確認
-3. 複数repository登録後の実GitHub Issue処理確認
-4. Windows target direct runnerの実機確認
-5. self-updateとclone不要install手順のCI / release workflow結果確認
-6. `run-weaver:ready` 以外のフィルタ検討
+1. 複数repository登録後の実GitHub Issue処理確認
+2. Windows target direct runnerの実機確認
+3. self-updateとclone不要install手順のCI / release workflow結果確認
+4. Doppler必須repositoryでの実blocked確認
+5. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch
 

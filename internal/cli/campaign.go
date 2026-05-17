@@ -60,7 +60,7 @@ func planCampaign(issue githubIssue) campaignPlan {
 		tasks = append(tasks, campaignTask{
 			ID:           id,
 			Title:        title,
-			Body:         item,
+			Body:         campaignTaskBody(item, issue.Body),
 			Status:       campaignTaskPending,
 			Dependencies: deps,
 			Phase:        pipelinePhasePlan,
@@ -81,6 +81,15 @@ func planCampaign(issue githubIssue) campaignPlan {
 	}
 	linkDecisionTasks(tasks, decisions)
 	return campaignPlan{Tasks: tasks, Decisions: decisions}
+}
+
+func campaignTaskBody(item, campaignBody string) string {
+	item = strings.TrimSpace(item)
+	campaignBody = strings.TrimSpace(campaignBody)
+	if campaignBody == "" || campaignBody == item {
+		return item
+	}
+	return item + "\n\nCampaign context:\n" + campaignBody
 }
 
 var roadmapBulletRE = regexp.MustCompile(`^\s*(?:[-*]|\d+[.)])\s+(?:\[[ xX]\]\s*)?(.+?)\s*$`)
@@ -174,6 +183,7 @@ func processCampaign(ctx context.Context, deps daemonDeps, opts daemonOptions, s
 		_ = markBlocked(ctx, deps.github, issue.Number, "campaign planner", err)
 		return "", true, err
 	}
+	planned.CompletedIssues = append([]completedIssue(nil), currentCompletedIssues(state)...)
 	if err := writeStateFile(opts.stateFilePath(), *planned); err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "campaign state file", err)
 		return "", true, err
