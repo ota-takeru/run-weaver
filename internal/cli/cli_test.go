@@ -358,6 +358,21 @@ func TestStatusIncludesCampaignProgress(t *testing.T) {
 	}
 }
 
+func TestInferRepoFromStateUsesIssueURL(t *testing.T) {
+	state := &stateFile{
+		Job: &stateJob{
+			Issue: issueRef{
+				Number: 42,
+				URL:    "https://github.com/example/repo/issues/42",
+			},
+		},
+	}
+
+	if got := inferRepoFromState(state); got != "example/repo" {
+		t.Fatalf("repo = %q, want example/repo", got)
+	}
+}
+
 func TestStatusIncludesCampaignPlanningState(t *testing.T) {
 	restorePlatform := setTestGOOS(t, "linux")
 	defer restorePlatform()
@@ -575,7 +590,7 @@ func TestWindowsStatusUsesTasklistForProcessAndNoTmux(t *testing.T) {
 		Target:        "windows",
 		Daemon:        stateDaemon{PID: 4321, Service: "run-weaver"},
 		Job: &stateJob{
-			Issue:      issueRef{Number: 42, Title: "Windows status"},
+			Issue:      issueRef{Number: 42, Title: "Windows status", Repository: "example/repo"},
 			LabelState: blockedLabel,
 		},
 	}); err != nil {
@@ -612,7 +627,7 @@ func TestWindowsStatusReportsNotRunningFromTasklist(t *testing.T) {
 		Target:        "windows",
 		Daemon:        stateDaemon{PID: 4321, Service: "run-weaver"},
 		Job: &stateJob{
-			Issue:      issueRef{Number: 42, Title: "Windows status"},
+			Issue:      issueRef{Number: 42, Title: "Windows status", Repository: "example/repo"},
 			LabelState: blockedLabel,
 		},
 	}); err != nil {
@@ -650,7 +665,7 @@ func TestWindowsStatusRepoUsesFakeGHFromPath(t *testing.T) {
 		Target:        "windows",
 		Daemon:        stateDaemon{PID: 4321, Service: "run-weaver"},
 		Job: &stateJob{
-			Issue:      issueRef{Number: 42, Title: "Windows status"},
+			Issue:      issueRef{Number: 42, Title: "Windows status", Repository: "example/repo"},
 			LabelState: blockedLabel,
 		},
 	}); err != nil {

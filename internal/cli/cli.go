@@ -321,7 +321,7 @@ func resolveRepoURL(repoURL string) (string, error) {
 	}
 	out, err := runShortCommandOutput("git", "remote", "get-url", "origin")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("git remote get-url origin: %w", err)
 	}
 	value := strings.TrimSpace(string(out))
 	if value == "" {
@@ -347,6 +347,20 @@ func inferGitHubRepo(repoURL string) string {
 		return ""
 	}
 	return parts[0] + "/" + parts[1]
+}
+
+func inferGitHubRepoFromIssueURL(issueURL string) string {
+	value := strings.TrimSpace(issueURL)
+	for _, prefix := range []string{"https://github.com/", "http://github.com/"} {
+		if strings.HasPrefix(value, prefix) {
+			value = strings.TrimPrefix(value, prefix)
+			parts := strings.Split(value, "/")
+			if len(parts) >= 2 && parts[0] != "" && parts[1] != "" {
+				return parts[0] + "/" + parts[1]
+			}
+		}
+	}
+	return ""
 }
 
 func printRootUsage(w io.Writer) {

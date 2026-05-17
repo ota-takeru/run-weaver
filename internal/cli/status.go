@@ -50,15 +50,25 @@ func collectStatusForRepo(client githubClient, repository string) statusResult {
 	if err != nil && repository != "" && errors.Is(err, os.ErrNotExist) {
 		legacyPath := defaultStateFile(target)
 		if legacyState, legacyErr := readStateFile(legacyPath); legacyErr == nil {
-			state = legacyState
-			statePath = legacyPath
-			output.StateFile = legacyPath
-			err = nil
+			if stateBelongsToRepository(legacyState, repository) {
+				state = legacyState
+				statePath = legacyPath
+				output.StateFile = legacyPath
+				err = nil
+			}
 		}
 	}
 	if err != nil {
 		output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, "state_file_unavailable")
 		return statusResult{Output: output, ExitCode: exitStateUnavailable, Err: err}
+	}
+	if repository == "" {
+		if inferred := inferRepoFromState(state); inferred != "" {
+			repository = inferred
+			if gh, ok := client.(ghClient); ok && gh.repo == "" {
+				client = ghClient{repo: inferred}
+			}
+		}
 	}
 
 	output.Target = state.Target
@@ -101,6 +111,33 @@ func collectStatusForRepo(client githubClient, repository string) statusResult {
 		return statusResult{Output: output, ExitCode: exitStatusConflict}
 	}
 	return statusResult{Output: output, ExitCode: exitOK}
+}
+
+func inferRepoFromState(state *stateFile) string {
+	if state == nil {
+		return ""
+	}
+	if state.Job != nil {
+		if state.Job.Issue.Repository != "" {
+			return state.Job.Issue.Repository
+		}
+		if repo := inferGitHubRepoFromIssueURL(state.Job.Issue.URL); repo != "" {
+			return repo
+		}
+	}
+	if state.Campaign != nil {
+		if state.Campaign.Issue.Repository != "" {
+			return state.Campaign.Issue.Repository
+		}
+		if repo := inferGitHubRepoFromIssueURL(state.Campaign.Issue.URL); repo != "" {
+			return repo
+		}
+	}
+	return ""
+}
+
+func stateBelongsToRepository(state *stateFile, repository string) bool {
+	return repository != "" && inferRepoFromState(state) == repository
 }
 
 func collectMultiStatus(repos []repoEntry, target string) statusResult {

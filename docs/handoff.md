@@ -52,6 +52,7 @@
 - `run-weaver repo add/list/remove` で監視対象repositoryを管理できる。repo設定は `repos.json` に保存し、secret値は保存しない。
 - 複数repository登録時、daemonはrepoごとに `gh --repo`、repo別clone、repo別worktree、repo別stateを使い、repo間は同時実行する。
 - `status` は登録済みrepositoryのstateを集約表示し、`--repo owner/repo` で対象repoだけを表示する。
+- legacy単一repo stateを読む場合でも、state内のrepositoryまたはIssue URLから `owner/repo` を推定できれば `gh --repo` を付けてGitHub照合する。複数repository表示では、legacy stateが対象repositoryに属すると確認できる場合だけfallbackする。
 - `run-weaver repo add --doppler auto|required|optional` を追加済み。既存repo設定は `dopplerMode` 未指定なら `auto` として読む。
 - Doppler auto判定はrepo root直下の `doppler.yaml`、`doppler.yml`、`.doppler.yaml`、`.doppler.yml` を見る。Doppler不要repoでは未インストールでも進め、必須repoではCodex起動前に `blocked` にする。
 - Doppler必須repoでは `doppler run -- codex ...`、不要repoでは通常の `codex ...` を使う。tokenやsecret値はstate、Issueコメント、PR本文、docs例に保存しない。
@@ -90,6 +91,7 @@
 - Campaign task dependencyは `depends: task-...` のtask ID形式を使う。
 - 通常Issue dependencyは `depends: #123` などのIssue番号形式を使う。依存表現が曖昧な場合、agentは独立PRとして推測実行せず `blocked` にする。
 - Dopplerが必要なrepoは `run-weaver repo add --doppler required` で明示できる。Doppler不要repoは `--doppler optional` で自動検出を上書きできる。
+- `run-weaver repo add` は対象repository内で実行する。Git repository外で実行した場合は `git remote get-url origin` の失敗内容を表示する。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor / statusはGitHub Actionsの `windows-latest` で自動検証する方針。実GitHub IssueへのWindowsからの書き込み検証は、認証と外部副作用を増やすため今回の範囲外。
 - Windows targetのdaemon常駐方式とログ保存場所は `docs/decision-log.md` にaccepted decisionとして記録済み。初期daemon flowの実GitHub連携はWSL統合テストの実績を優先する。

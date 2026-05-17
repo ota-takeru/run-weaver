@@ -356,11 +356,13 @@ func defaultRunShortCommandOutput(name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stderr = io.Discard
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, ctx.Err()
+		}
+		if message := strings.TrimSpace(string(out)); message != "" {
+			return nil, fmt.Errorf("%w: %s", err, message)
 		}
 		return nil, err
 	}

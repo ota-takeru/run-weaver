@@ -123,7 +123,7 @@ func TestRepoAddRejectsNonGitDirectory(t *testing.T) {
 	if code != exitConfigMissing {
 		t.Fatalf("exit = %d, want %d", code, exitConfigMissing)
 	}
-	if !strings.Contains(stderr.String(), "repo add error") {
+	if !strings.Contains(stderr.String(), "repo add error") || !strings.Contains(stderr.String(), "git remote get-url origin") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
@@ -185,5 +185,44 @@ func TestCollectMultiStatusIncludesRegisteredRepos(t *testing.T) {
 	}
 	if result.Output.Repositories[0].Repository != "example/a" || result.Output.Repositories[0].Status.StateFile != stateFileForRepo("wsl", "example/a") {
 		t.Fatalf("repo A status = %#v", result.Output.Repositories[0])
+	}
+}
+
+func TestCollectMultiStatusDoesNotUseMismatchedLegacyState(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(tempDir, "state"))
+	t.Setenv("WSL_INTEROP", "1")
+	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue: issueRef{
+				Number: 1,
+				Title:  "Old issue",
+				URL:    "https://github.com/example/old/issues/1",
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result := collectMultiStatus([]repoEntry{
+		{Repository: "example/new", RepoURL: "https://github.com/example/new.git", Enabled: true},
+	}, "wsl")
+
+	if result.ExitCode != exitStateUnavailable {
+		t.Fatalf("exit = %d, want %d; output = %#v", result.ExitCode, exitStateUnavailable, result.Output)
+	}
+	status := result.Output.Repositories[0].Status
+	if status.StateFile != stateFileForRepo("wsl", "example/new") {
+		t.Fatalf("state file = %q, want repo-specific state path", status.StateFile)
+	}
+	if status.Job != nil {
+		t.Fatalf("job = %#v, want no legacy job", status.Job)
+	}
+	if !containsString(status.Reconciliation.Conflicts, "state_file_unavailable") {
+		t.Fatalf("conflicts = %#v, want state_file_unavailable", status.Reconciliation.Conflicts)
 	}
 }

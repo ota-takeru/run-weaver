@@ -1,5 +1,19 @@
 # Process Log
 
+## 2026-05-17 - Repo Registration Status Error Fix
+
+Review:
+
+- Immediate fixes:
+  - `run-weaver repo add` がGit repository外で失敗した場合、`git remote get-url origin` の失敗であることとGit stderrを表示するようにした。
+  - legacy単一repo stateを読む `run-weaver status` で、state内のrepositoryまたはIssue URLから `owner/repo` を推定し、`gh --repo` を付けてGitHub照合するようにした。
+  - 複数repository表示でrepo別stateが未作成の場合、別repositoryのlegacy単一repo stateを誤って表示しないようにした。
+  - Issue URLからrepositoryを推定する単体テストと、`repo add` のエラー文言テストを追加した。
+- Future tasks:
+  - `run-weaver repo add` は引き続き対象repository内で実行する運用。必要になれば、将来 `repo add --repo-url` 形式を検討する。
+- Human-facing reports:
+  - ユーザーが `~` から `run-weaver repo add` を実行すると、対象repositoryの `origin` が読めないため失敗する。対象repositoryへ `cd` してから実行するか、既存state確認は `run-weaver status --repo owner/repo` を使う。
+
 ## 2026-05-17 - Codex Planner Campaign E2E
 
 Review:
