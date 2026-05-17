@@ -80,6 +80,8 @@ WSLではtmuxで実行ログを確認できます。
 tmux attach -t run-weaver
 ```
 
+WSLのsystemd user serviceには、`run-weaver install --target wsl` 実行時のPATHを保存します。nvmなどユーザーPATH上にある `codex` を導入した後は、再度 `run-weaver install --target wsl` を実行してserviceを更新します。
+
 ## 依存関係確認
 
 `run-weaver doctor` は、実行環境が作業可能かを確認します。

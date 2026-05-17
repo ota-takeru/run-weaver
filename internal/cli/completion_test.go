@@ -204,6 +204,57 @@ func TestCompleteCurrentJobWaitsForLastMessage(t *testing.T) {
 	}
 }
 
+func TestCompleteCurrentJobBlocksFailedCodexStartup(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	jsonLog := tempDir + "/codex.jsonl"
+	if err := os.WriteFile(jsonLog, []byte("bash: line 1: codex: command not found\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add export"},
+			LabelState: runningLabel,
+			Branch:     "codex/issue-42-add-export",
+			Worktree:   tempDir + "/worktrees/issue-42",
+			Tmux:       &tmuxRef{Session: tmuxSessionName, Window: "issue-42"},
+			Codex: &codexState{
+				JSONLogPath:     jsonLog,
+				LastMessagePath: tempDir + "/missing-last-message.txt",
+			},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{Number: 42, Title: "Add export"})
+
+	result, completed, err := completeCurrentJob(context.Background(), daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(&fakeCommandRunner{}),
+		runner:   newTmuxRunner(&fakeCommandRunner{}),
+	}, daemonOptions{target: "wsl"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !completed || result != "blocked failed Codex startup" {
+		t.Fatalf("result = %q completed = %v", result, completed)
+	}
+	if !github.added[blockedLabel] || !github.removed[runningLabel] {
+		t.Fatalf("labels added=%#v removed=%#v", github.added, github.removed)
+	}
+	updated, err := readStateFile(defaultStateFile("wsl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Job == nil || updated.Job.LabelState != blockedLabel || updated.Job.LastError == nil || !strings.Contains(*updated.Job.LastError, "service PATH") {
+		t.Fatalf("state job = %#v, want blocked service PATH error", updated.Job)
+	}
+}
+
 func TestCompleteCurrentJobResumesRateLimitedCodex(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir+"/state")

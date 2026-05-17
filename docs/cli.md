@@ -424,12 +424,13 @@ Codex CLI起動の初期仕様:
 - 標準出力のJSONLログはstate配下のIssue別ディレクトリに保存する
 - 最終応答は `--output-last-message` でstate配下に保存する
 - 終了コード `0` 以外、JSONLログの異常終了、draft PR作成失敗は `blocked` とする
+- tmux window終了後にJSONLログが `codex: command not found` などCodex起動失敗を示す場合は、stuckした `running` のままにせず `blocked` とする
 - JSONLログがrate limitを示し、Codex session idを取得できる場合は `blocked` にせず、次回pollで `codex exec resume <session>` により同じworktreeと前回sessionから再開する
 - session idを取得できない場合でも、同じworktreeへ移動して `codex exec resume --last` を試す
 - Doppler必須repositoryでDoppler CLIまたは認証がない場合はCodex起動前に `blocked` とし、Doppler不要repositoryではDoppler未インストールでも続行する
 - Codexに渡すDoppler service tokenは環境変数から注入し、ログ、Issueコメント、PR本文、state fileには値を出さない
 
-WSL targetでは、この `codex exec` をtmux window内で起動します。tmux session名は `run-weaver`、window名は単一repo互換では `issue-<number>`、repo登録経由では `<repo-slug>-issue-<number>` とします。Windows targetではtmuxを使わず、PowerShell経由のdirect runnerでCodexを非同期起動します。
+WSL targetでは、この `codex exec` をtmux window内で起動します。`run-weaver install --target wsl` は実行時PATHをsystemd user serviceの `Environment=PATH=...` に保存し、nvmなどユーザーPATH上の `codex` もserviceから見えるようにします。tmux session名は `run-weaver`、window名は単一repo互換では `issue-<number>`、repo登録経由では `<repo-slug>-issue-<number>` とします。Windows targetではtmuxを使わず、PowerShell経由のdirect runnerでCodexを非同期起動します。
 
 `--once` は1回だけ処理して終了します。複数repository登録時は各repositoryで最大1件ずつ確認・開始します。指定しない場合は `--poll-interval` ごとに継続pollし、登録repositoryごとに独立した処理ループを起動します。`--repo-url` はCodex専用cloneを新規作成する場合に使うrepository URLです。`--repo` と併用した場合は互換用の単一repoモードとして動きます。
 

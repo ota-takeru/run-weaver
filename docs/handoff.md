@@ -40,6 +40,7 @@
 - maintainer用 `scripts/release.sh` は次tag計算と事前検証をdry-runで行い、`--push` 指定時だけannotated tagをpushしてrelease workflowを起動する。事前検証では `go test ./...` とLinux / Windows、amd64 / arm64のrelease cross-buildを実行する。`--push --watch` ではworkflow完了待ちとrelease asset確認まで行う。
 - `scripts/install.sh` と `scripts/install.ps1` はGitHub Releasesからbinaryを取得するため、ローカルにproject cloneがなくても初回導入できる。
 - `run-weaver install --target wsl` はsystemd user service `run-weaver.service` を作成または更新し、`systemctl --user enable --now run-weaver.service` を実行する。
+- WSL service fileにはinstall時のPATHを `Environment=PATH=...` として保存する。nvmなどユーザーPATH上の `codex` を追加・変更した場合は `run-weaver install --target wsl` を再実行してserviceを更新する。
 - `--repo` 未指定でも `--repo-url` がGitHub URLならowner/repoを自動推定し、互換用の単一repo daemon起動引数へ渡す。
 - `install` / `daemon` の `--repo-url` 未指定時は、通常 `repos.json` の登録repositoryを使う。対象repository内では `run-weaver repo add` で登録する。
 - Campaign Issueは `run-weaver:campaign` と `run-weaver:ready` の両方が付いたopen Issueとして検出する。
@@ -57,6 +58,7 @@
 - Doppler auto判定はrepo root直下の `doppler.yaml`、`doppler.yml`、`.doppler.yaml`、`.doppler.yml` を見る。Doppler不要repoでは未インストールでも進め、必須repoではCodex起動前に `blocked` にする。
 - Doppler必須repoでは `doppler run -- codex ...`、不要repoでは通常の `codex ...` を使う。tokenやsecret値はstate、Issueコメント、PR本文、docs例に保存しない。
 - Windows targetのCodex起動はtmuxではなくdirect runnerに分岐する。WSL targetはtmux runnerを継続する。
+- WSLでtmux windowが終了し、JSONLログが `codex: command not found` などCodex起動失敗を示す場合、daemonは stuckした `running` のままにせずIssue/stateを `blocked` に更新する。
 - Campaign子Issueには `run-weaver:campaign-task` を付け、通常ready Issue取得から除外する。
 - pending decision gateがある場合、Dispatcherは `can continue tasks` に含まれるtaskだけを実行し、それ以外は `decision_required` で停止する。
 - 同一repository内の通常IssueはIssue番号昇順で評価し、repo内では常に最大1 jobだけ実行する。

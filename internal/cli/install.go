@@ -110,6 +110,7 @@ func wslServiceFile(binary string, opts installOptions) string {
 		"",
 		"[Service]",
 		"Type=simple",
+		"Environment=" + systemdQuote("PATH="+wslServicePath(binary)),
 		"ExecStart=" + strings.Join(args, " "),
 		"Restart=always",
 		"RestartSec=30",
@@ -118,6 +119,28 @@ func wslServiceFile(binary string, opts installOptions) string {
 		"WantedBy=default.target",
 		"",
 	}, "\n")
+}
+
+func wslServicePath(binary string) string {
+	parts := []string{
+		filepath.Dir(binary),
+		filepath.Join(homeDir(), ".local", "bin"),
+	}
+	if current := os.Getenv("PATH"); current != "" {
+		parts = append(parts, filepath.SplitList(current)...)
+	} else {
+		parts = append(parts, "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin")
+	}
+	seen := map[string]bool{}
+	cleaned := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == "" || seen[part] {
+			continue
+		}
+		seen[part] = true
+		cleaned = append(cleaned, part)
+	}
+	return strings.Join(cleaned, string(os.PathListSeparator))
 }
 
 func systemdQuote(value string) string {

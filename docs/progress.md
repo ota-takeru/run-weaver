@@ -115,6 +115,8 @@ Recommended Next Step:
 - 実GitHub Campaign Issue `ota-takeru/truth-table-app#13` で、親Issue本文は「roadmap進めてください」形式にし、repo docs優先のCodex Planner JSON生成、子Issue #14 / #15 / #16 作成、Decision Request、decision gate停止/回答再開、draft PR #17 / #18 / #19 作成、Campaign doneを確認した
 - E2E準備として `ota-takeru/truth-table-app#12` で `docs/roadmap.md` を追加し、Plannerが同ファイルを読んでtask graphを生成することを確認した
 - Git repository外での `run-weaver repo add` 失敗理由を分かりやすくし、legacy単一repo stateの `status` がIssue URLからrepositoryを推定して `gh --repo` を使えるようにした。複数repository表示では別repositoryのlegacy stateを誤表示しないようにした
+- WSL installがsystemd user serviceへ実行時PATHを保存するようにし、nvmなどユーザーPATH上の `codex` をserviceから見えるようにした
+- tmux window終了後にJSONLログが `codex: command not found` などCodex起動失敗を示す場合、daemonがIssue/stateを `blocked` に更新するようにした
 
 ## Upcoming Sequence
 

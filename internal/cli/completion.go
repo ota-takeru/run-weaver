@@ -27,6 +27,9 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 	if resumed, err := resumeRateLimitedCodex(ctx, deps, opts, state); resumed || err != nil {
 		return "resumed rate-limited Codex session", true, err
 	}
+	if failed, err := blockFailedCodexStartup(ctx, deps, opts, state); failed || err != nil {
+		return "blocked failed Codex startup", true, err
+	}
 	if !codexCompletionReady(opts.target, state.Job) {
 		return "", false, nil
 	}
@@ -93,6 +96,25 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 	return fmt.Sprintf("completed issue #%d with draft PR %s", completedIssueNumber, prURL), true, nil
 }
 
+func blockFailedCodexStartup(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile) (bool, error) {
+	if state == nil || state.Job == nil || state.Job.Codex == nil {
+		return false, nil
+	}
+	if tmuxState(opts.target, state.Job.Tmux) == "window_exists" {
+		return false, nil
+	}
+	if !codexLogLooksCommandNotFound(state.Job.Codex.JSONLogPath) {
+		return false, nil
+	}
+	err := fmt.Errorf("Codex command failed to start; check the run-weaver service PATH and reinstall or restart the service")
+	issue := githubIssue{Number: state.Job.Issue.Number, Title: state.Job.Issue.Title, URL: state.Job.Issue.URL}
+	_ = markBlocked(ctx, deps.github, state.Job.Issue.Number, "codex startup", err)
+	if writeErr := writeBlockedState(opts, issue, state.Job.ClaimID, worktreeSpec{Path: state.Job.Worktree, Branch: state.Job.Branch}, state.Job.Tmux, "codex startup", err); writeErr != nil {
+		return true, writeErr
+	}
+	return true, nil
+}
+
 func recordCompletedIssue(state *stateFile, completed completedIssue) {
 	if state == nil || completed.Issue.Number == 0 {
 		return
@@ -157,6 +179,17 @@ func codexLogLooksRateLimited(path string) bool {
 	}
 	text := strings.ToLower(string(data))
 	return strings.Contains(text, "rate limit") || strings.Contains(text, "rate_limit") || strings.Contains(text, "ratelimit")
+}
+
+func codexLogLooksCommandNotFound(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	text := strings.ToLower(string(data))
+	return strings.Contains(text, "codex: command not found") ||
+		strings.Contains(text, "codex: not found") ||
+		strings.Contains(text, "the term 'codex' is not recognized")
 }
 
 func codexSessionIDFromLog(path string) string {

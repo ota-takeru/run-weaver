@@ -34,6 +34,10 @@ func TestWindowsTaskCommand(t *testing.T) {
 }
 
 func TestWSLServiceFile(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
+	t.Setenv("PATH", "/home/me/.nvm/versions/node/v22/bin:/usr/bin")
+
 	service := wslServiceFile("/home/me/.local/bin/run-weaver", installOptions{
 		Repo:         "example/repo",
 		RepoURL:      "https://github.com/example/repo.git",
@@ -42,6 +46,7 @@ func TestWSLServiceFile(t *testing.T) {
 
 	for _, want := range []string{
 		"[Unit]",
+		`Environment="PATH=/home/me/.local/bin:` + filepath.Join(tempDir, ".local", "bin") + `:/home/me/.nvm/versions/node/v22/bin:/usr/bin"`,
 		"ExecStart=\"/home/me/.local/bin/run-weaver\" daemon --target wsl",
 		"--repo-url \"https://github.com/example/repo.git\"",
 		"--poll-interval 1m0s",

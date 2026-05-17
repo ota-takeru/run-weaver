@@ -1,5 +1,19 @@
 # Process Log
 
+## 2026-05-17 - WSL Codex PATH Startup Handling
+
+Review:
+
+- Immediate fixes:
+  - `run-weaver install --target wsl` がsystemd user serviceへ実行時PATHを `Environment=PATH=...` として保存するようにした。
+  - tmux window終了後のJSONLログが `codex: command not found` などCodex起動失敗を示す場合、daemonがIssue/stateを `blocked` に更新するようにした。
+  - README、architecture、CLI docs、progress、handoffにWSL service PATHとCodex startup失敗時の扱いを反映した。
+  - `go test ./internal/cli` と `go test ./...` で確認した。
+- Future tasks:
+  - nvmやNode更新で `codex` のPATHが変わった場合は、`run-weaver install --target wsl` の再実行を運用手順として扱う。
+- Human-facing reports:
+  - 既に stuck しているIssueは、更新後daemonのpollで `blocked` へ寄せるか、人間が `running` を外して再投入する必要がある。
+
 ## 2026-05-17 - Release Watch Flow
 
 Review:
