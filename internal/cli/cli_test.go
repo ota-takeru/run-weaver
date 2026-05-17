@@ -181,6 +181,76 @@ func TestWindowsDoctorReportsMissingTaskSchedulerTask(t *testing.T) {
 	}
 }
 
+func TestDoctorWithoutRepoTreatsDopplerAsOptional(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "windows")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", tempDir)
+	if err := os.MkdirAll(filepath.Join(tempDir, "run-weaver", "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	commands := map[string]error{
+		"gh\x00auth\x00status":                    nil,
+		"codex\x00exec\x00--help":                 nil,
+		"codex\x00login\x00status":                nil,
+		"schtasks\x00/Query\x00/TN\x00run-weaver": nil,
+	}
+	restoreCommands := stubCommandEnvironment(t, commands)
+	defer restoreCommands()
+
+	result := collectDoctor("windows")
+	checks := checksByID(result.Output.Checks)
+
+	if checks["doppler"].Status != "ok" || !strings.Contains(checks["doppler"].Message, "optional") {
+		t.Fatalf("doppler check = %#v", checks["doppler"])
+	}
+}
+
+func TestDoctorRepoRequiredDopplerBlocksWhenMissing(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "windows")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", tempDir)
+	if err := os.MkdirAll(filepath.Join(tempDir, "run-weaver", "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := addRepoConfigEntry(defaultRepoConfigFile("windows"), repoEntry{
+		Repository:  "example/repo",
+		RepoURL:     "https://github.com/example/repo.git",
+		DopplerMode: dopplerModeRequired,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	commands := map[string]error{
+		"gh\x00auth\x00status":                    nil,
+		"codex\x00exec\x00--help":                 nil,
+		"codex\x00login\x00status":                nil,
+		"schtasks\x00/Query\x00/TN\x00run-weaver": nil,
+	}
+	restoreCommands := stubCommandEnvironment(t, commands)
+	originalLookPath := lookPath
+	lookPath = func(name string) (string, error) {
+		if name == "doppler" {
+			return "", exec.ErrNotFound
+		}
+		return originalLookPath(name)
+	}
+	defer func() {
+		lookPath = originalLookPath
+		restoreCommands()
+	}()
+
+	result := collectDoctorForRepo("windows", "example/repo")
+	checks := checksByID(result.Output.Checks)
+
+	if result.ExitCode != exitMissing {
+		t.Fatalf("exit = %d, want %d; output = %#v", result.ExitCode, exitMissing, result.Output)
+	}
+	if checks["doppler"].Status != "missing" {
+		t.Fatalf("doppler check = %#v, want missing", checks["doppler"])
+	}
+}
+
 func TestStatusJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	tempDir := t.TempDir()

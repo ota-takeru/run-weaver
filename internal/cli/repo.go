@@ -33,7 +33,12 @@ func runRepo(args []string, stdout, stderr io.Writer) int {
 func runRepoAdd(args []string, stdout, stderr io.Writer) int {
 	fs := newFlagSet("repo add", stderr)
 	target := fs.String("target", defaultStatusTarget(), "target environment: wsl or windows")
+	dopplerMode := fs.String("doppler", dopplerModeAuto, "Doppler mode: auto, required, or optional")
 	if !parseFlags(fs, args, stderr) {
+		return exitUsage
+	}
+	if !validDopplerMode(*dopplerMode) {
+		fmt.Fprintf(stderr, "invalid --doppler %q: expected auto, required, or optional\n", *dopplerMode)
 		return exitUsage
 	}
 	entry, err := currentRepoEntry()
@@ -41,6 +46,7 @@ func runRepoAdd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "repo add error: %v\n", err)
 		return exitConfigMissing
 	}
+	entry.DopplerMode = *dopplerMode
 	if err := addRepoConfigEntry(defaultRepoConfigFile(*target), entry); err != nil {
 		fmt.Fprintf(stderr, "repo add error: %v\n", err)
 		return exitConfigMissing
@@ -79,7 +85,7 @@ func runRepoList(args []string, stdout, stderr io.Writer) int {
 		if entry.Enabled {
 			status = "enabled"
 		}
-		fmt.Fprintf(stdout, "  %s  %s  %s\n", entry.Repository, status, entry.RepoURL)
+		fmt.Fprintf(stdout, "  %s  %s  doppler=%s  %s\n", entry.Repository, status, entry.DopplerMode, entry.RepoURL)
 	}
 	return exitOK
 }

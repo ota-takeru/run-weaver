@@ -1,5 +1,27 @@
 # Process Log
 
+## 2026-05-17 - Doppler Optional Projects And Runner Hardening
+
+Review:
+
+- Immediate fixes:
+  - repo設定に `dopplerMode` を追加し、`auto` / `required` / `optional` を `run-weaver repo add --doppler` で保存できるようにした。
+  - 既存repo設定は `dopplerMode` 未指定なら `auto` として読み込み、secretやtoken値は保存しない方針を維持した。
+  - `auto` ではrepo root直下の `doppler.yaml`、`doppler.yml`、`.doppler.yaml`、`.doppler.yml` でDoppler必須性を判定するようにした。
+  - `doctor --repo` とdaemonがDoppler必須repositoryだけDoppler CLI / 認証を必須扱いにし、不要repositoryではDopplerなしで続行できるようにした。
+  - Doppler必須repositoryでは `doppler run -- codex ...`、不要repositoryでは通常の `codex ...` を使うようにした。
+  - Windows targetのCodex起動をtmuxではなくdirect runnerに分岐した。
+  - Campaign子Issueに `run-weaver:campaign-task` を付け、通常ready Issue取得から除外するようにした。
+  - pending decision gateがある場合、`can continue tasks` に含まれないtaskを実行せず `decision_required` にするようにした。
+  - repo別rate limit resumeで `<repo-slug>-issue-<number>` window名を維持するようにした。
+- Future tasks:
+  - 実GitHub Campaign IssueでPlanner / DispatcherとDoppler auto判定の統合テストを行う。
+  - Windows targetのdirect runnerを実機で確認する。
+  - Doppler設定ファイルがsubdirectoryにあるrepoが必要になった場合、auto検出範囲を再検討する。
+- Human-facing reports:
+  - Doppler必須repoは `run-weaver repo add --doppler required` で明示できる。Doppler不要repoは `--doppler optional` で自動検出を上書きできる。
+  - 今回は実GitHub Issue、push、draft PR、外部アカウント、secretには触れていない。
+
 ## 2026-05-17 - Multi Repository Support
 
 Review:

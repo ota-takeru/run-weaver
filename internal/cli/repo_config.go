@@ -11,17 +11,24 @@ import (
 
 const repoConfigSchemaVersion = 1
 
+const (
+	dopplerModeAuto     = "auto"
+	dopplerModeRequired = "required"
+	dopplerModeOptional = "optional"
+)
+
 type repoConfigFile struct {
 	SchemaVersion int         `json:"schemaVersion"`
 	Repositories  []repoEntry `json:"repositories"`
 }
 
 type repoEntry struct {
-	Repository string `json:"repository"`
-	RepoURL    string `json:"repoUrl"`
-	AddedFrom  string `json:"addedFrom"`
-	Enabled    bool   `json:"enabled"`
-	AddedAt    string `json:"addedAt"`
+	Repository  string `json:"repository"`
+	RepoURL     string `json:"repoUrl"`
+	AddedFrom   string `json:"addedFrom"`
+	Enabled     bool   `json:"enabled"`
+	AddedAt     string `json:"addedAt"`
+	DopplerMode string `json:"dopplerMode,omitempty"`
 }
 
 func defaultRepoConfigFile(target string) string {
@@ -51,6 +58,11 @@ func readRepoConfig(path string) (*repoConfigFile, error) {
 	}
 	if config.SchemaVersion != repoConfigSchemaVersion {
 		return nil, fmt.Errorf("unsupported repo config schema version %d", config.SchemaVersion)
+	}
+	for i := range config.Repositories {
+		if config.Repositories[i].DopplerMode == "" {
+			config.Repositories[i].DopplerMode = dopplerModeAuto
+		}
 	}
 	return &config, nil
 }
@@ -87,12 +99,19 @@ func addRepoConfigEntry(path string, entry repoEntry) error {
 	if entry.AddedAt == "" {
 		entry.AddedAt = time.Now().UTC().Format(time.RFC3339)
 	}
+	if entry.DopplerMode == "" {
+		entry.DopplerMode = dopplerModeAuto
+	}
+	if !validDopplerMode(entry.DopplerMode) {
+		return fmt.Errorf("invalid doppler mode %q: expected auto, required, or optional", entry.DopplerMode)
+	}
 	entry.Enabled = true
 	for i := range config.Repositories {
 		if config.Repositories[i].Repository == entry.Repository {
 			config.Repositories[i].RepoURL = entry.RepoURL
 			config.Repositories[i].AddedFrom = entry.AddedFrom
 			config.Repositories[i].Enabled = true
+			config.Repositories[i].DopplerMode = entry.DopplerMode
 			if config.Repositories[i].AddedAt == "" {
 				config.Repositories[i].AddedAt = entry.AddedAt
 			}
@@ -148,12 +167,22 @@ func currentRepoEntry() (repoEntry, error) {
 	}
 	addedFrom, _ := os.Getwd()
 	return repoEntry{
-		Repository: repository,
-		RepoURL:    repoURL,
-		AddedFrom:  addedFrom,
-		Enabled:    true,
-		AddedAt:    time.Now().UTC().Format(time.RFC3339),
+		Repository:  repository,
+		RepoURL:     repoURL,
+		AddedFrom:   addedFrom,
+		Enabled:     true,
+		AddedAt:     time.Now().UTC().Format(time.RFC3339),
+		DopplerMode: dopplerModeAuto,
 	}, nil
+}
+
+func validDopplerMode(mode string) bool {
+	switch mode {
+	case dopplerModeAuto, dopplerModeRequired, dopplerModeOptional:
+		return true
+	default:
+		return false
+	}
 }
 
 func repoSlug(repository string) string {

@@ -28,7 +28,23 @@ type doctorResult struct {
 }
 
 func collectDoctor(target string) doctorResult {
+	return collectDoctorForRepo(target, "")
+}
+
+func collectDoctorForRepo(target, repository string) doctorResult {
 	stateFile := defaultStateFile(target)
+	repoEntry := repoEntry{Repository: repository, DopplerMode: dopplerModeAuto}
+	if repository != "" {
+		stateFile = stateFileForRepo(target, repository)
+		if config, err := readRepoConfig(defaultRepoConfigFile(target)); err == nil {
+			for _, entry := range config.Repositories {
+				if entry.Repository == repository {
+					repoEntry = entry
+					break
+				}
+			}
+		}
+	}
 	osCheck := checkOSTarget(target)
 	if osCheck.Status == "blocked" {
 		return doctorResult{
@@ -47,7 +63,7 @@ func collectDoctor(target string) doctorResult {
 		checkCommand("git", "git"),
 		checkGHAuth(),
 		checkCodex(),
-		checkDoppler(),
+		checkDopplerForRepo(target, repoEntry),
 		checkCodexClone(target),
 		checkWritableDir("worktree_root", "Worktree root", defaultWorktreeRoot(target)),
 		checkWritableFile("state_file", "State file", stateFile),
@@ -143,17 +159,21 @@ func checkCodex() doctorCheck {
 	return newDoctorCheck("codex", "codex", "ok", "codex exec available and logged in")
 }
 
-func checkDoppler() doctorCheck {
-	if _, err := lookPath("doppler"); err != nil {
-		return newDoctorCheck("doppler", "doppler", "missing", "doppler not found in PATH")
+func checkDopplerForRepo(target string, entry repoEntry) doctorCheck {
+	if entry.Repository == "" {
+		return newDoctorCheck("doppler", "doppler", "ok", "optional; use repo add --doppler required for repositories that need Doppler")
 	}
-	if os.Getenv("DOPPLER_TOKEN") != "" {
-		return newDoctorCheck("doppler", "doppler", "ok", "DOPPLER_TOKEN is set")
+	repoRoot := dataRootForRepo(target, entry.Repository)
+	repoRoot = filepath.Join(repoRoot, "src")
+	requirement := resolveDopplerRequirement(entry.DopplerMode, repoRoot)
+	check := checkDopplerReady(requirement.Required, repoRoot)
+	if requirement.Required && check.Status == "ok" {
+		check.Message = check.Message + " (" + requirement.Reason + ")"
 	}
-	if err := runShortCommand("doppler", "configure", "get", "project"); err != nil {
-		return newDoctorCheck("doppler", "doppler", "auth_required", "DOPPLER_TOKEN is not set and local doppler config was not found")
+	if !requirement.Required {
+		check.Message = "not required (" + requirement.Reason + ")"
 	}
-	return newDoctorCheck("doppler", "doppler", "warn", "DOPPLER_TOKEN is not set; will use local doppler config")
+	return check
 }
 
 func checkSystemdUser() doctorCheck {

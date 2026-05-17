@@ -36,6 +36,15 @@ type tmuxRunner struct {
 	commands commandRunner
 }
 
+type codexRunner interface {
+	StartCodex(context.Context, codexRunSpec) (*tmuxRef, error)
+}
+
+type directRunner struct {
+	target   string
+	commands commandRunner
+}
+
 type codexRunSpec struct {
 	IssueNumber     int
 	Phase           string
@@ -45,6 +54,14 @@ type codexRunSpec struct {
 	JSONLogPath     string
 	LastMessagePath string
 	ResumeSessionID string
+	UseDoppler      bool
+}
+
+func newCodexRunner(target string, commands commandRunner) codexRunner {
+	if target == "windows" {
+		return newDirectRunner(target, commands)
+	}
+	return newTmuxRunner(commands)
 }
 
 func newTmuxRunner(commands commandRunner) tmuxRunner {
@@ -54,7 +71,14 @@ func newTmuxRunner(commands commandRunner) tmuxRunner {
 	return tmuxRunner{commands: commands}
 }
 
-func (r tmuxRunner) StartCodex(ctx context.Context, spec codexRunSpec) (tmuxRef, error) {
+func newDirectRunner(target string, commands commandRunner) directRunner {
+	if commands == nil {
+		commands = execCommandRunner{}
+	}
+	return directRunner{target: target, commands: commands}
+}
+
+func (r tmuxRunner) StartCodex(ctx context.Context, spec codexRunSpec) (*tmuxRef, error) {
 	ref := tmuxRef{
 		Session: tmuxSessionName,
 		Window:  "issue-" + strconv.Itoa(spec.IssueNumber),
@@ -63,13 +87,28 @@ func (r tmuxRunner) StartCodex(ctx context.Context, spec codexRunSpec) (tmuxRef,
 		ref.Window = spec.WindowName
 	}
 	if err := r.ensureSession(ctx); err != nil {
-		return ref, err
+		return &ref, err
 	}
 	command := buildCodexTmuxCommand(spec)
 	if err := r.commands.Run(ctx, "tmux", "new-window", "-t", ref.Session, "-n", ref.Window, command); err != nil {
-		return ref, err
+		return &ref, err
 	}
-	return ref, nil
+	return &ref, nil
+}
+
+func (r directRunner) StartCodex(ctx context.Context, spec codexRunSpec) (*tmuxRef, error) {
+	command := buildCodexDirectCommand(r.target, spec)
+	if r.target == "windows" {
+		ps := "Start-Process -WindowStyle Hidden powershell -ArgumentList @('-NoProfile','-Command'," + powershellQuote(command) + ")"
+		if err := r.commands.Run(ctx, "powershell", "-NoProfile", "-Command", ps); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+	if err := r.commands.Run(ctx, "sh", "-c", command+" &"); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 func (r tmuxRunner) ensureSession(ctx context.Context) error {
@@ -126,14 +165,25 @@ func buildCodexTmuxCommand(spec codexRunSpec) string {
 	return "mkdir -p " + dir + " && " + buildCodexCommand(spec)
 }
 
+func buildCodexDirectCommand(target string, spec codexRunSpec) string {
+	if target == "windows" {
+		return buildCodexPowerShellCommand(spec)
+	}
+	return buildCodexTmuxCommand(spec)
+}
+
 func buildCodexCommand(spec codexRunSpec) string {
+	codex := "codex"
+	if spec.UseDoppler {
+		codex = "doppler run -- codex"
+	}
 	if spec.ResumeSessionID != "" {
 		sessionArg := shellQuote(spec.ResumeSessionID)
 		if spec.ResumeSessionID == "--last" {
 			sessionArg = "--last"
 		}
 		return strings.Join([]string{
-			"cd " + shellQuote(filepath.ToSlash(spec.Worktree)) + " && codex --ask-for-approval never exec resume --json",
+			"cd " + shellQuote(filepath.ToSlash(spec.Worktree)) + " && " + codex + " --ask-for-approval never exec resume --json",
 			"--output-last-message " + shellQuote(filepath.ToSlash(spec.LastMessagePath)),
 			sessionArg,
 			"-",
@@ -143,7 +193,7 @@ func buildCodexCommand(spec codexRunSpec) string {
 		}, " ")
 	}
 	args := []string{
-		"codex --ask-for-approval never exec --json",
+		codex + " --ask-for-approval never exec --json",
 		"--sandbox workspace-write",
 	}
 	if config := codexReasoningConfig(spec.Phase); config != "" {
@@ -157,7 +207,47 @@ func buildCodexCommand(spec codexRunSpec) string {
 		"> "+shellQuote(filepath.ToSlash(spec.JSONLogPath)),
 		"2>&1",
 	)
-	return strings.Join(args, " ")
+	command := strings.Join(args, " ")
+	if spec.UseDoppler {
+		return "cd " + shellQuote(filepath.ToSlash(spec.Worktree)) + " && " + command
+	}
+	return command
+}
+
+func buildCodexPowerShellCommand(spec codexRunSpec) string {
+	dir := powershellQuote(filepath.Dir(spec.JSONLogPath))
+	prompt := powershellQuote(spec.PromptPath)
+	jsonLog := powershellQuote(spec.JSONLogPath)
+	lastMessage := powershellQuote(spec.LastMessagePath)
+	worktree := powershellQuote(spec.Worktree)
+	codex := "codex"
+	if spec.UseDoppler {
+		codex = "doppler run -- codex"
+	}
+	prefix := "$ErrorActionPreference = 'Stop'; New-Item -ItemType Directory -Force -Path " + dir + " | Out-Null; "
+	if spec.ResumeSessionID != "" {
+		sessionArg := powershellQuote(spec.ResumeSessionID)
+		if spec.ResumeSessionID == "--last" {
+			sessionArg = "--last"
+		}
+		return prefix + "Set-Location " + worktree + "; Get-Content -Raw " + prompt + " | " + codex + " --ask-for-approval never exec resume --json --output-last-message " + lastMessage + " " + sessionArg + " - >> " + jsonLog + " 2>&1"
+	}
+	args := []string{
+		codex + " --ask-for-approval never exec --json",
+		"--sandbox workspace-write",
+	}
+	if config := codexReasoningConfig(spec.Phase); config != "" {
+		args = append(args, config)
+	}
+	args = append(args,
+		"--cd "+worktree,
+		"--output-last-message "+lastMessage,
+		"-",
+	)
+	if spec.UseDoppler {
+		prefix += "Set-Location " + worktree + "; "
+	}
+	return prefix + "Get-Content -Raw " + prompt + " | " + strings.Join(args, " ") + " > " + jsonLog + " 2>&1"
 }
 
 func codexReasoningConfig(phase string) string {
@@ -176,4 +266,8 @@ func shellQuote(value string) string {
 		return "''"
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func powershellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }

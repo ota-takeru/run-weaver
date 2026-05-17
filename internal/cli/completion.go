@@ -109,19 +109,19 @@ func resumeRateLimitedCodex(ctx context.Context, deps daemonDeps, opts daemonOpt
 	if err := os.WriteFile(resumePromptPath, []byte(rateLimitResumePrompt), 0o600); err != nil {
 		return false, err
 	}
-	spec := codexRunSpec{
-		IssueNumber:     state.Job.Issue.Number,
-		Worktree:        state.Job.Worktree,
-		PromptPath:      resumePromptPath,
-		JSONLogPath:     state.Job.Codex.JSONLogPath,
-		LastMessagePath: state.Job.Codex.LastMessagePath,
-		ResumeSessionID: sessionID,
+	spec := buildCodexRunSpecForRepo(opts.target, opts.repo, state.Job.Issue.Number, state.Job.Worktree, state.Job.PipelinePhase)
+	spec.PromptPath = resumePromptPath
+	spec.JSONLogPath = state.Job.Codex.JSONLogPath
+	spec.LastMessagePath = state.Job.Codex.LastMessagePath
+	spec.ResumeSessionID = sessionID
+	if err := opts.prepareCodexRunSpec(&spec, state.Job.Worktree); err != nil {
+		return false, err
 	}
 	tmux, err := deps.runner.StartCodex(ctx, spec)
 	if err != nil {
 		return false, err
 	}
-	state.Job.Tmux = &tmux
+	state.Job.Tmux = tmux
 	if sessionID != "--last" {
 		state.Job.Codex.SessionID = &sessionID
 	}

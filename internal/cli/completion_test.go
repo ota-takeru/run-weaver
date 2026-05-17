@@ -204,6 +204,48 @@ func TestCompleteCurrentJobResumesRateLimitedCodex(t *testing.T) {
 	}
 }
 
+func TestCompleteCurrentJobResumesRateLimitedCodexWithRepoWindow(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	jsonLog := tempDir + "/codex.jsonl"
+	if err := os.WriteFile(jsonLog, []byte(`{"session_id":"session-123"}`+"\n"+`{"error":"rate limit reached"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add export", Repository: "example/repo"},
+			LabelState: runningLabel,
+			Worktree:   tempDir + "/worktrees/issue-42",
+			Codex: &codexState{
+				JSONLogPath:     jsonLog,
+				LastMessagePath: tempDir + "/last-message.txt",
+			},
+		},
+	}
+	if err := writeStateFile(stateFileForRepo("wsl", "example/repo"), state); err != nil {
+		t.Fatal(err)
+	}
+	commands := &fakeCommandRunner{failFirstHasSession: true}
+
+	_, completed, err := completeCurrentJob(context.Background(), daemonDeps{
+		github:   newFakeGitHubClient(githubIssue{Number: 42}),
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl", repo: "example/repo"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !completed {
+		t.Fatal("rate limit resume should handle this daemon cycle")
+	}
+	if !commands.ranPrefix("tmux", "new-window", "-t", tmuxSessionName, "-n", "example-repo-issue-42") {
+		t.Fatalf("commands = %#v, want repo-specific window", commands.calls)
+	}
+}
+
 func TestCodexSessionIDFromLogFindsNestedSessionID(t *testing.T) {
 	path := t.TempDir() + "/codex.jsonl"
 	if err := os.WriteFile(path, []byte(`{"event":{"sessionId":"session-abc"}}`+"\n"), 0o600); err != nil {

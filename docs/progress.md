@@ -11,6 +11,8 @@ Definition of Done:
 - 子Issueを作成し、taskごとの `plan` / `implement` / `review` / `verify` pipelineをstateに保存する
 - task完了時にdraft PR URLをCampaign progressへ記録する
 - `status --json` とhuman outputでCampaign progressを確認できる
+- Campaign子Issueを通常ready Issue取得から除外し、decision gateで実行可能taskを制限する
+- Doppler不要repositoryではDoppler未インストールでも続行し、Doppler必須repositoryではCodex起動前にblockedへ止める
 
 Recommended Next Step:
 
@@ -93,13 +95,21 @@ Recommended Next Step:
 - repo設定 `repos.json`、repo別state / clone / worktree / issue log pathを追加した
 - `daemon` が登録済みrepositoryを読み、repoごとに独立してIssue処理できるようにした
 - `status` が登録済みrepositoryのstateを集約し、`--repo` でrepo別表示できるようにした
+- repo設定に `dopplerMode` を追加し、`run-weaver repo add --doppler auto|required|optional` でDoppler要否を管理できるようにした
+- `doctor --repo` とdaemonがDoppler必須repositoryだけDoppler CLI / 認証を必須扱いにするようにした
+- Doppler必須repositoryでは `doppler run -- codex ...`、不要repositoryでは通常の `codex ...` を使うようにした
+- Windows targetのCodex起動をtmuxではなくdirect runnerへ分岐した
+- Campaign子Issueに `run-weaver:campaign-task` を付け、通常task取得から除外するようにした
+- pending decision gateがある場合、`can continue tasks` に含まれないtaskを実行せず `decision_required` にするようにした
+- repo別rate limit resumeで `<repo-slug>-issue-<number>` window名を維持するようにした
 
 ## Upcoming Sequence
 
-1. 実GitHub Campaign IssueでPlanner / Dispatcherの統合テスト
+1. 実GitHub Campaign IssueでPlanner / DispatcherとDoppler auto判定の統合テスト
 2. 複数repository登録後の実GitHub Issue処理確認
-3. self-updateとclone不要install手順のCI / release workflow結果確認
-4. `run-weaver:ready` 以外のフィルタ検討
+3. Windows target direct runnerの実機確認
+4. self-updateとclone不要install手順のCI / release workflow結果確認
+5. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch
 

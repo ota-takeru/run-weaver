@@ -189,12 +189,15 @@ func createCampaignState(ctx context.Context, client githubClient, opts daemonOp
 	if err := client.EnsureLabel(ctx, readyLabel); err != nil {
 		return nil, err
 	}
+	if err := client.EnsureLabel(ctx, campaignTaskLabel); err != nil {
+		return nil, err
+	}
 	tasks := make([]campaignTask, 0, len(plan.Tasks))
 	for _, task := range plan.Tasks {
 		child, err := client.CreateIssue(ctx, issueCreateSpec{
 			Title:  task.Title,
 			Body:   campaignChildIssueBody(issue, task),
-			Labels: []string{readyLabel},
+			Labels: []string{readyLabel, campaignTaskLabel},
 		})
 		if err != nil {
 			return nil, err
@@ -331,6 +334,15 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		return "campaign decision_required", true, nil
 	}
 	task := state.Campaign.Tasks[taskIndex]
+	if !campaignTaskAllowedByDecisions(task.ID, state.Campaign.Decisions) {
+		state.Campaign.Status = campaignStatusDecisionRequired
+		state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		if err := writeStateFile(opts.stateFilePath(), *state); err != nil {
+			return "", true, err
+		}
+		_ = markBlocked(ctx, deps.github, state.Campaign.Issue.Number, "campaign decision", fmt.Errorf("decision required"))
+		return "campaign decision_required", true, nil
+	}
 	claim, err := claimIssue(ctx, deps.github, task.IssueNumber, opts.target)
 	if err != nil {
 		return "", true, err
@@ -347,6 +359,13 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		return "", true, err
 	}
 	runSpec := buildCodexRunSpecForRepo(opts.target, opts.repo, task.IssueNumber, spec.Path, pipelinePhasePlan)
+	if err := opts.prepareCodexRunSpec(&runSpec, spec.Path); err != nil {
+		state.Campaign.Tasks[taskIndex].Status = campaignTaskBlocked
+		state.Campaign.Tasks[taskIndex].RetryCount++
+		_ = writeStateFile(opts.stateFilePath(), *state)
+		_ = markBlocked(ctx, deps.github, task.IssueNumber, "campaign doppler", err)
+		return "", true, err
+	}
 	if err := writeCampaignPromptFile(runSpec.PromptPath, state.Campaign.Issue, task, claim.Issue, pipelinePhasePlan); err != nil {
 		return "", true, err
 	}
@@ -372,7 +391,7 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		ClaimedAt:      time.Now().UTC().Format(time.RFC3339),
 		CampaignTaskID: task.ID,
 		PipelinePhase:  pipelinePhasePlan,
-		Tmux:           &tmux,
+		Tmux:           tmux,
 		Codex: &codexState{
 			LastMessagePath: runSpec.LastMessagePath,
 			JSONLogPath:     runSpec.JSONLogPath,
@@ -383,6 +402,21 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		return "", true, err
 	}
 	return fmt.Sprintf("started campaign task %s issue #%d", task.ID, task.IssueNumber), true, nil
+}
+
+func campaignTaskAllowedByDecisions(taskID string, decisions []campaignDecision) bool {
+	for _, decision := range decisions {
+		if decision.Status != "pending" {
+			continue
+		}
+		if len(decision.CanContinueTasks) == 0 {
+			return false
+		}
+		if !stringSliceContains(decision.CanContinueTasks, taskID) {
+			return false
+		}
+	}
+	return true
 }
 
 func nextCampaignTaskIndex(tasks []campaignTask, completed map[string]bool) int {
@@ -567,6 +601,12 @@ func advanceCampaignPipeline(ctx context.Context, deps daemonDeps, opts daemonOp
 		return false, "", fmt.Errorf("campaign task %s not found in state", state.Job.CampaignTaskID)
 	}
 	runSpec := buildCodexRunSpecForRepo(opts.target, opts.repo, state.Job.Issue.Number, state.Job.Worktree, nextPhase)
+	if err := opts.prepareCodexRunSpec(&runSpec, state.Job.Worktree); err != nil {
+		markCampaignTaskRetry(state.Campaign, task.ID)
+		state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		_ = writeStateFile(opts.stateFilePath(), *state)
+		return true, "", err
+	}
 	issue := githubIssue{
 		Number:   state.Job.Issue.Number,
 		Title:    state.Job.Issue.Title,
@@ -585,7 +625,7 @@ func advanceCampaignPipeline(ctx context.Context, deps daemonDeps, opts daemonOp
 		return true, "", err
 	}
 	state.Job.PipelinePhase = nextPhase
-	state.Job.Tmux = &tmux
+	state.Job.Tmux = tmux
 	state.Job.Codex = &codexState{
 		LastMessagePath: runSpec.LastMessagePath,
 		JSONLogPath:     runSpec.JSONLogPath,

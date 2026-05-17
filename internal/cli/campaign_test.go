@@ -63,6 +63,9 @@ func TestProcessOneIssuePlansCampaignAndCreatesChildIssues(t *testing.T) {
 	if !strings.Contains(github.createdIssues[0].Body, "Parent campaign: #7") {
 		t.Fatalf("child body = %q", github.createdIssues[0].Body)
 	}
+	if !slicesEqual(github.createdIssues[0].Labels, []string{readyLabel, campaignTaskLabel}) {
+		t.Fatalf("child labels = %#v", github.createdIssues[0].Labels)
+	}
 	state, err := readStateFile(defaultStateFile("wsl"))
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +75,59 @@ func TestProcessOneIssuePlansCampaignAndCreatesChildIssues(t *testing.T) {
 	}
 	if !strings.Contains(github.comments[len(github.comments)-1].Body, "## blocked tasks") {
 		t.Fatalf("comments = %#v, want decision request", github.comments)
+	}
+}
+
+func TestDispatchCampaignTaskStopsWhenPendingDecisionBlocksTask(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	github := newFakeGitHubClient(githubIssue{Number: 102, Title: "Blocked task", Labels: []githubLabel{{Name: readyLabel}, {Name: campaignTaskLabel}}})
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign"},
+			Status: campaignStatusPlanned,
+			Tasks: []campaignTask{{
+				ID:          "task-blocked",
+				Title:       "Blocked task",
+				IssueNumber: 102,
+				Status:      campaignTaskPending,
+				Phase:       pipelinePhasePlan,
+			}},
+			Decisions: []campaignDecision{{
+				ID:               "decision-api",
+				Title:            "Choose API",
+				Status:           "pending",
+				CanContinueTasks: []string{"task-other"},
+			}},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(&fakeCommandRunner{}),
+		runner:   newTmuxRunner(&fakeCommandRunner{}),
+	}, daemonOptions{target: "wsl", repoURL: "https://github.com/example/repo.git"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result != "campaign decision_required" {
+		t.Fatalf("result = %q", result)
+	}
+	updated, err := readStateFile(defaultStateFile("wsl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Job != nil || updated.Campaign.Status != campaignStatusDecisionRequired {
+		t.Fatalf("state = %#v", updated)
+	}
+	if !github.added[blockedLabel] {
+		t.Fatal("campaign parent should be marked blocked")
 	}
 }
 

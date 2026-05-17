@@ -94,6 +94,7 @@ func runUpdate(args []string, stdout, stderr io.Writer) int {
 func runDoctor(args []string, stdout, stderr io.Writer) int {
 	fs := newFlagSet("doctor", stderr)
 	target := fs.String("target", "", "target environment: wsl or windows")
+	repo := fs.String("repo", "", "GitHub repository, in owner/repo form")
 	jsonOutput := fs.Bool("json", false, "print JSON output")
 	if !parseFlags(fs, args, stderr) {
 		return exitUsage
@@ -102,7 +103,7 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 
-	result := collectDoctor(*target)
+	result := collectDoctorForRepo(*target, *repo)
 	if *jsonOutput {
 		writeJSON(stdout, result.Output)
 		return result.ExitCode
@@ -176,7 +177,7 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "install could not infer --repo from --repo-url")
 			return exitConfigMissing
 		}
-		if err := addRepoConfigEntry(defaultRepoConfigFile(*target), repoEntry{Repository: repoName, RepoURL: resolvedRepoURL, AddedFrom: "install"}); err != nil {
+		if err := addRepoConfigEntry(defaultRepoConfigFile(*target), repoEntry{Repository: repoName, RepoURL: resolvedRepoURL, AddedFrom: "install", DopplerMode: dopplerModeAuto}); err != nil {
 			fmt.Fprintf(stderr, "install repo config error: %v\n", err)
 			return exitConfigMissing
 		}
@@ -253,12 +254,13 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 	deps := daemonDeps{
 		github:   ghClient{repo: repoName},
 		worktree: newWorktreeManager(nil),
-		runner:   newTmuxRunner(nil),
+		runner:   newCodexRunner(*target, nil),
 	}
 	opts := daemonOptions{
-		target:  *target,
-		repo:    repoName,
-		repoURL: resolvedRepoURL,
+		target:      *target,
+		repo:        repoName,
+		repoURL:     resolvedRepoURL,
+		dopplerMode: dopplerModeAuto,
 	}
 	if !*once {
 		return runDaemonLoop(stdout, stderr, deps, opts, *pollInterval)

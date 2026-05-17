@@ -12,13 +12,14 @@ import (
 type daemonDeps struct {
 	github   githubClient
 	worktree worktreeManager
-	runner   tmuxRunner
+	runner   codexRunner
 }
 
 type daemonOptions struct {
-	target  string
-	repo    string
-	repoURL string
+	target      string
+	repo        string
+	repoURL     string
+	dopplerMode string
 }
 
 type lockedWriter struct {
@@ -81,9 +82,9 @@ func processRegisteredReposOnce(repos []repoEntry, target string) (string, error
 			deps := daemonDeps{
 				github:   ghClient{repo: entry.Repository},
 				worktree: newWorktreeManager(nil),
-				runner:   newTmuxRunner(nil),
+				runner:   newCodexRunner(target, nil),
 			}
-			result, err := processOneIssue(deps, daemonOptions{target: target, repo: entry.Repository, repoURL: entry.RepoURL})
+			result, err := processOneIssue(deps, daemonOptions{target: target, repo: entry.Repository, repoURL: entry.RepoURL, dopplerMode: entry.DopplerMode})
 			if err != nil {
 				errs <- fmt.Errorf("%s: %w", entry.Repository, err)
 			}
@@ -145,6 +146,11 @@ func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 	}
 
 	runSpec := buildCodexRunSpecForRepo(opts.target, opts.repo, issue.Number, spec.Path, "")
+	if err := opts.prepareCodexRunSpec(&runSpec, spec.Path); err != nil {
+		_ = markBlocked(ctx, deps.github, issue.Number, "doppler", err)
+		_ = writeBlockedState(opts, claim.Issue, claim.ClaimID, spec, nil, "doppler", err)
+		return "", err
+	}
 	if err := writePromptFile(runSpec.PromptPath, claim.Issue); err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "prompt", err)
 		_ = writeBlockedState(opts, claim.Issue, claim.ClaimID, spec, nil, "prompt", err)
@@ -177,7 +183,7 @@ func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 			Worktree:   spec.Path,
 			ClaimID:    claim.ClaimID,
 			ClaimedAt:  time.Now().UTC().Format(time.RFC3339),
-			Tmux:       &tmux,
+			Tmux:       tmux,
 			Codex: &codexState{
 				LastMessagePath: runSpec.LastMessagePath,
 				JSONLogPath:     runSpec.JSONLogPath,
@@ -189,7 +195,10 @@ func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("started issue #%d in tmux %s:%s", issue.Number, tmux.Session, tmux.Window), nil
+	if tmux != nil {
+		return fmt.Sprintf("started issue #%d in tmux %s:%s", issue.Number, tmux.Session, tmux.Window), nil
+	}
+	return fmt.Sprintf("started issue #%d", issue.Number), nil
 }
 
 func markBlocked(ctx context.Context, client githubClient, issueNumber int, stage string, err error) error {
@@ -207,6 +216,21 @@ func markBlocked(ctx context.Context, client githubClient, issueNumber int, stag
 
 func (opts daemonOptions) stateFilePath() string {
 	return stateFileForRepo(opts.target, opts.repo)
+}
+
+func (opts daemonOptions) prepareCodexRunSpec(spec *codexRunSpec, repoRoot string) error {
+	if opts.dopplerMode == "" {
+		opts.dopplerMode = dopplerModeAuto
+	}
+	requirement := resolveDopplerRequirement(opts.dopplerMode, repoRoot)
+	if !requirement.Required {
+		return nil
+	}
+	if err := requireDopplerForCodex(opts.dopplerMode, repoRoot); err != nil {
+		return err
+	}
+	spec.UseDoppler = true
+	return nil
 }
 
 func writeBlockedState(opts daemonOptions, issue githubIssue, claimID string, spec worktreeSpec, tmux *tmuxRef, stage string, cause error) error {

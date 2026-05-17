@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	readyLabel    = "run-weaver:ready"
-	campaignLabel = "run-weaver:campaign"
-	runningLabel  = "running"
-	doneLabel     = "done"
-	blockedLabel  = "blocked"
+	readyLabel        = "run-weaver:ready"
+	campaignLabel     = "run-weaver:campaign"
+	campaignTaskLabel = "run-weaver:campaign-task"
+	runningLabel      = "running"
+	doneLabel         = "done"
+	blockedLabel      = "blocked"
 )
 
 var managedLabels = map[string]struct{}{
@@ -123,6 +124,9 @@ func (c ghClient) EnsureLabel(ctx context.Context, label string) error {
 	case campaignLabel:
 		color = "5319e7"
 		description = "run-weaver campaign intake label"
+	case campaignTaskLabel:
+		color = "c5def5"
+		description = "run-weaver campaign child task label"
 	case runningLabel:
 		color = "fbca04"
 	case doneLabel:
@@ -203,6 +207,9 @@ func filterClaimableIssues(issues []githubIssue) []githubIssue {
 			continue
 		}
 		if hasLabel(issue, campaignLabel) {
+			continue
+		}
+		if hasLabel(issue, campaignTaskLabel) {
 			continue
 		}
 		filtered = append(filtered, issue)

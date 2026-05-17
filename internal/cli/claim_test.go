@@ -13,6 +13,7 @@ func TestFilterClaimableIssues(t *testing.T) {
 		{Number: 2, Labels: []githubLabel{{Name: readyLabel}, {Name: runningLabel}}},
 		{Number: 3, Labels: []githubLabel{{Name: readyLabel}, {Name: blockedLabel}}},
 		{Number: 4, Labels: []githubLabel{{Name: readyLabel}, {Name: campaignLabel}}},
+		{Number: 5, Labels: []githubLabel{{Name: readyLabel}, {Name: campaignTaskLabel}}},
 	}
 
 	got := filterClaimableIssues(issues)

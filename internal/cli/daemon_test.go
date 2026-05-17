@@ -164,3 +164,43 @@ func TestProcessOneIssueWritesBlockedStateAfterClaimFailure(t *testing.T) {
 		t.Fatal("blocked label was not added")
 	}
 }
+
+func TestProcessOneIssueBlocksBeforeCodexWhenRequiredDopplerMissing(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tempDir+"/data")
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	github := newFakeGitHubClient(githubIssue{
+		Number: 42,
+		Title:  "Add export",
+		Labels: []githubLabel{{Name: readyLabel}},
+	})
+	commands := &fakeCommandRunner{}
+	originalLookPath := lookPath
+	lookPath = func(name string) (string, error) {
+		if name == "doppler" {
+			return "", errFakeCommand
+		}
+		return originalLookPath(name)
+	}
+	defer func() { lookPath = originalLookPath }()
+
+	_, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl", repoURL: "https://github.com/example/repo.git", dopplerMode: dopplerModeRequired})
+
+	if err == nil {
+		t.Fatal("expected doppler error")
+	}
+	state, readErr := readStateFile(defaultStateFile("wsl"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if state.Job == nil || state.Job.LabelState != blockedLabel || state.Job.LastError == nil || !strings.Contains(*state.Job.LastError, "doppler") {
+		t.Fatalf("state job = %#v, want doppler blocked", state.Job)
+	}
+	if commands.ranPrefix("tmux", "new-window") {
+		t.Fatalf("commands = %#v, should not start codex", commands.calls)
+	}
+}

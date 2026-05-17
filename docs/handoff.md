@@ -49,10 +49,16 @@
 - `run-weaver repo add/list/remove` で監視対象repositoryを管理できる。repo設定は `repos.json` に保存し、secret値は保存しない。
 - 複数repository登録時、daemonはrepoごとに `gh --repo`、repo別clone、repo別worktree、repo別stateを使い、repo間は同時実行する。
 - `status` は登録済みrepositoryのstateを集約表示し、`--repo owner/repo` で対象repoだけを表示する。
+- `run-weaver repo add --doppler auto|required|optional` を追加済み。既存repo設定は `dopplerMode` 未指定なら `auto` として読む。
+- Doppler auto判定はrepo root直下の `doppler.yaml`、`doppler.yml`、`.doppler.yaml`、`.doppler.yml` を見る。Doppler不要repoでは未インストールでも進め、必須repoではCodex起動前に `blocked` にする。
+- Doppler必須repoでは `doppler run -- codex ...`、不要repoでは通常の `codex ...` を使う。tokenやsecret値はstate、Issueコメント、PR本文、docs例に保存しない。
+- Windows targetのCodex起動はtmuxではなくdirect runnerに分岐する。WSL targetはtmux runnerを継続する。
+- Campaign子Issueには `run-weaver:campaign-task` を付け、通常ready Issue取得から除外する。
+- pending decision gateがある場合、Dispatcherは `can continue tasks` に含まれるtaskだけを実行し、それ以外は `decision_required` で停止する。
 
 ## Next Step
 
-実GitHub Campaign IssueでPlanner / Dispatcherの統合テストを行う。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repository、親Issue、ラベルを確認してから実行する。複数repository運用は `run-weaver repo add` 後に実GitHub Issue処理を確認する。
+実GitHub Campaign IssueでPlanner / DispatcherとDoppler auto判定の統合テストを行う。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repository、親Issue、ラベル、Doppler要否を確認してから実行する。複数repository運用は `run-weaver repo add` 後に実GitHub Issue処理を確認する。Windows direct runnerは実機で追加確認する。
 
 ## Notes
 
@@ -72,6 +78,8 @@
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
 - Campaign実行時は、対象repositoryに子IssueとDecision Requestコメントを作成する。taskごとにdraft PRを作る。
 - Campaign decision answerは親Campaign Issueコメント内の `run-weaver-decision:<decision-id>:<option>` を読み取ってstateへ保存する。
+- Campaign task dependencyは `depends: task-...` のtask ID形式を使う。
+- Dopplerが必要なrepoは `run-weaver repo add --doppler required` で明示できる。Doppler不要repoは `--doppler optional` で自動検出を上書きできる。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor / statusはGitHub Actionsの `windows-latest` で自動検証する方針。実GitHub IssueへのWindowsからの書き込み検証は、認証と外部副作用を増やすため今回の範囲外。
 - Windows targetのdaemon常駐方式とログ保存場所は `docs/decision-log.md` にaccepted decisionとして記録済み。初期daemon flowの実GitHub連携はWSL統合テストの実績を優先する。
@@ -101,8 +109,8 @@ GitHub Actions:
 2. 対象repositoryにopen Issueを1つ用意し、`run-weaver:ready` を付ける。
 3. 対象Issueに `running` / `done` / `blocked` が付いていないことを確認する。
 4. `go build ./cmd/run-weaver` でローカルバイナリを作る。
-5. `./run-weaver doctor --target wsl` で `git`、`gh`、`codex`、`doppler`、`tmux`、`systemctl --user` を確認する。
-6. 対象repository内で `./run-weaver repo add` を実行する。
+5. `./run-weaver doctor --target wsl` で `git`、`gh`、`codex`、`tmux`、`systemctl --user` を確認する。Doppler必須repoでは `./run-weaver doctor --target wsl --repo <owner/repo>` でDopplerも確認する。
+6. 対象repository内で `./run-weaver repo add` を実行する。必要なら `--doppler required` または `--doppler optional` を付ける。
 7. 初回は `./run-weaver daemon --target wsl --once` だけを使い、継続pollは使わない。
 8. 実行後に `./run-weaver status --repo <owner/repo>`、GitHub Issueコメント、tmux windowを確認する。
 

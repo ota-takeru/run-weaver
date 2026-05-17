@@ -90,6 +90,49 @@ func TestBuildCodexTmuxCommandAddsPhaseReasoningConfig(t *testing.T) {
 	}
 }
 
+func TestBuildCodexCommandUsesDopplerWhenRequired(t *testing.T) {
+	spec := codexRunSpec{
+		IssueNumber:     42,
+		Worktree:        "/tmp/worktree",
+		PromptPath:      "/tmp/state/prompt.md",
+		JSONLogPath:     "/tmp/state/codex.jsonl",
+		LastMessagePath: "/tmp/state/last-message.txt",
+		UseDoppler:      true,
+	}
+
+	command := buildCodexTmuxCommand(spec)
+
+	if !strings.Contains(command, "doppler run -- codex --ask-for-approval never exec --json") {
+		t.Fatalf("command = %q, want doppler wrapper", command)
+	}
+}
+
+func TestDirectRunnerStartsWindowsCodexWithoutTmux(t *testing.T) {
+	commands := &fakeCommandRunner{}
+	runner := newDirectRunner("windows", commands)
+
+	ref, err := runner.StartCodex(context.Background(), codexRunSpec{
+		IssueNumber:     42,
+		Worktree:        `C:\worktree`,
+		PromptPath:      `C:\state\prompt.md`,
+		JSONLogPath:     `C:\state\codex.jsonl`,
+		LastMessagePath: `C:\state\last-message.txt`,
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref != nil {
+		t.Fatalf("ref = %#v, want nil", ref)
+	}
+	if commands.ranPrefix("tmux") {
+		t.Fatalf("commands = %#v, should not use tmux", commands.calls)
+	}
+	if !commands.ranPrefix("powershell", "-NoProfile", "-Command") {
+		t.Fatalf("commands = %#v, want powershell", commands.calls)
+	}
+}
+
 func TestTmuxRunnerStartsWindow(t *testing.T) {
 	commands := &fakeCommandRunner{
 		failFirstHasSession: true,

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -35,7 +36,7 @@ func TestRepoAddListRemove(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(config.Repositories) != 1 || config.Repositories[0].Repository != "example/repo" {
+	if len(config.Repositories) != 1 || config.Repositories[0].Repository != "example/repo" || config.Repositories[0].DopplerMode != dopplerModeAuto {
 		t.Fatalf("config = %#v", config)
 	}
 
@@ -61,6 +62,49 @@ func TestRepoAddListRemove(t *testing.T) {
 	}
 	if len(config.Repositories) != 0 {
 		t.Fatalf("config after remove = %#v", config)
+	}
+}
+
+func TestRepoAddStoresDopplerMode(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tempDir, "config"))
+	t.Setenv("WSL_INTEROP", "1")
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		if commandKey(name, args...) == "git\x00remote\x00get-url\x00origin" {
+			return []byte("https://github.com/example/repo.git\n"), nil
+		}
+		return nil, errors.New("unexpected command")
+	})
+	defer restoreCommands()
+	var stdout, stderr bytes.Buffer
+
+	if code := runRepo([]string{"add", "--doppler", "required"}, &stdout, &stderr); code != exitOK {
+		t.Fatalf("add exit = %d; stderr = %q", code, stderr.String())
+	}
+	config, err := readRepoConfig(defaultRepoConfigFile("wsl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Repositories[0].DopplerMode != dopplerModeRequired {
+		t.Fatalf("doppler mode = %q", config.Repositories[0].DopplerMode)
+	}
+}
+
+func TestReadRepoConfigDefaultsDopplerMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "repos.json")
+	if err := os.WriteFile(path, []byte(`{"schemaVersion":1,"repositories":[{"repository":"example/repo","repoUrl":"https://github.com/example/repo.git","enabled":true}]}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := readRepoConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Repositories[0].DopplerMode != dopplerModeAuto {
+		t.Fatalf("doppler mode = %q", config.Repositories[0].DopplerMode)
 	}
 }
 

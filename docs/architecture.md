@@ -25,11 +25,11 @@ Issueを取得したagentは、`running` ラベル付与、開始コメント、
 
 ### Campaign Planner / Dispatcher
 
-Campaign Plannerは親Campaign Issue本文のMarkdown roadmapをtask graphへ変換します。箇条書きの通常項目は大きめの実行taskとして子Issueに作成し、`decision`、`gate`、`判断`、`決定` を含む項目はdecision gateとして親Campaign IssueへDecision Requestコメントを投稿します。子Issue本文には親Campaign番号とtask IDを含めます。
+Campaign Plannerは親Campaign Issue本文のMarkdown roadmapをtask graphへ変換します。箇条書きの通常項目は大きめの実行taskとして子Issueに作成し、`decision`、`gate`、`判断`、`決定` を含む項目はdecision gateとして親Campaign IssueへDecision Requestコメントを投稿します。子Issue本文には親Campaign番号とtask IDを含め、子Issueには `run-weaver:campaign-task` を付けて通常task取得から除外します。
 
 Dispatcherはローカルstate fileの `campaign` を正本にして、依存関係が解決済みの次taskを選びます。taskごとに既存のclaim、worktree、tmux、Codex、draft PR flowを再利用します。Campaign taskは同じworktree上で `plan`、`implement`、`review`、`verify` の順にCodexを起動し、`verify` 完了後だけcommit、push、draft PR作成へ進みます。task完了後はPR URLをCampaign stateへ記録し、次taskへ進めます。
 
-Decision Requestには `options`、`recommendation`、`blocked tasks`、`can continue tasks` を含めます。人間は `run-weaver-decision:<decision-id>:<option>` を含むコメントで回答します。実行可能taskがないdecision gateではCampaignを `decision_required` として停止し、回答を読み取ったらstateへ保存して再開します。
+Decision Requestには `options`、`recommendation`、`blocked tasks`、`can continue tasks` を含めます。人間は `run-weaver-decision:<decision-id>:<option>` を含むコメントで回答します。pending decisionがある間は `can continue tasks` に含まれるtaskだけを実行し、実行可能taskがないdecision gateではCampaignを `decision_required` として停止し、回答を読み取ったらstateへ保存して再開します。task dependencyは `depends: task-...` のtask ID形式を正とします。
 
 ### Target Adapter
 
@@ -58,15 +58,15 @@ Codexは人間用 `src` を直接触りません。Codex専用cloneを作り、I
 
 ### Secret Manager
 
-DB認証情報や環境変数はDopplerで一元管理します。CodexにはDoppler service token `dev-agent` だけを渡します。
+Dopplerが必要なrepositoryでは、DB認証情報や環境変数をDopplerで一元管理します。CodexにはDoppler service token `dev-agent` だけを渡します。
 
-agentはCodex起動時にDoppler経由で必要な環境変数を注入します。service tokenやsecretの実体をログ、Issueコメント、PR本文には出しません。
+repo設定の `dopplerMode` は `auto`、`required`、`optional` のいずれかです。`auto` ではrepo rootの `doppler.yaml`、`doppler.yml`、`.doppler.yaml`、`.doppler.yml` を検出した場合だけDoppler必須とします。必須repositoryでDoppler CLIや認証がない場合、agentはCodex起動前にIssueを `blocked` にします。Doppler不要repositoryではDoppler未インストールでも通常の `codex exec` で進めます。service tokenやsecretの実体をログ、Issueコメント、PR本文には出しません。
 
 ### Runner
 
 Codex CLIはworktree上で起動します。
 
-WSL targetではtmux sessionを使い、作業ログを人間が確認できるようにします。
+WSL targetではtmux sessionを使い、作業ログを人間が確認できるようにします。Windows targetではtmuxを使わず、Task Schedulerから起動したdaemonがdirect runnerでCodexを非同期起動します。
 
 ```sh
 tmux attach -t run-weaver
@@ -80,7 +80,7 @@ Codexがrate limitで中断した場合、agentはJSONLログからsession idを
 
 Codex完了の初期判定は、最終応答ファイルが存在し、対象tmux windowが終了していることです。完了後はbranchをpushし、draft PRを作成してIssueを `done` に更新します。
 
-CodexにはDoppler service token `dev-agent` を環境変数経由で渡します。agentはtokenの値をstate file、tmuxログ、構造化ログ、Issueコメント、PR本文に出しません。tmux上でもtoken値が表示されないよう、コマンドライン引数ではなく環境変数として注入します。
+Doppler必須repositoryでは `doppler run -- codex ...` でCodexを起動します。agentはtokenの値をstate file、tmuxログ、構造化ログ、Issueコメント、PR本文に出しません。tmux上でもtoken値が表示されないよう、コマンドライン引数ではなく環境変数として注入します。
 
 ## 状態管理
 
