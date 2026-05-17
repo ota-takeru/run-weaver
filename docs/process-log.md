@@ -13,9 +13,9 @@ Review:
   - 最新push CIでWindows jobの `TestWSLServiceFile` が失敗したため、WSL service PATH生成をOS非依存でLinux形式に固定した。
   - `TestWSLServiceFile` をWSL/Linux target前提のテストとして明示し、Windows runner上の実ユーザーホームに依存しないようにした。
   - direct runner系テストがWindows state pathを書き込む際に `LOCALAPPDATA` 未設定だとホーム配下へ漏れるテスト隔離不備を修正した。
+  - 最新コミット `350e659` のGitHub Actions CIでLinux / Windows jobが成功した。
 - Future tasks:
   - 実GitHub Issueへのdaemon実行、Windows実機direct runner、Doppler必須repoの実blocked確認は、外部書き込みや実機環境が必要なため継続する。
-  - 次push後にGitHub Actions CIの再実行結果を確認する。
 - Human-facing reports:
   - `ota-takeru/run-weaver#1` は `running` ラベル付きだがtmux windowがなく、JSONLに `codex: command not found` が残っている。更新後daemon pollで `blocked` へ寄せるか、人間が `running` を外して再投入する必要がある。
   - latest release v0.1.2のasset自体は取得・起動できるが、今回のDoppler修正は未リリースのため、次releaseへ含める必要がある。
