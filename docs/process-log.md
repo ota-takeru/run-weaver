@@ -11,6 +11,7 @@ Review:
   - `go test ./...`、`go test -race ./...`、`go vet ./...`、Linux / Windows amd64 / arm64のrelease相当cross-buildを確認した。
   - latest release v0.1.2のasset取得、release binaryの `--help`、`update --check` の最新/更新あり判定を確認した。
   - 最新push CIでWindows jobの `TestWSLServiceFile` が失敗したため、WSL service PATH生成をOS非依存でLinux形式に固定した。
+  - `TestWSLServiceFile` をWSL/Linux target前提のテストとして明示し、Windows runner上の実ユーザーホームに依存しないようにした。
   - direct runner系テストがWindows state pathを書き込む際に `LOCALAPPDATA` 未設定だとホーム配下へ漏れるテスト隔離不備を修正した。
 - Future tasks:
   - 実GitHub Issueへのdaemon実行、Windows実機direct runner、Doppler必須repoの実blocked確認は、外部書き込みや実機環境が必要なため継続する。

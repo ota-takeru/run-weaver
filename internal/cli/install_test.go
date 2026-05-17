@@ -34,6 +34,8 @@ func TestWindowsTaskCommand(t *testing.T) {
 }
 
 func TestWSLServiceFile(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
 	tempDir := t.TempDir()
 	t.Setenv("HOME", tempDir)
 	t.Setenv("PATH", "/home/me/.nvm/versions/node/v22/bin:/usr/bin")
