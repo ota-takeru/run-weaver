@@ -107,6 +107,7 @@ Recommended Next Step:
 - 依存先IssueのPR branchをbaseにしたstacked draft PR作成を追加した
 - state schemaを `3` に上げ、通常Issueの依存情報、base branch、`completedIssues` を保存するようにした
 - `status` のJSONとhuman outputに `readyQueue` を追加した
+- maintainer用 `scripts/release.sh` を追加し、dry-run既定で次tag計算、事前検証、明示的なtag pushによるrelease workflow起動を行えるようにした
 
 ## Upcoming Sequence
 

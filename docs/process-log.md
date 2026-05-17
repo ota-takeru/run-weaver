@@ -1,5 +1,21 @@
 # Process Log
 
+## 2026-05-17 - Maintainer Release Script
+
+Review:
+
+- Immediate fixes:
+  - 利用者向け `run-weaver` CLIにはrelease commandを追加せず、maintainer用 `scripts/release.sh` を追加した。
+  - scriptはremote tagから次の `vMAJOR.MINOR.PATCH` を計算し、既定patch bump、初回 `v0.1.0`、`--version` 明示指定に対応する。
+  - dry-run既定で、`--push` 指定時だけannotated tagを作成してpushし、既存release workflowを起動するようにした。
+  - repo専用remote、clean worktree、branch、remote HEAD、tag重複、`gh auth status`、`go test ./...` を事前検証する。
+  - README、architecture、CLI docs、progress、handoffにmaintainer release flowを反映した。
+- Future tasks:
+  - 実release workflowの成功確認は、人間が `scripts/release.sh --push` を明示実行した後に行う。
+  - Windows maintainer向けrelease scriptが必要になった場合は、PowerShell版を追加する。
+- Human-facing reports:
+  - 今回は実tag作成、push、GitHub Release作成、外部アカウント設定、secretには触れていない。
+
 ## 2026-05-17 - Same Repository Issue Queue
 
 Review:

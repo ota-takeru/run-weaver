@@ -37,6 +37,7 @@
 - `run-weaver update --check` / `run-weaver update` を追加済み。
 - release assetのzip / tar.gz展開処理は共通のbinary書き込み helper を使うように整理済み。
 - `.github/workflows/release.yml` はtag `v*` push時にLinux / Windows、amd64 / arm64のrelease assetを作成する。
+- maintainer用 `scripts/release.sh` は次tag計算と事前検証をdry-runで行い、`--push` 指定時だけannotated tagをpushしてrelease workflowを起動する。
 - `scripts/install.sh` と `scripts/install.ps1` はGitHub Releasesからbinaryを取得するため、ローカルにproject cloneがなくても初回導入できる。
 - `run-weaver install --target wsl` はsystemd user service `run-weaver.service` を作成または更新し、`systemctl --user enable --now run-weaver.service` を実行する。
 - `--repo` 未指定でも `--repo-url` がGitHub URLならowner/repoを自動推定し、互換用の単一repo daemon起動引数へ渡す。
@@ -75,6 +76,7 @@
 - status表示の細分化は実装済み。CI確認待ち。
 - rate limit再開は人間確認条件を迂回しない。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回す。
 - self-updateはGitHub Releasesからbinary assetを取得するだけで、GitHub Issueや外部アカウント設定は変更しない。release作成にはtag pushが必要なため、実release workflow検証は人間のpush判断後に行う。
+- release作成は利用者向け `run-weaver` CLIには含めず、maintainer用 `scripts/release.sh` で行う。通常確認ではdry-runまでにし、`--push` は人間が明示実行する。
 - 自動更新を止める場合は `RUN_WEAVER_NO_UPDATE=1` を設定する。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`run-weaver repo add` 済みであることを確認する。
