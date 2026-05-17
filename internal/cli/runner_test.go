@@ -49,6 +49,30 @@ func TestBuildCodexTmuxCommand(t *testing.T) {
 	}
 }
 
+func TestBuildCodexTmuxCommandResume(t *testing.T) {
+	spec := codexRunSpec{
+		IssueNumber:     42,
+		Worktree:        "/tmp/worktree",
+		PromptPath:      "/tmp/state/resume.md",
+		JSONLogPath:     "/tmp/state/codex.jsonl",
+		LastMessagePath: "/tmp/state/last-message.txt",
+		ResumeSessionID: "session-123",
+	}
+
+	command := buildCodexTmuxCommand(spec)
+
+	for _, want := range []string{
+		"cd '/tmp/worktree' && codex --ask-for-approval never exec resume --json",
+		"--output-last-message '/tmp/state/last-message.txt'",
+		"'session-123' - < '/tmp/state/resume.md'",
+		">> '/tmp/state/codex.jsonl'",
+	} {
+		if !strings.Contains(command, want) {
+			t.Fatalf("command = %q, missing %q", command, want)
+		}
+	}
+}
+
 func TestTmuxRunnerStartsWindow(t *testing.T) {
 	commands := &fakeCommandRunner{
 		failFirstHasSession: true,

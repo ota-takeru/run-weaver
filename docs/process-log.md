@@ -1,5 +1,23 @@
 # Process Log
 
+## 2026-05-17 - Codex Rate Limit Resume
+
+Review:
+
+- Immediate fixes:
+  - `codex exec resume` が利用できることを確認した。
+  - Codex JSONLログがrate limitを示す場合、blockedへ落とさず、次回daemon pollで同じworktreeから `codex exec resume <session>` を起動する処理を追加した。
+  - JSONLログから `session_id` / `sessionId` を抽出してstateへ保存するようにした。
+  - session idが取得できない場合は、同じworktreeで `codex exec resume --last` を試すfallbackを追加した。
+  - `status` がrate limit待機中を `runtimeState: rate_limited_waiting` として表示するようにした。
+  - rate limit resume、nested session id抽出、`--last` fallback、resume command生成の単体テストを追加した。
+  - READMEとCLI docsにインストール手順と、install後に使うための前提条件を追記した。
+- Future tasks:
+  - GitHub ActionsのLinux / Windows job結果を確認する。
+  - `run-weaver:ready` 以外のフィルタを検討する。
+- Human-facing reports:
+  - installは常駐設定を作るが、利用開始には `doctor` が確認する依存関係と認証、`--repo-url`、対象Issueの `run-weaver:ready` ラベルが必要。
+
 ## 2026-05-17 - Status Runtime State
 
 Review:

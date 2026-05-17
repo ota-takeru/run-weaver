@@ -306,6 +306,45 @@ func TestStatusRuntimeStateCodexCompleted(t *testing.T) {
 	}
 }
 
+func TestStatusRuntimeStateRateLimitedWaiting(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir)
+	jsonLog := filepath.Join(tempDir, "codex.jsonl")
+	if err := os.WriteFile(jsonLog, []byte(`{"error":"rate limit reached"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add export"},
+			LabelState: runningLabel,
+			Tmux:       &tmuxRef{Session: "run-weaver", Window: "issue-42"},
+			Codex:      &codexState{JSONLogPath: jsonLog},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		return nil, errors.New("tmux window missing")
+	})
+	defer restoreCommands()
+
+	result := collectStatus(newFakeGitHubClient(githubIssue{
+		Number: 42,
+		Labels: []githubLabel{{Name: runningLabel}},
+	}))
+
+	if result.Output.Job == nil || result.Output.Job.RuntimeState != "rate_limited_waiting" {
+		t.Fatalf("job = %#v, want rate_limited_waiting", result.Output.Job)
+	}
+	if containsString(result.Output.Reconciliation.Conflicts, "running_job_without_tmux_window") {
+		t.Fatalf("conflicts = %#v, should not include tmux conflict while rate limited", result.Output.Reconciliation.Conflicts)
+	}
+}
+
 func TestWindowsProcessRunningParsesTasklistCSV(t *testing.T) {
 	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
 		if name != "tasklist" {

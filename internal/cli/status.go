@@ -157,6 +157,9 @@ func jobRuntimeState(output statusOutput) string {
 	case doneLabel:
 		return "done"
 	case runningLabel:
+		if codexRateLimited(output.Job) && output.Reconciliation.TmuxState != "window_exists" {
+			return "rate_limited_waiting"
+		}
 		if codexLastMessageExists(output.Job) && output.Reconciliation.TmuxState != "window_exists" {
 			return "codex_completed"
 		}
@@ -175,6 +178,10 @@ func codexLastMessageExists(job *statusJob) bool {
 	}
 	_, err := os.Stat(job.Codex.LastMessagePath)
 	return err == nil
+}
+
+func codexRateLimited(job *statusJob) bool {
+	return job != nil && job.Codex != nil && codexLogLooksRateLimited(job.Codex.JSONLogPath)
 }
 
 func defaultStatusTarget() string {
@@ -253,7 +260,7 @@ func detectStatusConflicts(output statusOutput) []string {
 	if output.Job != nil && output.Job.LabelState == "running" && output.Reconciliation.ProcessState == "not_running" {
 		conflicts = append(conflicts, "running_job_without_process")
 	}
-	if output.Job != nil && output.Job.LabelState == "running" && output.Reconciliation.TmuxState == "window_missing" && !codexLastMessageExists(output.Job) {
+	if output.Job != nil && output.Job.LabelState == "running" && output.Reconciliation.TmuxState == "window_missing" && !codexLastMessageExists(output.Job) && !codexRateLimited(output.Job) {
 		conflicts = append(conflicts, "running_job_without_tmux_window")
 	}
 	if output.Target == "" {

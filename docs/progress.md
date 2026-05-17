@@ -74,10 +74,12 @@ Recommended Next Step:
 - `doctor --target windows` がlogs directoryの書き込み可否を確認するようにした
 - GitHub ActionsのLinux / Windows jobが最新コミット `847e6d3` で成功した
 - `status` のJSONとhuman outputに `runtimeState` を追加し、`codex_running`、`codex_completed`、`needs_attention` を区別するようにした
+- Codexがrate limitで中断した場合に、同じworktreeと前回sessionから `codex exec resume` で自動再開する処理を追加した
+- READMEとCLI docsにインストール手順と、install後に使うための前提条件を追記した
 
 ## Upcoming Sequence
 
-1. status表示細分化のCI検証結果確認
+1. rate limit自動再開とインストール手順のCI検証結果確認
 2. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch

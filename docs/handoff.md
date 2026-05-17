@@ -31,10 +31,12 @@
 - `run-weaver install --target windows --repo-url <url>` はper-user Task Scheduler task `run-weaver` を作成または更新する。
 - GitHub ActionsのLinux / Windows jobは最新確認時点で成功済み。
 - `status` は `labelState` に加えて表示用の `runtimeState` を返す。`codex_running`、`codex_completed`、`needs_attention` を区別する。
+- Codexがrate limitで中断した場合、daemonはJSONLログからsession idを取得し、同じworktreeで `codex exec resume <session>` を起動する。session idが取れない場合は同じworktreeで `codex exec resume --last` を試す。
+- `install` は常駐設定を作るが、実際に使える状態には `doctor` が確認する依存関係と認証、`--repo-url`、対象Issueの `run-weaver:ready` ラベルが必要。
 
 ## Next Step
 
-status表示細分化のCI結果を確認し、問題なければ次のフィルタ検討へ進む。
+rate limit自動再開とインストール手順更新のCI結果を確認し、問題なければ次のフィルタ検討へ進む。
 
 ## Notes
 
@@ -46,6 +48,7 @@ status表示細分化のCI結果を確認し、問題なければ次のフィル
 - Codex完了後、daemonがworktreeの変更をcommitしてからpush / draft PR作成へ進む。変更なしなら `blocked` にする。
 - Codex promptにはIssueタイトル、本文、run-weaver管理コメントを除いた人間コメントを渡す。本文なしでもタイトルが具体的なら実行する。
 - status表示の細分化は実装済み。CI確認待ち。
+- rate limit再開は人間確認条件を迂回しない。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回す。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。

@@ -42,6 +42,7 @@ type codexRunSpec struct {
 	PromptPath      string
 	JSONLogPath     string
 	LastMessagePath string
+	ResumeSessionID string
 }
 
 func newTmuxRunner(commands commandRunner) tmuxRunner {
@@ -86,7 +87,26 @@ func buildCodexRunSpec(target string, issueNumber int, worktree string) codexRun
 
 func buildCodexTmuxCommand(spec codexRunSpec) string {
 	dir := shellQuote(path.Dir(filepath.ToSlash(spec.JSONLogPath)))
-	codexCommand := strings.Join([]string{
+	return "mkdir -p " + dir + " && " + buildCodexCommand(spec)
+}
+
+func buildCodexCommand(spec codexRunSpec) string {
+	if spec.ResumeSessionID != "" {
+		sessionArg := shellQuote(spec.ResumeSessionID)
+		if spec.ResumeSessionID == "--last" {
+			sessionArg = "--last"
+		}
+		return strings.Join([]string{
+			"cd " + shellQuote(filepath.ToSlash(spec.Worktree)) + " && codex --ask-for-approval never exec resume --json",
+			"--output-last-message " + shellQuote(filepath.ToSlash(spec.LastMessagePath)),
+			sessionArg,
+			"-",
+			"< " + shellQuote(filepath.ToSlash(spec.PromptPath)),
+			">> " + shellQuote(filepath.ToSlash(spec.JSONLogPath)),
+			"2>&1",
+		}, " ")
+	}
+	return strings.Join([]string{
 		"codex --ask-for-approval never exec --json",
 		"--sandbox workspace-write",
 		"--cd " + shellQuote(filepath.ToSlash(spec.Worktree)),
@@ -96,7 +116,6 @@ func buildCodexTmuxCommand(spec codexRunSpec) string {
 		"> " + shellQuote(filepath.ToSlash(spec.JSONLogPath)),
 		"2>&1",
 	}, " ")
-	return "mkdir -p " + dir + " && " + codexCommand
 }
 
 func shellQuote(value string) string {

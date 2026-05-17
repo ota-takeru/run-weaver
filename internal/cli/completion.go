@@ -2,11 +2,15 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
+
+const rateLimitResumePrompt = `Continue the interrupted work from the previous session. Review the existing worktree, git diff, and prior context before making changes. Preserve previous progress and continue toward the original GitHub Issue goal.`
 
 func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions) (string, bool, error) {
 	statePath := defaultStateFile(opts.target)
@@ -19,6 +23,9 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 	}
 	if state.Job == nil || state.Job.LabelState != runningLabel || state.Job.Codex == nil {
 		return "", false, nil
+	}
+	if resumed, err := resumeRateLimitedCodex(ctx, deps, opts, state); resumed || err != nil {
+		return "resumed rate-limited Codex session", true, err
 	}
 	if !codexCompletionReady(opts.target, state.Job) {
 		return "", false, nil
@@ -64,6 +71,108 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 		return "", true, err
 	}
 	return fmt.Sprintf("completed issue #%d with draft PR %s", state.Job.Issue.Number, prURL), true, nil
+}
+
+func resumeRateLimitedCodex(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile) (bool, error) {
+	if state == nil || state.Job == nil || state.Job.Codex == nil || state.Job.Codex.JSONLogPath == "" || state.Job.Codex.LastMessagePath == "" {
+		return false, nil
+	}
+	if tmuxState(opts.target, state.Job.Tmux) == "window_exists" {
+		return false, nil
+	}
+	if !codexLogLooksRateLimited(state.Job.Codex.JSONLogPath) {
+		return false, nil
+	}
+	sessionID := stringPtrValue(state.Job.Codex.SessionID)
+	if sessionID == "" {
+		sessionID = codexSessionIDFromLog(state.Job.Codex.JSONLogPath)
+	}
+	if sessionID == "" {
+		sessionID = "--last"
+	}
+	resumePromptPath := state.Job.Codex.LastMessagePath + ".resume.md"
+	if err := os.WriteFile(resumePromptPath, []byte(rateLimitResumePrompt), 0o600); err != nil {
+		return false, err
+	}
+	spec := codexRunSpec{
+		IssueNumber:     state.Job.Issue.Number,
+		Worktree:        state.Job.Worktree,
+		PromptPath:      resumePromptPath,
+		JSONLogPath:     state.Job.Codex.JSONLogPath,
+		LastMessagePath: state.Job.Codex.LastMessagePath,
+		ResumeSessionID: sessionID,
+	}
+	tmux, err := deps.runner.StartCodex(ctx, spec)
+	if err != nil {
+		return false, err
+	}
+	state.Job.Tmux = &tmux
+	if sessionID != "--last" {
+		state.Job.Codex.SessionID = &sessionID
+	}
+	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	if err := writeStateFile(defaultStateFile(opts.target), *state); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func codexLogLooksRateLimited(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	text := strings.ToLower(string(data))
+	return strings.Contains(text, "rate limit") || strings.Contains(text, "rate_limit") || strings.Contains(text, "ratelimit")
+}
+
+func codexSessionIDFromLog(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		var value any
+		if err := json.Unmarshal([]byte(line), &value); err != nil {
+			continue
+		}
+		if sessionID := findSessionID(value); sessionID != "" {
+			return sessionID
+		}
+	}
+	return ""
+}
+
+func findSessionID(value any) string {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, nested := range typed {
+			if key == "session_id" || key == "sessionId" {
+				if text, ok := nested.(string); ok {
+					return text
+				}
+			}
+		}
+		for _, nested := range typed {
+			if found := findSessionID(nested); found != "" {
+				return found
+			}
+		}
+	case []any:
+		for _, nested := range typed {
+			if found := findSessionID(nested); found != "" {
+				return found
+			}
+		}
+	}
+	return ""
+}
+
+func stringPtrValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func codexCompletionReady(target string, job *stateJob) bool {

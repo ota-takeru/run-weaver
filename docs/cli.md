@@ -122,7 +122,7 @@ run-weaver status --repo example/repo
 
 process照合はtargetごとの実行環境に合わせます。WSLではPIDへsignal 0を送り、Windowsでは `tasklist` のPID検索結果を使います。tmux照合はWSL targetのみ対象です。
 
-`runtimeState` は `labelState` とreconciliationから算出する表示用の状態です。主な値は `running`、`codex_running`、`codex_completed`、`blocked`、`done`、`needs_attention` です。
+`runtimeState` は `labelState` とreconciliationから算出する表示用の状態です。主な値は `running`、`codex_running`、`codex_completed`、`rate_limited_waiting`、`blocked`、`done`、`needs_attention` です。
 
 人間向け出力例:
 
@@ -268,6 +268,8 @@ Windows target:
 
 `install.sh` と `install.ps1` は、初回取得と `run-weaver install` 呼び出しを簡単にする薄いラッパーとして扱います。
 
+`install` は常駐設定を作成します。実際にIssue処理を開始できる状態にするには、事前に `doctor` が確認する依存関係と認証、Codex専用clone作成用の `--repo-url`、対象repositoryの `run-weaver:ready` Issueが必要です。
+
 ## `run-weaver daemon`
 
 Issue監視とCodex実行を行う常駐プロセスです。
@@ -298,6 +300,8 @@ Codex CLI起動の初期仕様:
 - 標準出力のJSONLログはstate配下のIssue別ディレクトリに保存する
 - 最終応答は `--output-last-message` でstate配下に保存する
 - 終了コード `0` 以外、JSONLログの異常終了、draft PR作成失敗は `blocked` とする
+- JSONLログがrate limitを示し、Codex session idを取得できる場合は `blocked` にせず、次回pollで `codex exec resume <session>` により同じworktreeと前回sessionから再開する
+- session idを取得できない場合でも、同じworktreeへ移動して `codex exec resume --last` を試す
 - Codexに渡すDoppler service tokenは環境変数から注入し、ログ、Issueコメント、PR本文、state fileには値を出さない
 
 WSL targetでは、この `codex exec` をtmux window内で起動します。tmux session名は `run-weaver`、window名は `issue-<number>` とします。
