@@ -17,10 +17,10 @@ func TestBuildWorktreeSpec(t *testing.T) {
 		Title:  "Add Account Export!",
 	})
 
-	if spec.CloneDir != tempDir+"/run-weaver/src" {
+	if spec.CloneDir != filepath.Join(tempDir, "run-weaver", "src") {
 		t.Fatalf("clone dir = %q", spec.CloneDir)
 	}
-	if spec.Path != tempDir+"/run-weaver/worktrees/issue-42" {
+	if spec.Path != filepath.Join(tempDir, "run-weaver", "worktrees", "issue-42") {
 		t.Fatalf("path = %q", spec.Path)
 	}
 	if spec.Branch != "codex/issue-42-add-account-export" {
@@ -74,10 +74,11 @@ func TestWorktreePrepareClonesAndAddsWorktree(t *testing.T) {
 	if spec.Branch != "codex/issue-42-test-issue" {
 		t.Fatalf("branch = %q", spec.Branch)
 	}
-	if !commands.ran("git", "clone", "https://example.test/repo.git", tempDir+"/run-weaver/src") {
+	clonePath := filepath.Join(tempDir, "run-weaver", "src")
+	if !commands.ran("git", "clone", "https://example.test/repo.git", clonePath) {
 		t.Fatalf("commands = %#v, want git clone", commands.calls)
 	}
-	if !commands.ran("git", "-C", tempDir+"/run-weaver/src", "worktree", "add", "-B", spec.Branch, spec.Path, "origin/HEAD") {
+	if !commands.ran("git", "-C", clonePath, "worktree", "add", "-B", spec.Branch, spec.Path, "origin/HEAD") {
 		t.Fatalf("commands = %#v, want git worktree add", commands.calls)
 	}
 }
@@ -85,11 +86,11 @@ func TestWorktreePrepareClonesAndAddsWorktree(t *testing.T) {
 func TestWorktreePrepareReusesExistingWorktree(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tempDir)
-	worktreePath := tempDir + "/run-weaver/worktrees/issue-42"
+	worktreePath := filepath.Join(tempDir, "run-weaver", "worktrees", "issue-42")
 	if err := os.MkdirAll(filepath.Join(worktreePath, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	clonePath := tempDir + "/run-weaver/src"
+	clonePath := filepath.Join(tempDir, "run-weaver", "src")
 	if err := os.MkdirAll(filepath.Join(clonePath, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}

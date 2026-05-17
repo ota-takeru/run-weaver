@@ -153,12 +153,12 @@ func processRunning(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
+	if currentGOOS == "windows" {
+		return windowsProcessRunning(pid)
+	}
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		return false
-	}
-	if currentGOOS == "windows" {
-		return windowsProcessRunning(pid)
 	}
 	return process.Signal(syscall.Signal(0)) == nil
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -12,13 +13,13 @@ func TestBuildCodexRunSpec(t *testing.T) {
 
 	spec := buildCodexRunSpec("wsl", 42, "/tmp/worktree")
 
-	if spec.JSONLogPath != tempDir+"/run-weaver/issues/42/codex.jsonl" {
+	if spec.JSONLogPath != filepath.Join(tempDir, "run-weaver", "issues", "42", "codex.jsonl") {
 		t.Fatalf("json log path = %q", spec.JSONLogPath)
 	}
-	if spec.LastMessagePath != tempDir+"/run-weaver/issues/42/last-message.txt" {
+	if spec.LastMessagePath != filepath.Join(tempDir, "run-weaver", "issues", "42", "last-message.txt") {
 		t.Fatalf("last message path = %q", spec.LastMessagePath)
 	}
-	if spec.PromptPath != tempDir+"/run-weaver/issues/42/prompt.md" {
+	if spec.PromptPath != filepath.Join(tempDir, "run-weaver", "issues", "42", "prompt.md") {
 		t.Fatalf("prompt path = %q", spec.PromptPath)
 	}
 }

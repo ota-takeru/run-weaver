@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -84,15 +85,15 @@ func buildCodexRunSpec(target string, issueNumber int, worktree string) codexRun
 }
 
 func buildCodexTmuxCommand(spec codexRunSpec) string {
-	dir := shellQuote(filepath.Dir(spec.JSONLogPath))
+	dir := shellQuote(path.Dir(filepath.ToSlash(spec.JSONLogPath)))
 	codexCommand := strings.Join([]string{
 		"codex --ask-for-approval never exec --json",
 		"--sandbox workspace-write",
-		"--cd " + shellQuote(spec.Worktree),
-		"--output-last-message " + shellQuote(spec.LastMessagePath),
+		"--cd " + shellQuote(filepath.ToSlash(spec.Worktree)),
+		"--output-last-message " + shellQuote(filepath.ToSlash(spec.LastMessagePath)),
 		"-",
-		"< " + shellQuote(spec.PromptPath),
-		"> " + shellQuote(spec.JSONLogPath),
+		"< " + shellQuote(filepath.ToSlash(spec.PromptPath)),
+		"> " + shellQuote(filepath.ToSlash(spec.JSONLogPath)),
 		"2>&1",
 	}, " ")
 	return "mkdir -p " + dir + " && " + codexCommand

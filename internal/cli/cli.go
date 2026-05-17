@@ -94,11 +94,36 @@ func runStatus(args []string, stdout, stderr io.Writer) int {
 func runInstall(args []string, stdout, stderr io.Writer) int {
 	fs := newFlagSet("install", stderr)
 	target := fs.String("target", "", "target environment: wsl or windows")
+	repo := fs.String("repo", "", "GitHub repository for gh, in owner/repo form")
+	repoURL := fs.String("repo-url", "", "repository URL used to create the Codex clone")
+	binary := fs.String("binary", "", "path to the run-weaver binary")
+	pollInterval := fs.Duration("poll-interval", time.Minute, "daemon poll interval")
 	if !parseFlags(fs, args, stderr) {
 		return exitUsage
 	}
 	if !validateTarget(*target, true, stderr) {
 		return exitUsage
+	}
+	if *pollInterval <= 0 {
+		fmt.Fprintln(stderr, "--poll-interval must be greater than zero")
+		return exitUsage
+	}
+	if *target == "windows" {
+		if *repoURL == "" {
+			fmt.Fprintln(stderr, "--repo-url is required for install --target windows")
+			return exitConfigMissing
+		}
+		if err := installWindows(windowsInstallOptions{
+			Repo:         *repo,
+			RepoURL:      *repoURL,
+			Binary:       *binary,
+			PollInterval: *pollInterval,
+		}); err != nil {
+			fmt.Fprintf(stderr, "install error: %v\n", err)
+			return exitConfigMissing
+		}
+		fmt.Fprintf(stdout, "installed Task Scheduler task run-weaver for target windows\n")
+		return exitOK
 	}
 
 	fmt.Fprintf(stdout, "install skeleton for target %s\n", *target)

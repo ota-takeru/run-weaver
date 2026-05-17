@@ -244,7 +244,7 @@ agentの導入と常駐設定を行います。
 
 ```sh
 run-weaver install --target wsl
-run-weaver install --target windows
+run-weaver install --target windows --repo-url https://github.com/example/repo.git
 ```
 
 WSL target:
@@ -256,7 +256,10 @@ WSL target:
 Windows target:
 
 - GitHub Releasesからバイナリを配置
-- Task Schedulerに常駐タスクを登録
+- per-user Task Schedulerに `run-weaver` taskを登録
+- `--repo-url` でCodex専用clone作成元のrepository URLを指定
+- `--repo` を指定した場合はdaemonのGitHub CLI操作にowner/repoを渡す
+- 標準出力と標準エラーを `%LOCALAPPDATA%\\run-weaver\\logs\\daemon.log` に追記
 
 `install.sh` と `install.ps1` は、初回取得と `run-weaver install` 呼び出しを簡単にする薄いラッパーとして扱います。
 

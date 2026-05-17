@@ -58,6 +58,9 @@ func collectDoctor(target string) doctorResult {
 		checks = insertAfter(checks, "doppler", checkCommand("tmux", "tmux"))
 		checks = insertAfter(checks, "tmux", checkSystemdUser())
 	}
+	if target == "windows" {
+		checks = insertAfter(checks, "state_file", checkWritableDir("log_dir", "Log dir", defaultLogDir(target)))
+	}
 
 	overall, exitCode := summarizeDoctor(checks)
 	return doctorResult{
@@ -387,6 +390,14 @@ func defaultCodexClone(target string) string {
 
 func defaultWorktreeRoot(target string) string {
 	return filepath.Join(defaultDataRoot(target), "worktrees")
+}
+
+func defaultLogDir(target string) string {
+	return filepath.Join(defaultDataRoot(target), "logs")
+}
+
+func defaultDaemonLogFile(target string) string {
+	return filepath.Join(defaultLogDir(target), "daemon.log")
 }
 
 func homeDir() string {

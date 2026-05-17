@@ -1,5 +1,21 @@
 # Process Log
 
+## 2026-05-17 - Windows Install Implementation
+
+Review:
+
+- Immediate fixes:
+  - Windows targetの常駐方式とログ保存場所をaccepted decisionとして記録した。
+  - `run-weaver install --target windows --repo-url <url>` でper-user Task Scheduler task `run-weaver` を作成または更新する処理を追加した。
+  - Windows daemon stdout/stderrを `%LOCALAPPDATA%\run-weaver\logs\daemon.log` へ追記するtask commandを生成するようにした。
+  - `doctor --target windows` がlogs directoryの書き込み可否を確認するようにした。
+  - Windows install command生成、Task Scheduler登録、`--repo-url` 必須、command失敗の単体テストを追加した。
+- Future tasks:
+  - GitHub ActionsのWindows job結果を確認し、Windows固有差分があれば修正する。
+  - Windowsでの実GitHub Issue書き込み検証は、認証と外部副作用を伴うため引き続き対象外。
+- Human-facing reports:
+  - CI確認には再pushが必要。
+
 ## 2026-05-17 - Windows Daemon Decision Prep
 
 Review:

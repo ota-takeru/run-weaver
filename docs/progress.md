@@ -2,7 +2,7 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、Windows targetのCI検証結果確認です。
+現在の優先タスクは、Windows install実装のCI検証結果確認です。
 
 Definition of Done:
 
@@ -69,20 +69,17 @@ Recommended Next Step:
 - Windows targetのdoctor / status検証用にOS判定、LookPath、外部コマンド出力をテスト注入可能にした
 - Windows targetのdoctor、Task Scheduler、state file path、status process、tmux不使用、fake `gh` 照合の単体テストを追加した
 - Linux / WindowsのGitHub Actions CIと任意の手元確認用 `scripts/check-windows.ps1` を追加した
+- Windows targetの常駐方式をper-user Task Scheduler、ログ保存場所を `%LOCALAPPDATA%\run-weaver\logs\daemon.log` としてaccepted decisionにした
+- `run-weaver install --target windows --repo-url <url>` でper-user Task Scheduler taskを作成する処理を追加した
+- `doctor --target windows` がlogs directoryの書き込み可否を確認するようにした
 
 ## Upcoming Sequence
 
 1. GitHub ActionsのWindows job結果確認
-2. Windows daemon常駐方式とログ保存場所の判断
-3. Windows install / doctor仕様の実装
+2. Windows install CI失敗時の修正
 
 ## Open Decisions To Watch
 
 - `run-weaver:ready` 以外のフィルタ。assignee、milestone、repository allowlistなど
 - stale `running` の解除を将来も人間判断に固定するか、自動解除へ拡張するか
-- Windows targetのログ保存場所
 - GitHub API直実装へ移行する時期
-
-## Pending Human Decisions
-
-- `docs/decision-prep-windows-daemon.md` のWindows daemon常駐方式とログ保存場所。推奨案はper-user Task Scheduler + `%LOCALAPPDATA%`。

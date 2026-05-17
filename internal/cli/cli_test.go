@@ -125,7 +125,7 @@ func TestWindowsDoctorChecksDependenciesAndTaskScheduler(t *testing.T) {
 		t.Fatalf("state file = %q", result.Output.StateFile)
 	}
 	checks := checksByID(result.Output.Checks)
-	for _, id := range []string{"os_target", "git", "gh_auth", "codex", "doppler", "codex_clone", "worktree_root", "state_file", "service"} {
+	for _, id := range []string{"os_target", "git", "gh_auth", "codex", "doppler", "codex_clone", "worktree_root", "state_file", "log_dir", "service"} {
 		if _, ok := checks[id]; !ok {
 			t.Fatalf("missing check %q in %#v", id, result.Output.Checks)
 		}
@@ -135,6 +135,9 @@ func TestWindowsDoctorChecksDependenciesAndTaskScheduler(t *testing.T) {
 	}
 	if checks["worktree_root"].Status != "ok" || !strings.Contains(checks["worktree_root"].Message, filepath.Join(tempDir, "run-weaver", "worktrees")) {
 		t.Fatalf("worktree root check = %#v", checks["worktree_root"])
+	}
+	if checks["log_dir"].Status != "ok" || !strings.Contains(checks["log_dir"].Message, filepath.Join(tempDir, "run-weaver", "logs")) {
+		t.Fatalf("log dir check = %#v", checks["log_dir"])
 	}
 }
 
@@ -180,6 +183,8 @@ func TestStatusJSON(t *testing.T) {
 }
 
 func TestStatusReadsStateFile(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 
@@ -227,6 +232,8 @@ func TestStatusReadsStateFile(t *testing.T) {
 }
 
 func TestStatusDetectsGitHubLabelMismatch(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)
 	err := writeStateFile(defaultStateFile("wsl"), stateFile{

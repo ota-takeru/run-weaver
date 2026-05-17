@@ -25,6 +25,7 @@ run-weaver status
 run-weaver status --json
 run-weaver status --repo example/repo
 run-weaver install
+run-weaver install --target windows --repo-url https://github.com/example/repo.git
 run-weaver daemon --target wsl
 run-weaver daemon --target windows
 run-weaver daemon --target wsl --once --repo-url https://github.com/example/repo.git
