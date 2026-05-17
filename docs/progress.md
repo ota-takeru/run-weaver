@@ -2,7 +2,7 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、Windows install実装のCI検証結果確認です。
+現在の優先タスクは、status表示細分化の検証です。
 
 Definition of Done:
 
@@ -72,11 +72,13 @@ Recommended Next Step:
 - Windows targetの常駐方式をper-user Task Scheduler、ログ保存場所を `%LOCALAPPDATA%\run-weaver\logs\daemon.log` としてaccepted decisionにした
 - `run-weaver install --target windows --repo-url <url>` でper-user Task Scheduler taskを作成する処理を追加した
 - `doctor --target windows` がlogs directoryの書き込み可否を確認するようにした
+- GitHub ActionsのLinux / Windows jobが最新コミット `847e6d3` で成功した
+- `status` のJSONとhuman outputに `runtimeState` を追加し、`codex_running`、`codex_completed`、`needs_attention` を区別するようにした
 
 ## Upcoming Sequence
 
-1. GitHub ActionsのWindows job結果確認
-2. Windows install CI失敗時の修正
+1. status表示細分化のCI検証結果確認
+2. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch
 

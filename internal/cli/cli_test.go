@@ -229,6 +229,9 @@ func TestStatusReadsStateFile(t *testing.T) {
 	if got.Reconciliation.ProcessState != "not_recorded" {
 		t.Fatalf("process state = %q, want not_recorded", got.Reconciliation.ProcessState)
 	}
+	if got.Job.RuntimeState != blockedLabel {
+		t.Fatalf("runtime state = %q, want %q", got.Job.RuntimeState, blockedLabel)
+	}
 }
 
 func TestStatusDetectsGitHubLabelMismatch(t *testing.T) {
@@ -261,6 +264,45 @@ func TestStatusDetectsGitHubLabelMismatch(t *testing.T) {
 	}
 	if !containsString(result.Output.Reconciliation.Conflicts, "github_label_mismatch") {
 		t.Fatalf("conflicts = %#v, want github_label_mismatch", result.Output.Reconciliation.Conflicts)
+	}
+	if result.Output.Job.RuntimeState != "needs_attention" {
+		t.Fatalf("runtime state = %q, want needs_attention", result.Output.Job.RuntimeState)
+	}
+}
+
+func TestStatusRuntimeStateCodexCompleted(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir)
+	lastMessage := filepath.Join(tempDir, "last-message.txt")
+	if err := os.WriteFile(lastMessage, []byte("done"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add export"},
+			LabelState: runningLabel,
+			Tmux:       &tmuxRef{Session: "run-weaver", Window: "issue-42"},
+			Codex:      &codexState{LastMessagePath: lastMessage},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		return nil, errors.New("tmux window missing")
+	})
+	defer restoreCommands()
+
+	result := collectStatus(newFakeGitHubClient(githubIssue{
+		Number: 42,
+		Labels: []githubLabel{{Name: runningLabel}},
+	}))
+
+	if result.Output.Job == nil || result.Output.Job.RuntimeState != "codex_completed" {
+		t.Fatalf("job = %#v, want codex_completed", result.Output.Job)
 	}
 }
 

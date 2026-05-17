@@ -108,6 +108,7 @@ run-weaver status --repo example/repo
 - daemon running
 - current issue
 - current label state
+- runtime state
 - current branch
 - current worktree
 - tmux session/window。WSL targetのみ
@@ -121,6 +122,8 @@ run-weaver status --repo example/repo
 
 process照合はtargetごとの実行環境に合わせます。WSLではPIDへsignal 0を送り、Windowsでは `tasklist` のPID検索結果を使います。tmux照合はWSL targetのみ対象です。
 
+`runtimeState` は `labelState` とreconciliationから算出する表示用の状態です。主な値は `running`、`codex_running`、`codex_completed`、`blocked`、`done`、`needs_attention` です。
+
 人間向け出力例:
 
 ```text
@@ -133,6 +136,7 @@ State file: /home/takeru/.local/state/run-weaver/state.json
 Current job:
   Issue: #42 Add account export
   Label state: running
+  Runtime state: codex_running
   Branch: codex/issue-42-add-account-export
   Worktree: /home/takeru/.local/share/run-weaver/worktrees/issue-42
   Claim: run-weaver:wsl:20260516T093000Z
@@ -166,6 +170,7 @@ Reconciliation:
       "url": "https://github.com/example/repo/issues/42"
     },
     "labelState": "running",
+    "runtimeState": "codex_running",
     "branch": "codex/issue-42-add-account-export",
     "worktree": "/home/takeru/.local/share/run-weaver/worktrees/issue-42",
     "claimId": "run-weaver:wsl:20260516T093000Z",

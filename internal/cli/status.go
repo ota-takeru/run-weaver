@@ -76,6 +76,9 @@ func collectStatus(client githubClient) statusResult {
 
 	conflicts := detectStatusConflicts(output)
 	output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, conflicts...)
+	if output.Job != nil {
+		output.Job.RuntimeState = jobRuntimeState(output)
+	}
 	if len(output.Reconciliation.Conflicts) > 0 {
 		return statusResult{Output: output, ExitCode: exitStatusConflict}
 	}
@@ -97,6 +100,7 @@ func printStatusHuman(w io.Writer, output statusOutput) {
 		fmt.Fprintln(w, "Current job:")
 		fmt.Fprintf(w, "  Issue: #%d %s\n", output.Job.Issue.Number, output.Job.Issue.Title)
 		fmt.Fprintf(w, "  Label state: %s\n", emptyAsUnknown(output.Job.LabelState))
+		fmt.Fprintf(w, "  Runtime state: %s\n", emptyAsUnknown(output.Job.RuntimeState))
 		fmt.Fprintf(w, "  Branch: %s\n", emptyAsUnknown(output.Job.Branch))
 		fmt.Fprintf(w, "  Worktree: %s\n", emptyAsUnknown(output.Job.Worktree))
 		fmt.Fprintf(w, "  Claim: %s\n", emptyAsUnknown(output.Job.ClaimID))
@@ -128,6 +132,7 @@ func stateJobToStatusJob(job *stateJob) *statusJob {
 	return &statusJob{
 		Issue:               job.Issue,
 		LabelState:          job.LabelState,
+		RuntimeState:        "unknown",
 		Branch:              job.Branch,
 		Worktree:            job.Worktree,
 		ClaimID:             job.ClaimID,
@@ -137,6 +142,39 @@ func stateJobToStatusJob(job *stateJob) *statusJob {
 		LastError:           job.LastError,
 		Codex:               job.Codex,
 	}
+}
+
+func jobRuntimeState(output statusOutput) string {
+	if output.Job == nil {
+		return "none"
+	}
+	if len(output.Reconciliation.Conflicts) > 0 {
+		return "needs_attention"
+	}
+	switch output.Job.LabelState {
+	case blockedLabel:
+		return "blocked"
+	case doneLabel:
+		return "done"
+	case runningLabel:
+		if codexLastMessageExists(output.Job) && output.Reconciliation.TmuxState != "window_exists" {
+			return "codex_completed"
+		}
+		if output.Reconciliation.TmuxState == "window_exists" {
+			return "codex_running"
+		}
+		return "running"
+	default:
+		return "unknown"
+	}
+}
+
+func codexLastMessageExists(job *statusJob) bool {
+	if job == nil || job.Codex == nil || job.Codex.LastMessagePath == "" {
+		return false
+	}
+	_, err := os.Stat(job.Codex.LastMessagePath)
+	return err == nil
 }
 
 func defaultStatusTarget() string {
@@ -215,7 +253,7 @@ func detectStatusConflicts(output statusOutput) []string {
 	if output.Job != nil && output.Job.LabelState == "running" && output.Reconciliation.ProcessState == "not_running" {
 		conflicts = append(conflicts, "running_job_without_process")
 	}
-	if output.Job != nil && output.Job.LabelState == "running" && output.Reconciliation.TmuxState == "window_missing" {
+	if output.Job != nil && output.Job.LabelState == "running" && output.Reconciliation.TmuxState == "window_missing" && !codexLastMessageExists(output.Job) {
 		conflicts = append(conflicts, "running_job_without_tmux_window")
 	}
 	if output.Target == "" {

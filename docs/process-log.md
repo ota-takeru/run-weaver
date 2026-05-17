@@ -1,5 +1,19 @@
 # Process Log
 
+## 2026-05-17 - Status Runtime State
+
+Review:
+
+- Immediate fixes:
+  - GitHub ActionsのLinux / Windows jobが最新コミット `847e6d3` で成功したことを確認した。
+  - `status` のJSONとhuman outputに `runtimeState` を追加した。
+  - `blocked`、GitHub label conflict時の `needs_attention`、last messageありかつtmux window終了済みの `codex_completed` の単体テストを追加した。
+- Future tasks:
+  - status表示細分化のGitHub Actions結果を確認する。
+  - `run-weaver:ready` 以外のフィルタを検討する。
+- Human-facing reports:
+  - `runtimeState` は表示用の追加フィールドで、既存の `labelState` は維持する。
+
 ## 2026-05-17 - Windows Install Implementation
 
 Review:

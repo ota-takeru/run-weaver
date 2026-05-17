@@ -257,6 +257,7 @@ type daemonStatus struct {
 type statusJob struct {
 	Issue               issueRef    `json:"issue"`
 	LabelState          string      `json:"labelState"`
+	RuntimeState        string      `json:"runtimeState"`
 	Branch              string      `json:"branch"`
 	Worktree            string      `json:"worktree"`
 	ClaimID             string      `json:"claimId"`

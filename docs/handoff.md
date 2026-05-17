@@ -29,10 +29,12 @@
 - 任意の手元Windows確認用に `scripts/check-windows.ps1` を追加済み。
 - Windows targetの常駐方式はper-user Task Scheduler、ログ保存場所は `%LOCALAPPDATA%\run-weaver\logs\daemon.log` に決定済み。
 - `run-weaver install --target windows --repo-url <url>` はper-user Task Scheduler task `run-weaver` を作成または更新する。
+- GitHub ActionsのLinux / Windows jobは最新確認時点で成功済み。
+- `status` は `labelState` に加えて表示用の `runtimeState` を返す。`codex_running`、`codex_completed`、`needs_attention` を区別する。
 
 ## Next Step
 
-GitHub ActionsのWindows job結果を確認し、失敗があればWindows固有差分を修正する。
+status表示細分化のCI結果を確認し、問題なければ次のフィルタ検討へ進む。
 
 ## Notes
 
@@ -43,7 +45,7 @@ GitHub ActionsのWindows job結果を確認し、失敗があればWindows固有
 - Codexは `--sandbox workspace-write --ask-for-approval never` で起動する。
 - Codex完了後、daemonがworktreeの変更をcommitしてからpush / draft PR作成へ進む。変更なしなら `blocked` にする。
 - Codex promptにはIssueタイトル、本文、run-weaver管理コメントを除いた人間コメントを渡す。本文なしでもタイトルが具体的なら実行する。
-- 現時点ではstatus表示の細分化は未実施。
+- status表示の細分化は実装済み。CI確認待ち。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`--repo-url` を確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
