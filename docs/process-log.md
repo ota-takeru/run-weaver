@@ -1,5 +1,19 @@
 # Process Log
 
+## 2026-05-17 - Release Preflight Cross-Build
+
+Review:
+
+- Immediate fixes:
+  - `scripts/release.sh` の事前検証にLinux / Windows、amd64 / arm64のrelease cross-buildを追加した。
+  - cross-buildではrelease workflowと同じ `-ldflags` で `internal/cli.Version` に予定tagを埋め込む。
+  - README、architecture、CLI docs、progress、handoffにrelease preflightの内容を反映した。
+- Future tasks:
+  - 実release workflowの成功確認は、人間が `scripts/release.sh --push` を明示実行した後に行う。
+  - release workflowのarchive作成とasset uploadは引き続きGitHub Actions上で確認する。
+- Human-facing reports:
+  - 今回は実tag作成、push、GitHub Release作成、外部アカウント設定、secretには触れていない。
+
 ## 2026-05-17 - Maintainer Release Script
 
 Review:

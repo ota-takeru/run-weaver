@@ -22,6 +22,12 @@ die() {
   exit 1
 }
 
+cleanup() {
+  if [ -n "${TMP_DIR:-}" ]; then
+    rm -rf "$TMP_DIR"
+  fi
+}
+
 need_value() {
   if [ "$#" -lt 2 ] || [ -z "$2" ]; then
     die "$1 requires a value"
@@ -31,6 +37,25 @@ need_value() {
 is_semver_tag() {
   printf '%s\n' "$1" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
 }
+
+release_preflight_builds() {
+  tag="$1"
+  TMP_DIR="$(mktemp -d)"
+  LDFLAGS="-X github.com/ota-takeru/run-weaver/internal/cli.Version=$tag"
+
+  mkdir -p \
+    "$TMP_DIR/linux-amd64" \
+    "$TMP_DIR/linux-arm64" \
+    "$TMP_DIR/windows-amd64" \
+    "$TMP_DIR/windows-arm64"
+
+  GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "$TMP_DIR/linux-amd64/run-weaver" ./cmd/run-weaver
+  GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o "$TMP_DIR/linux-arm64/run-weaver" ./cmd/run-weaver
+  GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "$TMP_DIR/windows-amd64/run-weaver.exe" ./cmd/run-weaver
+  GOOS=windows GOARCH=arm64 go build -ldflags "$LDFLAGS" -o "$TMP_DIR/windows-arm64/run-weaver.exe" ./cmd/run-weaver
+}
+
+trap cleanup EXIT
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -154,11 +179,13 @@ fi
 
 gh auth status >/dev/null
 go test ./...
+release_preflight_builds "$TAG"
 
 echo "release tag: $TAG"
 echo "remote: $REMOTE ($REMOTE_URL)"
 echo "branch: $BRANCH"
 echo "workflow trigger: git push $REMOTE $TAG"
+echo "preflight: go test ./... and release cross-builds passed"
 echo
 
 if [ "$PUSH" -eq 0 ]; then

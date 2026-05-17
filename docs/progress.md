@@ -108,6 +108,7 @@ Recommended Next Step:
 - state schemaを `3` に上げ、通常Issueの依存情報、base branch、`completedIssues` を保存するようにした
 - `status` のJSONとhuman outputに `readyQueue` を追加した
 - maintainer用 `scripts/release.sh` を追加し、dry-run既定で次tag計算、事前検証、明示的なtag pushによるrelease workflow起動を行えるようにした
+- `scripts/release.sh` の事前検証にLinux / Windows、amd64 / arm64のrelease cross-buildを追加した
 
 ## Upcoming Sequence
 

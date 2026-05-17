@@ -37,7 +37,7 @@
 - `run-weaver update --check` / `run-weaver update` を追加済み。
 - release assetのzip / tar.gz展開処理は共通のbinary書き込み helper を使うように整理済み。
 - `.github/workflows/release.yml` はtag `v*` push時にLinux / Windows、amd64 / arm64のrelease assetを作成する。
-- maintainer用 `scripts/release.sh` は次tag計算と事前検証をdry-runで行い、`--push` 指定時だけannotated tagをpushしてrelease workflowを起動する。
+- maintainer用 `scripts/release.sh` は次tag計算と事前検証をdry-runで行い、`--push` 指定時だけannotated tagをpushしてrelease workflowを起動する。事前検証では `go test ./...` とLinux / Windows、amd64 / arm64のrelease cross-buildを実行する。
 - `scripts/install.sh` と `scripts/install.ps1` はGitHub Releasesからbinaryを取得するため、ローカルにproject cloneがなくても初回導入できる。
 - `run-weaver install --target wsl` はsystemd user service `run-weaver.service` を作成または更新し、`systemctl --user enable --now run-weaver.service` を実行する。
 - `--repo` 未指定でも `--repo-url` がGitHub URLならowner/repoを自動推定し、互換用の単一repo daemon起動引数へ渡す。
