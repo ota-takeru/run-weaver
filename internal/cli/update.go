@@ -215,19 +215,7 @@ func extractZipBinary(archivePath, destDir string) (string, error) {
 			return "", err
 		}
 		defer src.Close()
-		out := filepath.Join(destDir, filepath.Base(file.Name))
-		dst, err := os.OpenFile(out, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o700)
-		if err != nil {
-			return "", err
-		}
-		if _, err := io.Copy(dst, src); err != nil {
-			_ = dst.Close()
-			return "", err
-		}
-		if err := dst.Close(); err != nil {
-			return "", err
-		}
-		return out, nil
+		return writeReleaseBinary(destDir, filepath.Base(file.Name), src)
 	}
 	return "", errors.New("release zip does not contain run-weaver binary")
 }
@@ -237,6 +225,7 @@ func extractTarGzBinary(archivePath, destDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer file.Close()
 	gz, err := gzip.NewReader(file)
 	if err != nil {
 		return "", err
@@ -254,21 +243,25 @@ func extractTarGzBinary(archivePath, destDir string) (string, error) {
 		if header.Typeflag != tar.TypeReg || !isReleaseBinaryName(filepath.Base(header.Name)) {
 			continue
 		}
-		out := filepath.Join(destDir, filepath.Base(header.Name))
-		dst, err := os.OpenFile(out, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o700)
-		if err != nil {
-			return "", err
-		}
-		if _, err := io.Copy(dst, tr); err != nil {
-			_ = dst.Close()
-			return "", err
-		}
-		if err := dst.Close(); err != nil {
-			return "", err
-		}
-		return out, nil
+		return writeReleaseBinary(destDir, filepath.Base(header.Name), tr)
 	}
 	return "", errors.New("release tarball does not contain run-weaver binary")
+}
+
+func writeReleaseBinary(destDir, name string, src io.Reader) (string, error) {
+	out := filepath.Join(destDir, name)
+	dst, err := os.OpenFile(out, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o700)
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(dst, src); err != nil {
+		_ = dst.Close()
+		return "", err
+	}
+	if err := dst.Close(); err != nil {
+		return "", err
+	}
+	return out, nil
 }
 
 func isReleaseBinaryName(name string) bool {

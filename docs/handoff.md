@@ -35,6 +35,7 @@
 - `install` は常駐設定を作るが、実際に使える状態には `doctor` が確認する依存関係と認証、`--repo-url`、対象Issueの `run-weaver:ready` ラベルが必要。
 - release buildの `run-weaver daemon` は起動時にGitHub Releases latestを確認し、新しいassetがあればself-updateしてから処理を続ける。開発ビルドはversion `dev` のため自動更新しない。
 - `run-weaver update --check` / `run-weaver update` を追加済み。
+- release assetのzip / tar.gz展開処理は共通のbinary書き込み helper を使うように整理済み。
 - `.github/workflows/release.yml` はtag `v*` push時にLinux / Windows、amd64 / arm64のrelease assetを作成する。
 - `scripts/install.sh` と `scripts/install.ps1` はGitHub Releasesからbinaryを取得するため、ローカルにproject cloneがなくても初回導入できる。
 - `run-weaver install --target wsl --repo-url <url>` はsystemd user service `run-weaver.service` を作成または更新し、`systemctl --user enable --now run-weaver.service` を実行する。

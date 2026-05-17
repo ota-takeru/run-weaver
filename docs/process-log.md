@@ -1,5 +1,18 @@
 # Process Log
 
+## 2026-05-17 - Release Asset Extraction Refactor
+
+Review:
+
+- Immediate fixes:
+  - release assetのzip / tar.gz展開で重複していたbinary書き込み処理を `writeReleaseBinary` に共通化した。
+  - tar.gz展開時にarchive fileを明示的にcloseするようにした。
+  - `go test ./...` で既存挙動が維持されることを確認した。
+- Future tasks:
+  - self-updateとclone不要install手順のCI / release workflow結果確認を継続する。
+- Human-facing reports:
+  - 今回は挙動変更なしの内部リファクタリングで、GitHub Issue、release、外部アカウント、secretには触れていない。
+
 ## 2026-05-17 - GitHub Release Self Update
 
 Review:
