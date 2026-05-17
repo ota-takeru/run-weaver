@@ -10,10 +10,11 @@ import (
 )
 
 const (
-	readyLabel   = "run-weaver:ready"
-	runningLabel = "running"
-	doneLabel    = "done"
-	blockedLabel = "blocked"
+	readyLabel    = "run-weaver:ready"
+	campaignLabel = "run-weaver:campaign"
+	runningLabel  = "running"
+	doneLabel     = "done"
+	blockedLabel  = "blocked"
 )
 
 var managedLabels = map[string]struct{}{
@@ -24,11 +25,13 @@ var managedLabels = map[string]struct{}{
 
 type githubClient interface {
 	ListReadyIssues(context.Context) ([]githubIssue, error)
+	ListCampaignIssues(context.Context) ([]githubIssue, error)
 	ViewIssue(context.Context, int) (githubIssue, error)
 	EnsureLabel(context.Context, string) error
 	AddLabel(context.Context, int, string) error
 	RemoveLabel(context.Context, int, string) error
 	Comment(context.Context, int, string) error
+	CreateIssue(context.Context, issueCreateSpec) (githubIssue, error)
 	CreateDraftPR(context.Context, draftPRSpec) (string, error)
 }
 
@@ -63,6 +66,12 @@ type draftPRSpec struct {
 	Issue int
 }
 
+type issueCreateSpec struct {
+	Title  string
+	Body   string
+	Labels []string
+}
+
 func (c ghClient) ListReadyIssues(ctx context.Context) ([]githubIssue, error) {
 	out, err := c.run(ctx, "issue", "list", "--state", "open", "--label", readyLabel, "--json", "number,title,url,labels", "--limit", "100")
 	if err != nil {
@@ -73,6 +82,18 @@ func (c ghClient) ListReadyIssues(ctx context.Context) ([]githubIssue, error) {
 		return nil, fmt.Errorf("parse gh issue list: %w", err)
 	}
 	return filterClaimableIssues(issues), nil
+}
+
+func (c ghClient) ListCampaignIssues(ctx context.Context) ([]githubIssue, error) {
+	out, err := c.run(ctx, "issue", "list", "--state", "open", "--label", readyLabel, "--label", campaignLabel, "--json", "number,title,body,url,labels", "--limit", "100")
+	if err != nil {
+		return nil, err
+	}
+	var issues []githubIssue
+	if err := json.Unmarshal(out, &issues); err != nil {
+		return nil, fmt.Errorf("parse gh campaign issue list: %w", err)
+	}
+	return filterClaimableCampaignIssues(issues), nil
 }
 
 func (c ghClient) ViewIssue(ctx context.Context, number int) (githubIssue, error) {
@@ -96,6 +117,12 @@ func (c ghClient) EnsureLabel(ctx context.Context, label string) error {
 	color := "ededed"
 	description := "run-weaver managed state label"
 	switch label {
+	case readyLabel:
+		color = "1d76db"
+		description = "run-weaver task intake label"
+	case campaignLabel:
+		color = "5319e7"
+		description = "run-weaver campaign intake label"
 	case runningLabel:
 		color = "fbca04"
 	case doneLabel:
@@ -115,6 +142,23 @@ func (c ghClient) RemoveLabel(ctx context.Context, number int, label string) err
 func (c ghClient) Comment(ctx context.Context, number int, body string) error {
 	_, err := c.run(ctx, "issue", "comment", strconv.Itoa(number), "--body", body)
 	return err
+}
+
+func (c ghClient) CreateIssue(ctx context.Context, spec issueCreateSpec) (githubIssue, error) {
+	args := []string{"issue", "create", "--title", spec.Title, "--body", spec.Body}
+	for _, label := range spec.Labels {
+		args = append(args, "--label", label)
+	}
+	out, err := c.run(ctx, args...)
+	if err != nil {
+		return githubIssue{}, err
+	}
+	url := strings.TrimSpace(string(out))
+	number := issueNumberFromURL(url)
+	if number == 0 {
+		return githubIssue{}, fmt.Errorf("created issue URL did not include an issue number: %s", url)
+	}
+	return githubIssue{Number: number, Title: spec.Title, Body: spec.Body, URL: url, Labels: labelsFromNames(spec.Labels)}, nil
 }
 
 func (c ghClient) CreateDraftPR(ctx context.Context, spec draftPRSpec) (string, error) {
@@ -158,6 +202,23 @@ func filterClaimableIssues(issues []githubIssue) []githubIssue {
 		if hasManagedLabel(issue) {
 			continue
 		}
+		if hasLabel(issue, campaignLabel) {
+			continue
+		}
+		filtered = append(filtered, issue)
+	}
+	return filtered
+}
+
+func filterClaimableCampaignIssues(issues []githubIssue) []githubIssue {
+	filtered := make([]githubIssue, 0, len(issues))
+	for _, issue := range issues {
+		if hasManagedLabel(issue) {
+			continue
+		}
+		if !hasLabel(issue, campaignLabel) {
+			continue
+		}
 		filtered = append(filtered, issue)
 	}
 	return filtered
@@ -170,4 +231,31 @@ func hasManagedLabel(issue githubIssue) bool {
 		}
 	}
 	return false
+}
+
+func hasLabel(issue githubIssue, name string) bool {
+	for _, label := range issue.Labels {
+		if label.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func issueNumberFromURL(url string) int {
+	parts := strings.Split(strings.TrimSpace(url), "/")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if n, err := strconv.Atoi(parts[i]); err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
+func labelsFromNames(names []string) []githubLabel {
+	labels := make([]githubLabel, 0, len(names))
+	for _, name := range names {
+		labels = append(labels, githubLabel{Name: name})
+	}
+	return labels
 }

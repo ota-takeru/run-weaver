@@ -191,7 +191,7 @@ func TestStatusJSON(t *testing.T) {
 	if code != exitStateUnavailable {
 		t.Fatalf("exit code = %d, want %d; stderr = %q", code, exitStateUnavailable, stderr.String())
 	}
-	if got := stdout.String(); !bytes.Contains([]byte(got), []byte(`"schemaVersion":1`)) {
+	if got := stdout.String(); !bytes.Contains([]byte(got), []byte(`"schemaVersion":2`)) {
 		t.Fatalf("stdout = %q, want status schema version", got)
 	}
 }
@@ -245,6 +245,59 @@ func TestStatusReadsStateFile(t *testing.T) {
 	}
 	if got.Job.RuntimeState != blockedLabel {
 		t.Fatalf("runtime state = %q, want %q", got.Job.RuntimeState, blockedLabel)
+	}
+}
+
+func TestStatusIncludesCampaignProgress(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir)
+	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:          issueRef{Number: 7, Title: "Campaign"},
+			Status:         campaignStatusRunning,
+			CurrentTaskID:  "task-add-planner",
+			CompletedTasks: []string{"task-add-planner"},
+			Tasks: []campaignTask{{
+				ID:     "task-add-planner",
+				Title:  "Add planner",
+				Status: campaignTaskCompleted,
+				PRURL:  "https://github.com/example/repo/pull/1",
+			}},
+			PRs: []campaignPR{{TaskID: "task-add-planner", URL: "https://github.com/example/repo/pull/1"}},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result := collectStatus(newFakeGitHubClient(githubIssue{}))
+
+	if result.ExitCode != exitOK {
+		t.Fatalf("exit code = %d, want %d; output = %#v", result.ExitCode, exitOK, result.Output)
+	}
+	if result.Output.Campaign == nil || result.Output.Campaign.Issue.Number != 7 {
+		t.Fatalf("campaign = %#v", result.Output.Campaign)
+	}
+	if len(result.Output.Campaign.PRs) != 1 {
+		t.Fatalf("prs = %#v", result.Output.Campaign.PRs)
+	}
+}
+
+func TestReadStateFileAcceptsSchemaVersionOne(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(path, []byte(`{"schemaVersion":1,"target":"wsl","daemon":{},"job":null}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := readStateFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.SchemaVersion != stateSchemaVersion {
+		t.Fatalf("schema version = %d, want upgraded %d", state.SchemaVersion, stateSchemaVersion)
 	}
 }
 

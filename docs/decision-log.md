@@ -16,6 +16,7 @@
 - 2026-05-16: GitHub Issueのclaim成功は、`running` ラベル付与だけでなく、claim ID付き開始コメントの再取得で判定する。
 - 2026-05-16: Codex CLIは初期実装では非対話モードの `codex exec` で起動する。
 - 2026-05-17: Windows targetの常駐方式はper-user Task Schedulerとし、state / logs / issue logsは `%LOCALAPPDATA%\run-weaver` 配下に保存する。
+- 2026-05-17: Campaign Issueは `run-weaver:campaign` と `run-weaver:ready` の両方を入口ラベルにし、Plannerが子Issueへtaskを実体化する。taskごとにdraft PRを作成し、Campaign progressはstate fileの `campaign` に保存する。
 
 ## Superseded Decisions
 

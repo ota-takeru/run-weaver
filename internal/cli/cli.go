@@ -339,6 +339,7 @@ type statusOutput struct {
 	StateFile      string               `json:"stateFile"`
 	Daemon         daemonStatus         `json:"daemon"`
 	Job            *statusJob           `json:"job"`
+	Campaign       *statusCampaign      `json:"campaign,omitempty"`
 	Reconciliation reconciliationStatus `json:"reconciliation"`
 }
 
@@ -378,6 +379,16 @@ type codexState struct {
 	SessionID       *string `json:"sessionId"`
 	LastMessagePath string  `json:"lastMessagePath,omitempty"`
 	JSONLogPath     string  `json:"jsonLogPath,omitempty"`
+}
+
+type statusCampaign struct {
+	Issue          issueRef           `json:"issue"`
+	Status         string             `json:"status"`
+	CurrentTaskID  string             `json:"currentTaskId,omitempty"`
+	CompletedTasks []string           `json:"completedTasks,omitempty"`
+	Tasks          []campaignTask     `json:"tasks"`
+	Decisions      []campaignDecision `json:"decisions,omitempty"`
+	PRs            []campaignPR       `json:"prs,omitempty"`
 }
 
 type reconciliationStatus struct {

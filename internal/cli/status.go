@@ -73,6 +73,9 @@ func collectStatus(client githubClient) statusResult {
 		output.Reconciliation.GitHubLabelState = "not_applicable"
 		output.Reconciliation.TmuxState = "not_applicable"
 	}
+	if state.Campaign != nil {
+		output.Campaign = stateCampaignToStatusCampaign(state.Campaign)
+	}
 
 	conflicts := detectStatusConflicts(output)
 	output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, conflicts...)
@@ -109,6 +112,17 @@ func printStatusHuman(w io.Writer, output statusOutput) {
 			fmt.Fprintf(w, "  tmux: %s:%s\n", output.Job.Tmux.Session, output.Job.Tmux.Window)
 		}
 	}
+	if output.Campaign != nil {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Campaign:")
+		fmt.Fprintf(w, "  Issue: #%d %s\n", output.Campaign.Issue.Number, output.Campaign.Issue.Title)
+		fmt.Fprintf(w, "  Status: %s\n", emptyAsUnknown(output.Campaign.Status))
+		fmt.Fprintf(w, "  Current task: %s\n", emptyAsNone(output.Campaign.CurrentTaskID))
+		fmt.Fprintf(w, "  Completed tasks: %d/%d\n", len(output.Campaign.CompletedTasks), len(output.Campaign.Tasks))
+		if len(output.Campaign.PRs) > 0 {
+			fmt.Fprintf(w, "  PRs: %d\n", len(output.Campaign.PRs))
+		}
+	}
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Reconciliation:")
@@ -126,6 +140,21 @@ func printStatusHuman(w io.Writer, output statusOutput) {
 		return
 	}
 	fmt.Fprintf(w, "  Conflicts: %s\n", strings.Join(output.Reconciliation.Conflicts, ", "))
+}
+
+func stateCampaignToStatusCampaign(campaign *stateCampaign) *statusCampaign {
+	if campaign == nil {
+		return nil
+	}
+	return &statusCampaign{
+		Issue:          campaign.Issue,
+		Status:         campaign.Status,
+		CurrentTaskID:  campaign.CurrentTaskID,
+		CompletedTasks: append([]string(nil), campaign.CompletedTasks...),
+		Tasks:          append([]campaignTask(nil), campaign.Tasks...),
+		Decisions:      append([]campaignDecision(nil), campaign.Decisions...),
+		PRs:            append([]campaignPR(nil), campaign.PRs...),
+	}
 }
 
 func stateJobToStatusJob(job *stateJob) *statusJob {

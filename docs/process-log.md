@@ -1,5 +1,26 @@
 # Process Log
 
+## 2026-05-17 - Campaign Planner / Dispatcher
+
+Review:
+
+- Immediate fixes:
+  - `run-weaver:campaign` + `run-weaver:ready` のCampaign Issue検出を追加した。
+  - 通常ready Issue取得からCampaign Issueを除外し、誤claimを避けるようにした。
+  - Campaign PlannerでMarkdown roadmapからtask graphとdecision gateを抽出し、子Issue作成とDecision Request投稿へ接続した。
+  - Campaign Dispatcherで次task選択、`plan` / `implement` / `review` / `verify` phase進行、task完了時のPR URL記録を実装した。
+  - Decision Requestへの `run-weaver-decision:<decision-id>:<option>` コメントを読み取り、Campaign stateへ保存して再開できるようにした。
+  - state schemaを `2` に上げ、schema `1` は読み込み互換扱いにした。
+  - `status` のhuman / JSON outputにCampaign progressを追加した。
+  - Planner、GitHub filter、Dispatcher、state互換、status Campaign表示の単体テストを追加した。
+- Future tasks:
+  - 実GitHub Campaign IssueでPlanner / Dispatcherの統合テストを行う。
+  - Decision Requestの回答形式を専用CLIにするか、コメント形式のまま運用するかを実運用後に見直す。
+  - verify phaseをrepositoryごとの明示的な検証コマンド設定へ拡張する。
+- Human-facing reports:
+  - Campaign統合テストは子Issue、Issueコメント、branch、draft PRを実際に作るため、対象repository確認が必要。
+  - secret、外部アカウント設定、pushは今回の手元実装では行っていない。
+
 ## 2026-05-17 - Current Repository Install Shortcut
 
 Review:

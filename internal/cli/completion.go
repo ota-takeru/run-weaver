@@ -30,6 +30,9 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 	if !codexCompletionReady(opts.target, state.Job) {
 		return "", false, nil
 	}
+	if advanced, result, err := advanceCampaignPipeline(ctx, deps, opts, state); advanced || err != nil {
+		return result, true, err
+	}
 
 	committed, err := deps.worktree.CommitAll(ctx, state.Job.Worktree, fmt.Sprintf("Implement issue #%d", state.Job.Issue.Number))
 	if err != nil {
@@ -64,13 +67,25 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 		return "", true, err
 	}
 
+	completedIssueNumber := state.Job.Issue.Number
+	wasCampaignTask := state.Job.CampaignTaskID != ""
+	markCampaignTaskCompleted(state, prURL)
+	if state.Campaign != nil && state.Campaign.Status == campaignStatusDecisionRequired {
+		_ = markBlocked(ctx, deps.github, state.Campaign.Issue.Number, "campaign decision", fmt.Errorf("decision required"))
+	}
+	if state.Campaign != nil && state.Campaign.Status == campaignStatusDone {
+		_ = markCampaignDone(ctx, deps.github, state.Campaign)
+	}
 	state.Job.LabelState = doneLabel
 	state.Job.LastError = nil
+	if wasCampaignTask {
+		state.Job = nil
+	}
 	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	if err := writeStateFile(statePath, *state); err != nil {
 		return "", true, err
 	}
-	return fmt.Sprintf("completed issue #%d with draft PR %s", state.Job.Issue.Number, prURL), true, nil
+	return fmt.Sprintf("completed issue #%d with draft PR %s", completedIssueNumber, prURL), true, nil
 }
 
 func resumeRateLimitedCodex(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile) (bool, error) {

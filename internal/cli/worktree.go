@@ -108,6 +108,31 @@ Follow the repository AGENTS.md instructions, run focused verification, and leav
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 
+func writeCampaignPromptFile(path string, campaign issueRef, task campaignTask, issue githubIssue, phase string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	body := fmt.Sprintf(`# Campaign Task Pipeline
+
+Campaign: #%d %s
+Task ID: %s
+Pipeline phase: %s
+
+GitHub Issue #%d
+Title: %s
+URL: %s
+
+Task body:
+%s
+
+Relevant comments:
+%s
+
+Follow the repository AGENTS.md instructions. For the plan phase, produce and execute the minimum planning work needed before implementation. For implement, make the focused code change. For review, inspect the current task changes and fix regressions. For verify, run focused verification and fix task-local failures. Do not move to unrelated campaign tasks in this session.
+`, campaign.Number, campaign.Title, task.ID, emptyAsNone(phase), issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments))
+	return os.WriteFile(path, []byte(body), 0o600)
+}
+
 func relevantIssueComments(comments []githubComment) string {
 	lines := make([]string, 0, len(comments))
 	for _, comment := range comments {

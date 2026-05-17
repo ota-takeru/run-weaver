@@ -41,10 +41,15 @@
 - `run-weaver install --target wsl` はsystemd user service `run-weaver.service` を作成または更新し、`systemctl --user enable --now run-weaver.service` を実行する。
 - `--repo` 未指定でも `--repo-url` がGitHub URLならowner/repoを自動推定し、service / Task Schedulerのdaemon起動引数へ渡す。
 - `install` / `daemon` の `--repo-url` 未指定時は、カレントディレクトリの `git remote get-url origin` から対象repository URLを自動推定する。対象repository内なら `run-weaver install --target wsl` だけで導入できる。
+- Campaign Issueは `run-weaver:campaign` と `run-weaver:ready` の両方が付いたopen Issueとして検出する。
+- Campaign Plannerは親Issue本文のMarkdown箇条書きからtask graphを作り、通常taskを子Issueとして作成する。`decision`、`gate`、`判断`、`決定` を含む項目はDecision Requestとして親Issueへコメントする。
+- Campaign Dispatcherはstate fileの `campaign` を正本にし、依存関係が解けた次taskを `plan` / `implement` / `review` / `verify` の順に同じworktreeで実行する。
+- Campaign taskは `verify` 完了後にcommit、push、draft PR作成へ進み、PR URL、completed tasks、current taskをCampaign stateへ保存する。
+- `status` はCampaign progressをhuman / JSONで表示する。state schemaは `2` で、schema `1` は読み込み時に互換扱いする。
 
 ## Next Step
 
-self-updateとclone不要install手順のCI結果を確認し、tag release workflowは実際にtagをpushするタイミングで確認する。問題なければ次のフィルタ検討へ進む。
+実GitHub Campaign IssueでPlanner / Dispatcherの統合テストを行う。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repository、親Issue、ラベルを確認してから実行する。
 
 ## Notes
 
@@ -62,6 +67,8 @@ self-updateとclone不要install手順のCI結果を確認し、tag release work
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、対象repositoryの `git origin` または `--repo-url` を確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
+- Campaign実行時は、対象repositoryに子IssueとDecision Requestコメントを作成する。taskごとにdraft PRを作る。
+- Campaign decision answerは親Campaign Issueコメント内の `run-weaver-decision:<decision-id>:<option>` を読み取ってstateへ保存する。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor / statusはGitHub Actionsの `windows-latest` で自動検証する方針。実GitHub IssueへのWindowsからの書き込み検証は、認証と外部副作用を増やすため今回の範囲外。
 - Windows targetのdaemon常駐方式とログ保存場所は `docs/decision-log.md` にaccepted decisionとして記録済み。初期daemon flowの実GitHub連携はWSL統合テストの実績を優先する。

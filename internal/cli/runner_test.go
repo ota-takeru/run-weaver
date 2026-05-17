@@ -73,6 +73,23 @@ func TestBuildCodexTmuxCommandResume(t *testing.T) {
 	}
 }
 
+func TestBuildCodexTmuxCommandAddsPhaseReasoningConfig(t *testing.T) {
+	spec := codexRunSpec{
+		IssueNumber:     42,
+		Phase:           pipelinePhaseImplement,
+		Worktree:        "/tmp/worktree",
+		PromptPath:      "/tmp/state/implement-prompt.md",
+		JSONLogPath:     "/tmp/state/codex.jsonl",
+		LastMessagePath: "/tmp/state/last-message.txt",
+	}
+
+	command := buildCodexTmuxCommand(spec)
+
+	if !strings.Contains(command, `-c model_reasoning_effort="low"`) {
+		t.Fatalf("command = %q, want low reasoning config", command)
+	}
+}
+
 func TestTmuxRunnerStartsWindow(t *testing.T) {
 	commands := &fakeCommandRunner{
 		failFirstHasSession: true,

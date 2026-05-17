@@ -2,19 +2,19 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、GitHub Releases配布と起動時self-updateの検証です。
+現在の優先タスクは、Campaign Planner / Dispatcher導入後の統合確認です。
 
 Definition of Done:
 
-- release buildで `internal/cli.Version` にtag名を埋め込み、GitHub Release assetを作成できる
-- `daemon` 起動時にlatest releaseを確認し、newer versionがある場合だけ対応assetを取得する
-- 開発ビルドでは自動更新せず、`RUN_WEAVER_NO_UPDATE=1` でrelease buildでも一時停止できる
-- ローカルproject cloneなしで `scripts/install.sh` / `scripts/install.ps1` からGitHub Releasesのbinaryを導入できる
-- 更新処理とinstall手順をdocsに記録する
+- `run-weaver:campaign` + `run-weaver:ready` の親IssueをCampaignとして検出する
+- Campaign本文のroadmapからtask graphとdecision gateを抽出する
+- 子Issueを作成し、taskごとの `plan` / `implement` / `review` / `verify` pipelineをstateに保存する
+- task完了時にdraft PR URLをCampaign progressへ記録する
+- `status --json` とhuman outputでCampaign progressを確認できる
 
 Recommended Next Step:
 
-- GitHub ActionsのLinux / Windows CIと、tag release workflowの結果を確認する。
+- 実GitHub Campaign IssueでPlanner / Dispatcherの統合テストを行う。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repositoryを確認してから実行する。
 
 ## Completed
 
@@ -82,14 +82,23 @@ Recommended Next Step:
 - GitHub Release asset作成workflowと、project clone不要の `scripts/install.sh` / `scripts/install.ps1` を追加した
 - `run-weaver install --target wsl --repo-url <url>` でsystemd user serviceを作成または更新する処理を追加した
 - `install` / `daemon` の `--repo-url` 未指定時に、カレントディレクトリの `git remote get-url origin` から対象repository URLを自動推定するようにした
+- `run-weaver:campaign` + `run-weaver:ready` のCampaign Issue検出を追加した
+- Campaign PlannerがMarkdown roadmapからtask graphとdecision gateを抽出するようにした
+- Campaign taskを子Issueとして作成し、Decision Requestを親Issueへ投稿する処理を追加した
+- Campaign Dispatcherがstate上の次taskを選び、`plan` / `implement` / `review` / `verify` phaseでCodexを順に起動するようにした
+- Decision Requestへの `run-weaver-decision:<decision-id>:<option>` コメントを読み取ってstateへ保存するようにした
+- task完了時にPR URL、completed tasks、current taskをCampaign stateへ保存するようにした
+- `status` のJSONとhuman outputにCampaign progressを追加した
 
 ## Upcoming Sequence
 
-1. self-updateとclone不要install手順のCI / release workflow結果確認
-2. `run-weaver:ready` 以外のフィルタ検討
+1. 実GitHub Campaign IssueでPlanner / Dispatcherの統合テスト
+2. self-updateとclone不要install手順のCI / release workflow結果確認
+3. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch
 
 - `run-weaver:ready` 以外のフィルタ。assignee、milestone、repository allowlistなど
 - stale `running` の解除を将来も人間判断に固定するか、自動解除へ拡張するか
 - GitHub API直実装へ移行する時期
+- Campaign decision answerをGitHubコメント形式のまま運用するか、専用CLIを追加するか

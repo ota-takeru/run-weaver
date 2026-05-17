@@ -38,6 +38,7 @@ type tmuxRunner struct {
 
 type codexRunSpec struct {
 	IssueNumber     int
+	Phase           string
 	Worktree        string
 	PromptPath      string
 	JSONLogPath     string
@@ -75,11 +76,23 @@ func (r tmuxRunner) ensureSession(ctx context.Context) error {
 }
 
 func buildCodexRunSpec(target string, issueNumber int, worktree string) codexRunSpec {
+	return buildCodexRunSpecForPhase(target, issueNumber, worktree, "")
+}
+
+func buildCodexRunSpecForPhase(target string, issueNumber int, worktree string, phase string) codexRunSpec {
 	issueStateDir := filepath.Join(filepath.Dir(defaultStateFile(target)), "issues", strconv.Itoa(issueNumber))
+	if phase != "" {
+		issueStateDir = filepath.Join(issueStateDir, phase)
+	}
+	promptName := "prompt.md"
+	if phase != "" {
+		promptName = phase + "-prompt.md"
+	}
 	return codexRunSpec{
 		IssueNumber:     issueNumber,
+		Phase:           phase,
 		Worktree:        worktree,
-		PromptPath:      filepath.Join(issueStateDir, "prompt.md"),
+		PromptPath:      filepath.Join(issueStateDir, promptName),
 		JSONLogPath:     filepath.Join(issueStateDir, "codex.jsonl"),
 		LastMessagePath: filepath.Join(issueStateDir, "last-message.txt"),
 	}
@@ -106,16 +119,33 @@ func buildCodexCommand(spec codexRunSpec) string {
 			"2>&1",
 		}, " ")
 	}
-	return strings.Join([]string{
+	args := []string{
 		"codex --ask-for-approval never exec --json",
 		"--sandbox workspace-write",
-		"--cd " + shellQuote(filepath.ToSlash(spec.Worktree)),
-		"--output-last-message " + shellQuote(filepath.ToSlash(spec.LastMessagePath)),
+	}
+	if config := codexReasoningConfig(spec.Phase); config != "" {
+		args = append(args, config)
+	}
+	args = append(args,
+		"--cd "+shellQuote(filepath.ToSlash(spec.Worktree)),
+		"--output-last-message "+shellQuote(filepath.ToSlash(spec.LastMessagePath)),
 		"-",
-		"< " + shellQuote(filepath.ToSlash(spec.PromptPath)),
-		"> " + shellQuote(filepath.ToSlash(spec.JSONLogPath)),
+		"< "+shellQuote(filepath.ToSlash(spec.PromptPath)),
+		"> "+shellQuote(filepath.ToSlash(spec.JSONLogPath)),
 		"2>&1",
-	}, " ")
+	)
+	return strings.Join(args, " ")
+}
+
+func codexReasoningConfig(phase string) string {
+	switch phase {
+	case pipelinePhasePlan, pipelinePhaseReview:
+		return "-c model_reasoning_effort=\"medium\""
+	case pipelinePhaseImplement:
+		return "-c model_reasoning_effort=\"low\""
+	default:
+		return ""
+	}
 }
 
 func shellQuote(value string) string {

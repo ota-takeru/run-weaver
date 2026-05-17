@@ -37,6 +37,13 @@ func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 	if result, completed, err := completeCurrentJob(ctx, deps, opts); completed || err != nil {
 		return result, err
 	}
+	currentState, err := readStateFile(defaultStateFile(opts.target))
+	if err != nil {
+		currentState = nil
+	}
+	if result, handled, err := processCampaign(ctx, deps, opts, currentState); handled || err != nil {
+		return result, err
+	}
 
 	issues, err := deps.github.ListReadyIssues(ctx)
 	if err != nil {
