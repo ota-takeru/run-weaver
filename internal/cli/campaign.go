@@ -174,7 +174,7 @@ func processCampaign(ctx context.Context, deps daemonDeps, opts daemonOptions, s
 		_ = markBlocked(ctx, deps.github, issue.Number, "campaign planner", err)
 		return "", true, err
 	}
-	if err := writeStateFile(defaultStateFile(opts.target), *planned); err != nil {
+	if err := writeStateFile(opts.stateFilePath(), *planned); err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "campaign state file", err)
 		return "", true, err
 	}
@@ -224,9 +224,10 @@ func createCampaignState(ctx context.Context, client githubClient, opts daemonOp
 		Job:           nil,
 		Campaign: &stateCampaign{
 			Issue: issueRef{
-				Number: issue.Number,
-				Title:  issue.Title,
-				URL:    issue.URL,
+				Number:     issue.Number,
+				Title:      issue.Title,
+				URL:        issue.URL,
+				Repository: opts.repo,
 			},
 			Status:    status,
 			Tasks:     tasks,
@@ -290,7 +291,7 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		}
 		if updated {
 			state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-			if err := writeStateFile(defaultStateFile(opts.target), *state); err != nil {
+			if err := writeStateFile(opts.stateFilePath(), *state); err != nil {
 				return "", true, err
 			}
 			_ = deps.github.RemoveLabel(ctx, state.Campaign.Issue.Number, blockedLabel)
@@ -307,7 +308,7 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 			if hasPendingCampaignDecisions(state.Campaign.Decisions) {
 				state.Campaign.Status = campaignStatusDecisionRequired
 				state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-				if err := writeStateFile(defaultStateFile(opts.target), *state); err != nil {
+				if err := writeStateFile(opts.stateFilePath(), *state); err != nil {
 					return "", true, err
 				}
 				_ = markBlocked(ctx, deps.github, state.Campaign.Issue.Number, "campaign decision", fmt.Errorf("decision required"))
@@ -315,7 +316,7 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 			}
 			state.Campaign.Status = campaignStatusDone
 			state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-			if err := writeStateFile(defaultStateFile(opts.target), *state); err != nil {
+			if err := writeStateFile(opts.stateFilePath(), *state); err != nil {
 				return "", true, err
 			}
 			_ = markCampaignDone(ctx, deps.github, state.Campaign)
@@ -323,7 +324,7 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		}
 		state.Campaign.Status = campaignStatusDecisionRequired
 		state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-		if err := writeStateFile(defaultStateFile(opts.target), *state); err != nil {
+		if err := writeStateFile(opts.stateFilePath(), *state); err != nil {
 			return "", true, err
 		}
 		_ = markBlocked(ctx, deps.github, state.Campaign.Issue.Number, "campaign decision", fmt.Errorf("decision required"))
@@ -337,15 +338,15 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 	if claim.Outcome != claimWon {
 		return fmt.Sprintf("campaign task %s claim %s", task.ID, claim.Outcome), true, nil
 	}
-	spec, err := deps.worktree.Prepare(ctx, opts.target, claim.Issue, opts.repoURL)
+	spec, err := deps.worktree.PrepareForRepo(ctx, opts.target, opts.repo, claim.Issue, opts.repoURL)
 	if err != nil {
 		state.Campaign.Tasks[taskIndex].Status = campaignTaskBlocked
 		state.Campaign.Tasks[taskIndex].RetryCount++
-		_ = writeStateFile(defaultStateFile(opts.target), *state)
+		_ = writeStateFile(opts.stateFilePath(), *state)
 		_ = markBlocked(ctx, deps.github, task.IssueNumber, "campaign worktree", err)
 		return "", true, err
 	}
-	runSpec := buildCodexRunSpecForPhase(opts.target, task.IssueNumber, spec.Path, pipelinePhasePlan)
+	runSpec := buildCodexRunSpecForRepo(opts.target, opts.repo, task.IssueNumber, spec.Path, pipelinePhasePlan)
 	if err := writeCampaignPromptFile(runSpec.PromptPath, state.Campaign.Issue, task, claim.Issue, pipelinePhasePlan); err != nil {
 		return "", true, err
 	}
@@ -359,9 +360,10 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 	state.Campaign.Tasks[taskIndex].Phase = pipelinePhasePlan
 	state.Job = &stateJob{
 		Issue: issueRef{
-			Number: task.IssueNumber,
-			Title:  claim.Issue.Title,
-			URL:    claim.Issue.URL,
+			Number:     task.IssueNumber,
+			Title:      claim.Issue.Title,
+			URL:        claim.Issue.URL,
+			Repository: opts.repo,
 		},
 		LabelState:     runningLabel,
 		Branch:         spec.Branch,
@@ -377,7 +379,7 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		},
 	}
 	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	if err := writeStateFile(defaultStateFile(opts.target), *state); err != nil {
+	if err := writeStateFile(opts.stateFilePath(), *state); err != nil {
 		return "", true, err
 	}
 	return fmt.Sprintf("started campaign task %s issue #%d", task.ID, task.IssueNumber), true, nil
@@ -564,7 +566,7 @@ func advanceCampaignPipeline(ctx context.Context, deps daemonDeps, opts daemonOp
 	if !ok {
 		return false, "", fmt.Errorf("campaign task %s not found in state", state.Job.CampaignTaskID)
 	}
-	runSpec := buildCodexRunSpecForPhase(opts.target, state.Job.Issue.Number, state.Job.Worktree, nextPhase)
+	runSpec := buildCodexRunSpecForRepo(opts.target, opts.repo, state.Job.Issue.Number, state.Job.Worktree, nextPhase)
 	issue := githubIssue{
 		Number:   state.Job.Issue.Number,
 		Title:    state.Job.Issue.Title,
@@ -579,7 +581,7 @@ func advanceCampaignPipeline(ctx context.Context, deps daemonDeps, opts daemonOp
 	if err != nil {
 		markCampaignTaskRetry(state.Campaign, task.ID)
 		state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-		_ = writeStateFile(defaultStateFile(opts.target), *state)
+		_ = writeStateFile(opts.stateFilePath(), *state)
 		return true, "", err
 	}
 	state.Job.PipelinePhase = nextPhase
@@ -592,7 +594,7 @@ func advanceCampaignPipeline(ctx context.Context, deps daemonDeps, opts daemonOp
 	state.Campaign.Status = campaignStatusRunning
 	setCampaignTaskPhase(state.Campaign, task.ID, nextPhase)
 	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	if err := writeStateFile(defaultStateFile(opts.target), *state); err != nil {
+	if err := writeStateFile(opts.stateFilePath(), *state); err != nil {
 		return true, "", err
 	}
 	return true, fmt.Sprintf("advanced campaign task %s to %s", task.ID, nextPhase), nil

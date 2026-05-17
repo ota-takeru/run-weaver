@@ -4,11 +4,13 @@
 
 GitHub IssueをCodex作業のタスク入口にします。agentはIssueの状態をラベルとコメントで返し、人間がGitHub上で進捗を追えるようにします。
 
-初期実装ではGitHub操作に `gh` CLIを使います。
+初期実装ではGitHub操作に `gh` CLIを使います。複数repository登録時は、repoごとに `gh --repo <owner/repo>` を明示して操作します。
 
 ## 対象Issue
 
 通常taskとして処理対象にするIssueは、同一repository内のopen Issueのうち `run-weaver:ready` ラベルが付いたものです。
+
+`run-weaver repo add` で複数repositoryを登録している場合、daemonは各repositoryを独立して監視します。同じrepository内では1 jobずつ処理し、別repositoryのjobは同時に実行できます。
 
 Campaignとして処理対象にするIssueは、同一repository内のopen Issueのうち `run-weaver:campaign` と `run-weaver:ready` の両方が付いたものです。Campaign Issueは通常task取得から除外し、親IssueとしてPlanner / Dispatcherが扱います。
 

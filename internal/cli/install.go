@@ -95,8 +95,10 @@ func wslServiceFile(binary string, opts installOptions) string {
 		systemdQuote(binary),
 		"daemon",
 		"--target", "wsl",
-		"--repo-url", systemdQuote(opts.RepoURL),
 		"--poll-interval", opts.PollInterval.String(),
+	}
+	if opts.RepoURL != "" {
+		args = append(args, "--repo-url", systemdQuote(opts.RepoURL))
 	}
 	if opts.Repo != "" {
 		args = append(args, "--repo", systemdQuote(opts.Repo))
@@ -127,8 +129,10 @@ func windowsTaskCommand(binary string, opts windowsInstallOptions) string {
 		windowsCmdQuote(binary),
 		"daemon",
 		"--target", "windows",
-		"--repo-url", windowsCmdQuote(opts.RepoURL),
 		"--poll-interval", opts.PollInterval.String(),
+	}
+	if opts.RepoURL != "" {
+		parts = append(parts, "--repo-url", windowsCmdQuote(opts.RepoURL))
 	}
 	if opts.Repo != "" {
 		parts = append(parts, "--repo", windowsCmdQuote(opts.Repo))

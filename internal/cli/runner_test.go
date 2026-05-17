@@ -118,10 +118,38 @@ func TestTmuxRunnerStartsWindow(t *testing.T) {
 	}
 }
 
+func TestTmuxRunnerHandlesConcurrentSessionCreation(t *testing.T) {
+	commands := &fakeCommandRunner{
+		failFirstHasSession: true,
+		failNewSession:      true,
+	}
+	runner := newTmuxRunner(commands)
+
+	ref, err := runner.StartCodex(context.Background(), codexRunSpec{
+		IssueNumber:     42,
+		WindowName:      "example-repo-issue-42",
+		Worktree:        "/tmp/worktree",
+		PromptPath:      "/tmp/prompt.md",
+		JSONLogPath:     "/tmp/codex.jsonl",
+		LastMessagePath: "/tmp/last-message.txt",
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.Session != tmuxSessionName || ref.Window != "example-repo-issue-42" {
+		t.Fatalf("tmux ref = %#v", ref)
+	}
+	if !commands.ranPrefix("tmux", "new-window", "-t", tmuxSessionName, "-n", "example-repo-issue-42") {
+		t.Fatalf("commands = %#v, want new-window after retry", commands.calls)
+	}
+}
+
 type fakeCommandRunner struct {
 	calls               []commandCall
 	outputs             map[string][]byte
 	failFirstHasSession bool
+	failNewSession      bool
 }
 
 type commandCall struct {
@@ -133,6 +161,10 @@ func (r *fakeCommandRunner) Run(_ context.Context, name string, args ...string) 
 	r.calls = append(r.calls, commandCall{name: name, args: append([]string(nil), args...)})
 	if r.failFirstHasSession && name == "tmux" && len(args) >= 1 && args[0] == "has-session" {
 		r.failFirstHasSession = false
+		return errFakeCommand
+	}
+	if r.failNewSession && name == "tmux" && len(args) >= 1 && args[0] == "new-session" {
+		r.failNewSession = false
 		return errFakeCommand
 	}
 	return nil

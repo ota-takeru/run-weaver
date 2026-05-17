@@ -37,6 +37,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	switch args[0] {
+	case "repo":
+		return runRepo(args[1:], stdout, stderr)
 	case "doctor":
 		return runDoctor(args[1:], stdout, stderr)
 	case "status":
@@ -118,7 +120,19 @@ func runStatus(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 
-	result := collectStatus(ghClient{repo: *repo})
+	if *repo == "" {
+		if config, err := readRepoConfig(defaultRepoConfigFile(defaultStatusTarget())); err == nil && len(enabledRepoEntries(config)) > 0 {
+			result := collectMultiStatus(enabledRepoEntries(config), defaultStatusTarget())
+			if *jsonOutput {
+				writeJSON(stdout, result.Output)
+				return result.ExitCode
+			}
+			printStatusHuman(stdout, result.Output)
+			return result.ExitCode
+		}
+	}
+
+	result := collectStatusForRepo(ghClient{repo: *repo}, *repo)
 	if *jsonOutput {
 		writeJSON(stdout, result.Output)
 		return result.ExitCode
@@ -148,12 +162,25 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "--poll-interval must be greater than zero")
 		return exitUsage
 	}
-	resolvedRepoURL, err := resolveRepoURL(*repoURL)
-	if err != nil {
-		fmt.Fprintf(stderr, "install requires --repo-url or a git origin remote: %v\n", err)
-		return exitConfigMissing
+	resolvedRepoURL := strings.TrimSpace(*repoURL)
+	repoName := strings.TrimSpace(*repo)
+	if resolvedRepoURL != "" || repoName != "" {
+		var err error
+		resolvedRepoURL, err = resolveRepoURL(resolvedRepoURL)
+		if err != nil {
+			fmt.Fprintf(stderr, "install requires --repo-url or a git origin remote: %v\n", err)
+			return exitConfigMissing
+		}
+		repoName = resolveRepoName(repoName, resolvedRepoURL)
+		if repoName == "" {
+			fmt.Fprintln(stderr, "install could not infer --repo from --repo-url")
+			return exitConfigMissing
+		}
+		if err := addRepoConfigEntry(defaultRepoConfigFile(*target), repoEntry{Repository: repoName, RepoURL: resolvedRepoURL, AddedFrom: "install"}); err != nil {
+			fmt.Fprintf(stderr, "install repo config error: %v\n", err)
+			return exitConfigMissing
+		}
 	}
-	repoName := resolveRepoName(*repo, resolvedRepoURL)
 	if *target == "windows" {
 		if err := installWindows(windowsInstallOptions{
 			Repo:         repoName,
@@ -195,23 +222,42 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 
-	resolvedRepoURL, err := resolveRepoURL(*repoURL)
-	if err != nil {
-		fmt.Fprintf(stderr, "daemon requires --repo-url or a git origin remote: %v\n", err)
-		return exitConfigMissing
-	}
 	if *pollInterval <= 0 {
 		fmt.Fprintln(stderr, "--poll-interval must be greater than zero")
 		return exitUsage
 	}
 
+	if strings.TrimSpace(*repoURL) == "" && strings.TrimSpace(*repo) == "" {
+		if config, err := readRepoConfig(defaultRepoConfigFile(*target)); err == nil && len(enabledRepoEntries(config)) > 0 {
+			repos := enabledRepoEntries(config)
+			if *once {
+				result, err := processRegisteredReposOnce(repos, *target)
+				if err != nil {
+					fmt.Fprintf(stderr, "daemon error: %v\n", err)
+					return exitConfigMissing
+				}
+				fmt.Fprintln(stdout, result)
+				return exitOK
+			}
+			return runMultiRepoDaemonLoop(stdout, stderr, repos, *target, *pollInterval)
+		}
+	}
+
+	resolvedRepoURL, err := resolveRepoURL(*repoURL)
+	if err != nil {
+		fmt.Fprintf(stderr, "daemon requires --repo-url or a git origin remote: %v\n", err)
+		return exitConfigMissing
+	}
+	repoName := resolveRepoName(*repo, resolvedRepoURL)
+
 	deps := daemonDeps{
-		github:   ghClient{repo: resolveRepoName(*repo, resolvedRepoURL)},
+		github:   ghClient{repo: repoName},
 		worktree: newWorktreeManager(nil),
 		runner:   newTmuxRunner(nil),
 	}
 	opts := daemonOptions{
 		target:  *target,
+		repo:    repoName,
 		repoURL: resolvedRepoURL,
 	}
 	if !*once {
@@ -305,6 +351,7 @@ func printRootUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage: run-weaver <command> [flags]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
+	fmt.Fprintln(w, "  repo     Manage registered repositories")
 	fmt.Fprintln(w, "  doctor   Check dependencies and authentication")
 	fmt.Fprintln(w, "  status   Show daemon and job status")
 	fmt.Fprintln(w, "  install  Install target-specific daemon configuration")
@@ -340,7 +387,14 @@ type statusOutput struct {
 	Daemon         daemonStatus         `json:"daemon"`
 	Job            *statusJob           `json:"job"`
 	Campaign       *statusCampaign      `json:"campaign,omitempty"`
+	Repositories   []statusRepository   `json:"repositories,omitempty"`
 	Reconciliation reconciliationStatus `json:"reconciliation"`
+}
+
+type statusRepository struct {
+	Repository string       `json:"repository"`
+	RepoURL    string       `json:"repoUrl,omitempty"`
+	Status     statusOutput `json:"status"`
 }
 
 type daemonStatus struct {

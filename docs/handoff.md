@@ -32,24 +32,27 @@
 - GitHub ActionsのLinux / Windows jobは最新確認時点で成功済み。
 - `status` は `labelState` に加えて表示用の `runtimeState` を返す。`codex_running`、`codex_completed`、`needs_attention` を区別する。
 - Codexがrate limitで中断した場合、daemonはJSONLログからsession idを取得し、同じworktreeで `codex exec resume <session>` を起動する。session idが取れない場合は同じworktreeで `codex exec resume --last` を試す。
-- `install` は常駐設定を作るが、実際に使える状態には `doctor` が確認する依存関係と認証、対象repositoryの `git origin` または `--repo-url`、対象Issueの `run-weaver:ready` ラベルが必要。
+- `install` は常駐設定を作るが、実際に使える状態には `doctor` が確認する依存関係と認証、`run-weaver repo add` による対象repository登録、対象Issueの `run-weaver:ready` ラベルが必要。
 - release buildの `run-weaver daemon` は起動時にGitHub Releases latestを確認し、新しいassetがあればself-updateしてから処理を続ける。開発ビルドはversion `dev` のため自動更新しない。
 - `run-weaver update --check` / `run-weaver update` を追加済み。
 - release assetのzip / tar.gz展開処理は共通のbinary書き込み helper を使うように整理済み。
 - `.github/workflows/release.yml` はtag `v*` push時にLinux / Windows、amd64 / arm64のrelease assetを作成する。
 - `scripts/install.sh` と `scripts/install.ps1` はGitHub Releasesからbinaryを取得するため、ローカルにproject cloneがなくても初回導入できる。
 - `run-weaver install --target wsl` はsystemd user service `run-weaver.service` を作成または更新し、`systemctl --user enable --now run-weaver.service` を実行する。
-- `--repo` 未指定でも `--repo-url` がGitHub URLならowner/repoを自動推定し、service / Task Schedulerのdaemon起動引数へ渡す。
-- `install` / `daemon` の `--repo-url` 未指定時は、カレントディレクトリの `git remote get-url origin` から対象repository URLを自動推定する。対象repository内なら `run-weaver install --target wsl` だけで導入できる。
+- `--repo` 未指定でも `--repo-url` がGitHub URLならowner/repoを自動推定し、互換用の単一repo daemon起動引数へ渡す。
+- `install` / `daemon` の `--repo-url` 未指定時は、通常 `repos.json` の登録repositoryを使う。対象repository内では `run-weaver repo add` で登録する。
 - Campaign Issueは `run-weaver:campaign` と `run-weaver:ready` の両方が付いたopen Issueとして検出する。
 - Campaign Plannerは親Issue本文のMarkdown箇条書きからtask graphを作り、通常taskを子Issueとして作成する。`decision`、`gate`、`判断`、`決定` を含む項目はDecision Requestとして親Issueへコメントする。
 - Campaign Dispatcherはstate fileの `campaign` を正本にし、依存関係が解けた次taskを `plan` / `implement` / `review` / `verify` の順に同じworktreeで実行する。
 - Campaign taskは `verify` 完了後にcommit、push、draft PR作成へ進み、PR URL、completed tasks、current taskをCampaign stateへ保存する。
 - `status` はCampaign progressをhuman / JSONで表示する。state schemaは `2` で、schema `1` は読み込み時に互換扱いする。
+- `run-weaver repo add/list/remove` で監視対象repositoryを管理できる。repo設定は `repos.json` に保存し、secret値は保存しない。
+- 複数repository登録時、daemonはrepoごとに `gh --repo`、repo別clone、repo別worktree、repo別stateを使い、repo間は同時実行する。
+- `status` は登録済みrepositoryのstateを集約表示し、`--repo owner/repo` で対象repoだけを表示する。
 
 ## Next Step
 
-実GitHub Campaign IssueでPlanner / Dispatcherの統合テストを行う。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repository、親Issue、ラベルを確認してから実行する。
+実GitHub Campaign IssueでPlanner / Dispatcherの統合テストを行う。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repository、親Issue、ラベルを確認してから実行する。複数repository運用は `run-weaver repo add` 後に実GitHub Issue処理を確認する。
 
 ## Notes
 
@@ -65,7 +68,7 @@
 - self-updateはGitHub Releasesからbinary assetを取得するだけで、GitHub Issueや外部アカウント設定は変更しない。release作成にはtag pushが必要なため、実release workflow検証は人間のpush判断後に行う。
 - 自動更新を止める場合は `RUN_WEAVER_NO_UPDATE=1` を設定する。
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
-- `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、対象repositoryの `git origin` または `--repo-url` を確認する。
+- `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`run-weaver repo add` 済みであることを確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
 - Campaign実行時は、対象repositoryに子IssueとDecision Requestコメントを作成する。taskごとにdraft PRを作る。
 - Campaign decision answerは親Campaign Issueコメント内の `run-weaver-decision:<decision-id>:<option>` を読み取ってstateへ保存する。
@@ -99,7 +102,8 @@ GitHub Actions:
 3. 対象Issueに `running` / `done` / `blocked` が付いていないことを確認する。
 4. `go build ./cmd/run-weaver` でローカルバイナリを作る。
 5. `./run-weaver doctor --target wsl` で `git`、`gh`、`codex`、`doppler`、`tmux`、`systemctl --user` を確認する。
-6. 初回は対象repository内で `./run-weaver daemon --target wsl --once` だけを使い、継続pollは使わない。
-7. 実行後に `./run-weaver status --repo <owner/repo>`、GitHub Issueコメント、tmux windowを確認する。
+6. 対象repository内で `./run-weaver repo add` を実行する。
+7. 初回は `./run-weaver daemon --target wsl --once` だけを使い、継続pollは使わない。
+8. 実行後に `./run-weaver status --repo <owner/repo>`、GitHub Issueコメント、tmux windowを確認する。
 
 この手順はIssueラベル、Issueコメント、branch、draft PRを実際に作る。対象Issueを間違えた場合の自動巻き戻しはない。

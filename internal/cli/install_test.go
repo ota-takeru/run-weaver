@@ -141,26 +141,28 @@ func TestInstallWindowsRequiresWindows(t *testing.T) {
 	}
 }
 
-func TestRunInstallWindowsRequiresRepoURLOrGitOrigin(t *testing.T) {
+func TestRunInstallWindowsDoesNotRequireRepoURL(t *testing.T) {
 	restorePlatform := setTestGOOS(t, "windows")
 	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", tempDir)
 	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
-		return nil, errors.New("not a git repository")
+		return nil, nil
 	})
 	defer restoreCommands()
 	var stdout, stderr strings.Builder
 
-	code := runInstall([]string{"--target", "windows"}, &stdout, &stderr)
+	code := runInstall([]string{"--target", "windows", "--binary", `C:\bin\run-weaver.exe`}, &stdout, &stderr)
 
-	if code != exitConfigMissing {
-		t.Fatalf("exit code = %d, want %d", code, exitConfigMissing)
+	if code != exitOK {
+		t.Fatalf("exit code = %d, want %d; stderr = %q", code, exitOK, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "requires --repo-url or a git origin remote") {
+	if strings.Contains(stderr.String(), "requires --repo-url") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
-func TestRunInstallWSLInfersRepoURLFromGitOrigin(t *testing.T) {
+func TestRunInstallWSLRegistersExplicitRepoURL(t *testing.T) {
 	restorePlatform := setTestGOOS(t, "linux")
 	defer restorePlatform()
 	tempDir := t.TempDir()
@@ -178,7 +180,7 @@ func TestRunInstallWSLInfersRepoURLFromGitOrigin(t *testing.T) {
 	defer restoreCommands()
 	var stdout, stderr strings.Builder
 
-	code := runInstall([]string{"--target", "wsl", "--binary", "/home/me/.local/bin/run-weaver"}, &stdout, &stderr)
+	code := runInstall([]string{"--target", "wsl", "--binary", "/home/me/.local/bin/run-weaver", "--repo-url", "https://github.com/example/repo.git"}, &stdout, &stderr)
 
 	if code != exitOK {
 		t.Fatalf("exit code = %d, want %d; stderr = %q", code, exitOK, stderr.String())
@@ -195,8 +197,12 @@ func TestRunInstallWSLInfersRepoURLFromGitOrigin(t *testing.T) {
 	if !strings.Contains(service, `--repo "example/repo"`) {
 		t.Fatalf("service = %q, want inferred GitHub repo", service)
 	}
-	if !containsString(calls, "git\x00remote\x00get-url\x00origin") {
-		t.Fatalf("calls = %#v, want git origin lookup", calls)
+	config, err := readRepoConfig(defaultRepoConfigFile("wsl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(config.Repositories) != 1 || config.Repositories[0].Repository != "example/repo" {
+		t.Fatalf("config = %#v", config)
 	}
 }
 

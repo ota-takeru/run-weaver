@@ -1,5 +1,26 @@
 # Process Log
 
+## 2026-05-17 - Multi Repository Support
+
+Review:
+
+- Immediate fixes:
+  - `run-weaver repo add/list/remove` を追加し、カレントGitHub repositoryを `repos.json` に登録できるようにした。
+  - repo別state、clone、worktree、issue log pathを追加し、既存単一repo stateは読み取り互換として残した。
+  - daemonが登録済みrepositoryを読み、repoごとに独立した処理ループと `gh --repo` で実行できるようにした。
+  - 常駐daemonがpollごとに `repos.json` を読み直し、`repo add` 後のrepositoryを再起動なしで拾えるようにした。
+  - `status` が登録済みrepositoryを集約表示し、`--repo owner/repo` で対象repoだけを表示できるようにした。
+  - tmux window名をrepo別実行では `<repo-slug>-issue-<number>` にしてIssue番号衝突を避けるようにした。
+  - 複数repo同時開始時のtmux session作成競合を再確認で吸収するようにした。
+  - repo登録、repo別path、repo別state、status集約、install互換の単体テストを追加した。
+- Future tasks:
+  - 複数repository登録後の実GitHub Issue処理を確認する。
+  - 実GitHub Campaign IssueでPlanner / Dispatcherの統合テストを行う。
+  - repo設定のdisable/enable CLIやrepoごとの検証コマンド設定は必要になった時点で検討する。
+- Human-facing reports:
+  - `run-weaver repo remove` は設定から外すだけで、clone、worktree、state fileは削除しない。
+  - 実GitHub Issue、push、draft PR、外部アカウント、secretには触れていない。
+
 ## 2026-05-17 - Campaign Planner / Dispatcher
 
 Review:

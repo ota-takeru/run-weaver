@@ -40,6 +40,7 @@ type codexRunSpec struct {
 	IssueNumber     int
 	Phase           string
 	Worktree        string
+	WindowName      string
 	PromptPath      string
 	JSONLogPath     string
 	LastMessagePath string
@@ -58,6 +59,9 @@ func (r tmuxRunner) StartCodex(ctx context.Context, spec codexRunSpec) (tmuxRef,
 		Session: tmuxSessionName,
 		Window:  "issue-" + strconv.Itoa(spec.IssueNumber),
 	}
+	if spec.WindowName != "" {
+		ref.Window = spec.WindowName
+	}
 	if err := r.ensureSession(ctx); err != nil {
 		return ref, err
 	}
@@ -72,7 +76,13 @@ func (r tmuxRunner) ensureSession(ctx context.Context) error {
 	if err := r.commands.Run(ctx, "tmux", "has-session", "-t", tmuxSessionName); err == nil {
 		return nil
 	}
-	return r.commands.Run(ctx, "tmux", "new-session", "-d", "-s", tmuxSessionName, "-n", "control")
+	if err := r.commands.Run(ctx, "tmux", "new-session", "-d", "-s", tmuxSessionName, "-n", "control"); err != nil {
+		if retryErr := r.commands.Run(ctx, "tmux", "has-session", "-t", tmuxSessionName); retryErr == nil {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func buildCodexRunSpec(target string, issueNumber int, worktree string) codexRunSpec {
@@ -80,7 +90,19 @@ func buildCodexRunSpec(target string, issueNumber int, worktree string) codexRun
 }
 
 func buildCodexRunSpecForPhase(target string, issueNumber int, worktree string, phase string) codexRunSpec {
-	issueStateDir := filepath.Join(filepath.Dir(defaultStateFile(target)), "issues", strconv.Itoa(issueNumber))
+	return buildCodexRunSpecForStatePath(defaultStateFile(target), issueNumber, worktree, phase, "")
+}
+
+func buildCodexRunSpecForRepo(target, repository string, issueNumber int, worktree string, phase string) codexRunSpec {
+	windowName := ""
+	if repository != "" {
+		windowName = repoSlug(repository) + "-issue-" + strconv.Itoa(issueNumber)
+	}
+	return buildCodexRunSpecForStatePath(stateFileForRepo(target, repository), issueNumber, worktree, phase, windowName)
+}
+
+func buildCodexRunSpecForStatePath(statePath string, issueNumber int, worktree string, phase string, windowName string) codexRunSpec {
+	issueStateDir := filepath.Join(filepath.Dir(statePath), "issues", strconv.Itoa(issueNumber))
 	if phase != "" {
 		issueStateDir = filepath.Join(issueStateDir, phase)
 	}
@@ -92,6 +114,7 @@ func buildCodexRunSpecForPhase(target string, issueNumber int, worktree string, 
 		IssueNumber:     issueNumber,
 		Phase:           phase,
 		Worktree:        worktree,
+		WindowName:      windowName,
 		PromptPath:      filepath.Join(issueStateDir, promptName),
 		JSONLogPath:     filepath.Join(issueStateDir, "codex.jsonl"),
 		LastMessagePath: filepath.Join(issueStateDir, "last-message.txt"),

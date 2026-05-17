@@ -89,12 +89,17 @@ Recommended Next Step:
 - Decision Requestへの `run-weaver-decision:<decision-id>:<option>` コメントを読み取ってstateへ保存するようにした
 - task完了時にPR URL、completed tasks、current taskをCampaign stateへ保存するようにした
 - `status` のJSONとhuman outputにCampaign progressを追加した
+- `run-weaver repo add/list/remove` を追加し、カレントGitHub repositoryを監視対象として登録できるようにした
+- repo設定 `repos.json`、repo別state / clone / worktree / issue log pathを追加した
+- `daemon` が登録済みrepositoryを読み、repoごとに独立してIssue処理できるようにした
+- `status` が登録済みrepositoryのstateを集約し、`--repo` でrepo別表示できるようにした
 
 ## Upcoming Sequence
 
 1. 実GitHub Campaign IssueでPlanner / Dispatcherの統合テスト
-2. self-updateとclone不要install手順のCI / release workflow結果確認
-3. `run-weaver:ready` 以外のフィルタ検討
+2. 複数repository登録後の実GitHub Issue処理確認
+3. self-updateとclone不要install手順のCI / release workflow結果確認
+4. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch
 

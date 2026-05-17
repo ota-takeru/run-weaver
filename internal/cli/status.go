@@ -23,8 +23,12 @@ type statusResult struct {
 }
 
 func collectStatus(client githubClient) statusResult {
+	return collectStatusForRepo(client, "")
+}
+
+func collectStatusForRepo(client githubClient, repository string) statusResult {
 	target := defaultStatusTarget()
-	statePath := defaultStateFile(target)
+	statePath := stateFileForRepo(target, repository)
 	output := statusOutput{
 		SchemaVersion: stateSchemaVersion,
 		Target:        target,
@@ -42,6 +46,15 @@ func collectStatus(client githubClient) statusResult {
 	}
 
 	state, err := readStateFile(statePath)
+	if err != nil && repository != "" && errors.Is(err, os.ErrNotExist) {
+		legacyPath := defaultStateFile(target)
+		if legacyState, legacyErr := readStateFile(legacyPath); legacyErr == nil {
+			state = legacyState
+			statePath = legacyPath
+			output.StateFile = legacyPath
+			err = nil
+		}
+	}
 	if err != nil {
 		output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, "state_file_unavailable")
 		return statusResult{Output: output, ExitCode: exitStateUnavailable, Err: err}
@@ -88,7 +101,56 @@ func collectStatus(client githubClient) statusResult {
 	return statusResult{Output: output, ExitCode: exitOK}
 }
 
+func collectMultiStatus(repos []repoEntry, target string) statusResult {
+	output := statusOutput{
+		SchemaVersion: stateSchemaVersion,
+		Target:        target,
+		StateFile:     defaultRepoConfigFile(target),
+		Daemon:        daemonStatus{Running: false},
+		Reconciliation: reconciliationStatus{
+			GitHubLabelState: "not_applicable",
+			ProcessState:     "not_checked",
+			TmuxState:        "not_applicable",
+			Conflicts:        []string{},
+		},
+	}
+	exitCode := exitOK
+	for _, repo := range repos {
+		result := collectStatusForRepo(ghClient{repo: repo.Repository}, repo.Repository)
+		output.Repositories = append(output.Repositories, statusRepository{
+			Repository: repo.Repository,
+			RepoURL:    repo.RepoURL,
+			Status:     result.Output,
+		})
+		if result.ExitCode > exitCode {
+			exitCode = result.ExitCode
+		}
+	}
+	return statusResult{Output: output, ExitCode: exitCode}
+}
+
 func printStatusHuman(w io.Writer, output statusOutput) {
+	if len(output.Repositories) > 0 {
+		fmt.Fprintf(w, "Target: %s\n", emptyAsUnknown(output.Target))
+		fmt.Fprintf(w, "Repository config: %s\n\n", emptyAsUnknown(output.StateFile))
+		for _, repo := range output.Repositories {
+			fmt.Fprintf(w, "Repository: %s\n", repo.Repository)
+			if repo.Status.Job == nil {
+				fmt.Fprintln(w, "  Current job: none")
+			} else {
+				fmt.Fprintf(w, "  Current job: #%d %s\n", repo.Status.Job.Issue.Number, repo.Status.Job.Issue.Title)
+				fmt.Fprintf(w, "  Runtime state: %s\n", emptyAsUnknown(repo.Status.Job.RuntimeState))
+				fmt.Fprintf(w, "  Worktree: %s\n", emptyAsUnknown(repo.Status.Job.Worktree))
+			}
+			fmt.Fprintf(w, "  State file: %s\n", repo.Status.StateFile)
+			if len(repo.Status.Reconciliation.Conflicts) == 0 {
+				fmt.Fprintln(w, "  Conflicts: none")
+			} else {
+				fmt.Fprintf(w, "  Conflicts: %s\n", strings.Join(repo.Status.Reconciliation.Conflicts, ", "))
+			}
+		}
+		return
+	}
 	fmt.Fprintf(w, "Target: %s\n", emptyAsUnknown(output.Target))
 	if output.Daemon.PID > 0 {
 		fmt.Fprintf(w, "Daemon: %s (pid %d)\n", runningWord(output.Daemon.Running), output.Daemon.PID)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,7 +17,19 @@ type daemonDeps struct {
 
 type daemonOptions struct {
 	target  string
+	repo    string
 	repoURL string
+}
+
+type lockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (w *lockedWriter) Write(data []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.w.Write(data)
 }
 
 func runDaemonLoop(stdout, stderr io.Writer, deps daemonDeps, opts daemonOptions, interval time.Duration) int {
@@ -32,12 +46,67 @@ func runDaemonLoop(stdout, stderr io.Writer, deps daemonDeps, opts daemonOptions
 	}
 }
 
+func runMultiRepoDaemonLoop(stdout, stderr io.Writer, repos []repoEntry, target string, interval time.Duration) int {
+	safeStdout := &lockedWriter{w: stdout}
+	safeStderr := &lockedWriter{w: stderr}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	configPath := defaultRepoConfigFile(target)
+	for {
+		current := repos
+		if config, err := readRepoConfig(configPath); err == nil {
+			current = enabledRepoEntries(config)
+		}
+		result, err := processRegisteredReposOnce(current, target)
+		if err != nil {
+			fmt.Fprintf(safeStderr, "daemon error: %v\n", err)
+		}
+		if result != "" {
+			fmt.Fprintln(safeStdout, result)
+		}
+		<-ticker.C
+	}
+}
+
+func processRegisteredReposOnce(repos []repoEntry, target string) (string, error) {
+	results := make([]string, len(repos))
+	var wg sync.WaitGroup
+	errs := make(chan error, len(repos))
+	for i, repo := range repos {
+		index := i
+		entry := repo
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			deps := daemonDeps{
+				github:   ghClient{repo: entry.Repository},
+				worktree: newWorktreeManager(nil),
+				runner:   newTmuxRunner(nil),
+			}
+			result, err := processOneIssue(deps, daemonOptions{target: target, repo: entry.Repository, repoURL: entry.RepoURL})
+			if err != nil {
+				errs <- fmt.Errorf("%s: %w", entry.Repository, err)
+			}
+			results[index] = entry.Repository + ": " + result
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	var err error
+	for candidate := range errs {
+		if err == nil {
+			err = candidate
+		}
+	}
+	return strings.Join(results, "\n"), err
+}
+
 func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 	ctx := context.Background()
 	if result, completed, err := completeCurrentJob(ctx, deps, opts); completed || err != nil {
 		return result, err
 	}
-	currentState, err := readStateFile(defaultStateFile(opts.target))
+	currentState, err := readStateFile(opts.stateFilePath())
 	if err != nil {
 		currentState = nil
 	}
@@ -68,24 +137,24 @@ func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 		return "", fmt.Errorf("unknown claim outcome %q", claim.Outcome)
 	}
 
-	spec, err := deps.worktree.Prepare(ctx, opts.target, claim.Issue, opts.repoURL)
+	spec, err := deps.worktree.PrepareForRepo(ctx, opts.target, opts.repo, claim.Issue, opts.repoURL)
 	if err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "worktree", err)
-		_ = writeBlockedState(opts.target, claim.Issue, claim.ClaimID, spec, nil, "worktree", err)
+		_ = writeBlockedState(opts, claim.Issue, claim.ClaimID, spec, nil, "worktree", err)
 		return "", err
 	}
 
-	runSpec := buildCodexRunSpec(opts.target, issue.Number, spec.Path)
+	runSpec := buildCodexRunSpecForRepo(opts.target, opts.repo, issue.Number, spec.Path, "")
 	if err := writePromptFile(runSpec.PromptPath, claim.Issue); err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "prompt", err)
-		_ = writeBlockedState(opts.target, claim.Issue, claim.ClaimID, spec, nil, "prompt", err)
+		_ = writeBlockedState(opts, claim.Issue, claim.ClaimID, spec, nil, "prompt", err)
 		return "", err
 	}
 
 	tmux, err := deps.runner.StartCodex(ctx, runSpec)
 	if err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "runner", err)
-		_ = writeBlockedState(opts.target, claim.Issue, claim.ClaimID, spec, nil, "runner", err)
+		_ = writeBlockedState(opts, claim.Issue, claim.ClaimID, spec, nil, "runner", err)
 		return "", err
 	}
 
@@ -98,9 +167,10 @@ func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 		},
 		Job: &stateJob{
 			Issue: issueRef{
-				Number: issue.Number,
-				Title:  claim.Issue.Title,
-				URL:    claim.Issue.URL,
+				Number:     issue.Number,
+				Title:      claim.Issue.Title,
+				URL:        claim.Issue.URL,
+				Repository: opts.repo,
 			},
 			LabelState: "running",
 			Branch:     spec.Branch,
@@ -114,7 +184,7 @@ func processOneIssue(deps daemonDeps, opts daemonOptions) (string, error) {
 			},
 		},
 	}
-	if err := writeStateFile(defaultStateFile(opts.target), state); err != nil {
+	if err := writeStateFile(opts.stateFilePath(), state); err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "state file", err)
 		return "", err
 	}
@@ -135,20 +205,25 @@ func markBlocked(ctx context.Context, client githubClient, issueNumber int, stag
 	return client.Comment(ctx, issueNumber, body)
 }
 
-func writeBlockedState(target string, issue githubIssue, claimID string, spec worktreeSpec, tmux *tmuxRef, stage string, cause error) error {
+func (opts daemonOptions) stateFilePath() string {
+	return stateFileForRepo(opts.target, opts.repo)
+}
+
+func writeBlockedState(opts daemonOptions, issue githubIssue, claimID string, spec worktreeSpec, tmux *tmuxRef, stage string, cause error) error {
 	message := fmt.Sprintf("%s: %s", stage, cause)
 	state := stateFile{
 		SchemaVersion: stateSchemaVersion,
-		Target:        target,
+		Target:        opts.target,
 		UpdatedAt:     time.Now().UTC().Format(time.RFC3339),
 		Daemon: stateDaemon{
 			Service: "run-weaver.service",
 		},
 		Job: &stateJob{
 			Issue: issueRef{
-				Number: issue.Number,
-				Title:  issue.Title,
-				URL:    issue.URL,
+				Number:     issue.Number,
+				Title:      issue.Title,
+				URL:        issue.URL,
+				Repository: opts.repo,
 			},
 			LabelState: blockedLabel,
 			Branch:     spec.Branch,
@@ -159,5 +234,5 @@ func writeBlockedState(target string, issue githubIssue, claimID string, spec wo
 			LastError:  &message,
 		},
 	}
-	return writeStateFile(defaultStateFile(target), state)
+	return writeStateFile(opts.stateFilePath(), state)
 }

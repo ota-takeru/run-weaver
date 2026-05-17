@@ -359,16 +359,20 @@ func isWSL() bool {
 }
 
 func defaultStateFile(target string) string {
+	return filepath.Join(defaultStateRoot(target), "state.json")
+}
+
+func defaultStateRoot(target string) string {
 	if target == "windows" {
 		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
-			return filepath.Join(localAppData, "run-weaver", "state.json")
+			return filepath.Join(localAppData, "run-weaver")
 		}
-		return filepath.Join(homeDir(), "AppData", "Local", "run-weaver", "state.json")
+		return filepath.Join(homeDir(), "AppData", "Local", "run-weaver")
 	}
 	if stateHome := os.Getenv("XDG_STATE_HOME"); stateHome != "" {
-		return filepath.Join(stateHome, "run-weaver", "state.json")
+		return filepath.Join(stateHome, "run-weaver")
 	}
-	return filepath.Join(homeDir(), ".local", "state", "run-weaver", "state.json")
+	return filepath.Join(homeDir(), ".local", "state", "run-weaver")
 }
 
 func defaultDataRoot(target string) string {

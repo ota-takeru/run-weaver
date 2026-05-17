@@ -28,7 +28,11 @@ func newWorktreeManager(commands commandRunner) worktreeManager {
 }
 
 func (m worktreeManager) Prepare(ctx context.Context, target string, issue githubIssue, repoURL string) (worktreeSpec, error) {
-	spec := buildWorktreeSpec(target, issue)
+	return m.PrepareForRepo(ctx, target, "", issue, repoURL)
+}
+
+func (m worktreeManager) PrepareForRepo(ctx context.Context, target, repository string, issue githubIssue, repoURL string) (worktreeSpec, error) {
+	spec := buildWorktreeSpecForRepo(target, repository, issue)
 	if err := m.ensureClone(ctx, spec.CloneDir, repoURL); err != nil {
 		return spec, err
 	}
@@ -79,9 +83,14 @@ func (m worktreeManager) ensureClone(ctx context.Context, cloneDir, repoURL stri
 }
 
 func buildWorktreeSpec(target string, issue githubIssue) worktreeSpec {
+	return buildWorktreeSpecForRepo(target, "", issue)
+}
+
+func buildWorktreeSpecForRepo(target, repository string, issue githubIssue) worktreeSpec {
+	root := dataRootForRepo(target, repository)
 	return worktreeSpec{
-		CloneDir: defaultCodexClone(target),
-		Path:     filepath.Join(defaultWorktreeRoot(target), "issue-"+strconv.Itoa(issue.Number)),
+		CloneDir: filepath.Join(root, "src"),
+		Path:     filepath.Join(root, "worktrees", "issue-"+strconv.Itoa(issue.Number)),
 		Branch:   "codex/issue-" + strconv.Itoa(issue.Number) + "-" + slugify(issue.Title),
 	}
 }
