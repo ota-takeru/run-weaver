@@ -184,6 +184,12 @@ func printStatusHuman(w io.Writer, output statusOutput) {
 		fmt.Fprintln(w, "Campaign:")
 		fmt.Fprintf(w, "  Issue: #%d %s\n", output.Campaign.Issue.Number, output.Campaign.Issue.Title)
 		fmt.Fprintf(w, "  Status: %s\n", emptyAsUnknown(output.Campaign.Status))
+		if output.Campaign.Planner != nil {
+			fmt.Fprintf(w, "  Planner: %s\n", plannerRuntimeState(output.Target, output.Campaign.Planner))
+			if output.Campaign.Planner.Tmux != nil {
+				fmt.Fprintf(w, "  Planner tmux: %s:%s\n", output.Campaign.Planner.Tmux.Session, output.Campaign.Planner.Tmux.Window)
+			}
+		}
 		fmt.Fprintf(w, "  Current task: %s\n", emptyAsNone(output.Campaign.CurrentTaskID))
 		fmt.Fprintf(w, "  Completed tasks: %d/%d\n", len(output.Campaign.CompletedTasks), len(output.Campaign.Tasks))
 		if len(output.Campaign.PRs) > 0 {
@@ -272,11 +278,30 @@ func stateCampaignToStatusCampaign(campaign *stateCampaign) *statusCampaign {
 		Issue:          campaign.Issue,
 		Status:         campaign.Status,
 		CurrentTaskID:  campaign.CurrentTaskID,
+		Planner:        campaign.Planner,
 		CompletedTasks: append([]string(nil), campaign.CompletedTasks...),
 		Tasks:          append([]campaignTask(nil), campaign.Tasks...),
 		Decisions:      append([]campaignDecision(nil), campaign.Decisions...),
 		PRs:            append([]campaignPR(nil), campaign.PRs...),
 	}
+}
+
+func plannerRuntimeState(target string, planner *campaignPlanner) string {
+	if planner == nil {
+		return "none"
+	}
+	if planner.LastError != nil {
+		return "blocked"
+	}
+	if tmuxState(target, planner.Tmux) == "window_exists" {
+		return "codex_running"
+	}
+	if planner.LastMessagePath != "" {
+		if _, err := os.Stat(planner.LastMessagePath); err == nil {
+			return "codex_completed"
+		}
+	}
+	return "running"
 }
 
 func stateJobToStatusJob(job *stateJob) *statusJob {

@@ -27,7 +27,7 @@ Issueを取得したagentは、`running` ラベル付与、開始コメント、
 
 ### Campaign Planner / Dispatcher
 
-Campaign Plannerは親Campaign Issue本文のMarkdown roadmapをtask graphへ変換します。箇条書きの通常項目は大きめの実行taskとして子Issueに作成し、`decision`、`gate`、`判断`、`決定` を含む項目はdecision gateとして親Campaign IssueへDecision Requestコメントを投稿します。子Issue本文には親Campaign番号とtask IDを含め、子Issueには `run-weaver:campaign-task` を付けて通常task取得から除外します。
+Campaign PlannerはCodexを非同期に起動し、親Campaign Issue本文の大枠指示とrepository内docsからPR単位のtask graphを生成します。入力源はrepo docs優先で、親Issue本文は進めたいroadmapや目的を伝える補助入力です。Plannerの最終応答はJSONだけを正とし、`tasks[]` と `decisions[]` をstateへ取り込みます。Plannerが有効なJSON planを返せない場合は親Campaignを `blocked` にします。子Issue本文には親Campaign番号とtask IDを含め、子Issueには `run-weaver:campaign-task` を付けて通常task取得から除外します。
 
 Dispatcherはローカルstate fileの `campaign` を正本にして、依存関係が解決済みの次taskを選びます。taskごとに既存のclaim、worktree、tmux、Codex、draft PR flowを再利用します。Campaign taskは同じworktree上で `plan`、`implement`、`review`、`verify` の順にCodexを起動し、`verify` 完了後だけcommit、push、draft PR作成へ進みます。task完了後はPR URLをCampaign stateへ記録し、次taskへ進めます。
 

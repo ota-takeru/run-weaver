@@ -401,7 +401,7 @@ run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --
 
 主な処理:
 
-- `run-weaver:campaign` + `run-weaver:ready` ラベル付きのopen Campaign Issueを取得し、子Issueへtaskを展開
+- `run-weaver:campaign` + `run-weaver:ready` ラベル付きのopen Campaign Issueを取得し、Codex Plannerでrepo docs優先のtask graphを生成してから子Issueへ展開
 - 通常taskとして `run-weaver:ready` ラベル付きのopen IssueをIssue番号昇順で取得し、同じrepository内では最大1件だけ実行
 - 明確な依存関係がある通常Issueは、依存先Issueの完了とPR branchを確認してstacked PRとして実行
 - `running` ラベルと開始コメントを投稿
@@ -413,7 +413,7 @@ run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --
 - Issueへ結果コメントを投稿
 - `done` または `blocked` ラベルへ更新
 
-Campaign taskでは `plan`、`implement`、`review`、`verify` のphaseを順に実行します。phaseごとにstate配下の別ログディレクトリを使い、Codex reasoning effortはrunner設定内で `plan` / `review` をmedium、`implement` をlowとして渡せる場合だけCLI config overrideで渡します。
+Campaign開始時はまず `campaign.status: planning` としてCodex Plannerを非同期に起動します。Plannerはrepository docsと親Issue本文を読み、JSONの `tasks[]` / `decisions[]` を返します。JSON planの検証に通った場合だけ子Issueを作成します。Campaign taskでは `plan`、`implement`、`review`、`verify` のphaseを順に実行します。phaseごとにstate配下の別ログディレクトリを使い、Codex reasoning effortはrunner設定内で `campaign-planner` / `plan` / `review` をmedium、`implement` をlowとして渡せる場合だけCLI config overrideで渡します。
 
 Decision Requestへの回答は、親Campaign Issueコメント内の `run-weaver-decision:<decision-id>:<option>` を読み取り、state fileの `campaign.decisions[].answer` に保存します。
 

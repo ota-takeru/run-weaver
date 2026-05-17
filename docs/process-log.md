@@ -1,5 +1,23 @@
 # Process Log
 
+## 2026-05-17 - Codex Driven Campaign Planner
+
+Review:
+
+- Immediate fixes:
+  - Campaign開始時に子Issueを即作成せず、Codex PlannerをCampaign用worktreeで非同期起動するようにした。
+  - Planner promptはrepo docsとroadmap/progress/handoff系ファイルを優先して読ませ、親Issue本文を補助入力として扱うようにした。
+  - Planner最終応答のJSON `tasks[]` / `decisions[]` を検証し、通過後だけ子IssueとDecision Requestを作成するようにした。
+  - 不正JSON、空task、重複task ID、未知dependency、未知task参照decision、Planner state欠落、WSLでPlanner終了後にlast-messageが無い場合は親Campaignを `blocked` にするようにした。
+  - `status` のhuman / JSON outputに `campaign.status: planning` とPlanner tmux/log情報を表示するようにした。
+  - README、architecture、CLI docs、GitHub Issue flow、decision log、progress、handoffをCodex主導Planner仕様へ更新した。
+- Future tasks:
+  - `ota-takeru/truth-table-app` で「roadmap進めてください」形式の実GitHub E2Eを行う。
+  - 複数repository登録後の実GitHub Issue処理、Windows direct runner、release workflow、Doppler必須blocked確認を継続する。
+- Human-facing reports:
+  - Planner生成taskは人間承認なしで子Issue化される。人間判断が必要な箇所だけDecision Requestで止まる。
+  - 今回は実GitHub Issue、push、release tag、secret、外部アカウント設定には触れていない。
+
 ## 2026-05-17 - Truth Table App E2E And Campaign Context Fix
 
 Review:

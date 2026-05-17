@@ -2,10 +2,14 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、リリース前の残り実機確認です。
+現在の優先タスクは、Codex主導Campaign Planner導入後の統合確認です。
 
 Definition of Done:
 
+- `run-weaver:campaign` + `run-weaver:ready` の親Issueで、Codex Plannerがrepo docs優先でtask graph JSONを生成する
+- Planner完了後に子Issue、Decision Request、state上のCampaign progressが作成される
+- Planner不正出力では親Campaignを `blocked` にする
+- 実GitHub Campaign Issueで「roadmap進めてください」形式のE2Eを確認する
 - 複数repository登録後の実GitHub Issue処理を確認する
 - Windows target direct runnerを実機で確認する
 - self-updateとclone不要install手順のCI / release workflow結果を確認する
@@ -13,7 +17,7 @@ Definition of Done:
 
 Recommended Next Step:
 
-- `ota-takeru/truth-table-app` でのWSL E2Eは完了済み。次は複数repository登録後の実GitHub Issue処理、Windows direct runner実機確認、release workflow結果確認を進める。Doppler必須repoの実blocked確認は、secret値を出さずに検証できる対象repoを用意して行う。
+- `ota-takeru/truth-table-app` で、親Issue本文は大枠だけにしたCodex主導Campaign Planner E2Eを行う。Plannerがrepo docs優先でtask graph JSONを作り、子Issue化とDispatcher実行まで進むことを確認する。
 
 ## Completed
 
@@ -82,7 +86,7 @@ Recommended Next Step:
 - `run-weaver install --target wsl --repo-url <url>` でsystemd user serviceを作成または更新する処理を追加した
 - `install` / `daemon` の `--repo-url` 未指定時に、カレントディレクトリの `git remote get-url origin` から対象repository URLを自動推定するようにした
 - `run-weaver:campaign` + `run-weaver:ready` のCampaign Issue検出を追加した
-- Campaign PlannerがMarkdown roadmapからtask graphとdecision gateを抽出するようにした
+- Campaign Plannerがtask graphとdecision gateを抽出するようにした
 - Campaign taskを子Issueとして作成し、Decision Requestを親Issueへ投稿する処理を追加した
 - Campaign Dispatcherがstate上の次taskを選び、`plan` / `implement` / `review` / `verify` phaseでCodexを順に起動するようにした
 - Decision Requestへの `run-weaver-decision:<decision-id>:<option>` コメントを読み取ってstateへ保存するようにした
@@ -109,14 +113,17 @@ Recommended Next Step:
 - 実GitHub Issue `ota-takeru/truth-table-app#3` / `#4` で同一repository内のIssue番号順処理、依存待機、依存先branchをbaseにしたstacked draft PR #5 / #6作成を確認した
 - 実GitHub Campaign Issue `ota-takeru/truth-table-app#7` でCampaign検出、子Issue #8 / #9 作成、decision request、`plan` / `implement` / `review` / `verify` pipeline、draft PR #10 / #11作成、Campaign progress表示、decision gate停止/再開、Campaign子Issueの通常ready除外を確認した
 - Campaign task promptに親Campaign本文の詳細contextを含めるように修正し、Campaign planning時に既存の `completedIssues` を保持するようにした
+- Campaign開始時にCodex Plannerを非同期起動し、repo docs優先のJSON task graphを検証してから子Issue化する方式へ変更した
+- Planner出力の正常parse、不正JSON、空task、重複ID、未知dependency、未知task参照decision、Planner失敗blocked、planning status表示の単体テストを追加した
 
 ## Upcoming Sequence
 
-1. 複数repository登録後の実GitHub Issue処理確認
-2. Windows target direct runnerの実機確認
-3. self-updateとclone不要install手順のCI / release workflow結果確認
-4. Doppler必須repositoryでの実blocked確認
-5. `run-weaver:ready` 以外のフィルタ検討
+1. Codex主導Campaign Plannerの実GitHub E2E確認
+2. 複数repository登録後の実GitHub Issue処理確認
+3. Windows target direct runnerの実機確認
+4. self-updateとclone不要install手順のCI / release workflow結果確認
+5. Doppler必須repositoryでの実blocked確認
+6. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch
 

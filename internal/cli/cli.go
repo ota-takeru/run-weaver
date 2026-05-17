@@ -442,6 +442,7 @@ type statusCampaign struct {
 	Issue          issueRef           `json:"issue"`
 	Status         string             `json:"status"`
 	CurrentTaskID  string             `json:"currentTaskId,omitempty"`
+	Planner        *campaignPlanner   `json:"planner,omitempty"`
 	CompletedTasks []string           `json:"completedTasks,omitempty"`
 	Tasks          []campaignTask     `json:"tasks"`
 	Decisions      []campaignDecision `json:"decisions,omitempty"`

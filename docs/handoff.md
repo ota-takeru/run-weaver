@@ -43,7 +43,8 @@
 - `--repo` 未指定でも `--repo-url` がGitHub URLならowner/repoを自動推定し、互換用の単一repo daemon起動引数へ渡す。
 - `install` / `daemon` の `--repo-url` 未指定時は、通常 `repos.json` の登録repositoryを使う。対象repository内では `run-weaver repo add` で登録する。
 - Campaign Issueは `run-weaver:campaign` と `run-weaver:ready` の両方が付いたopen Issueとして検出する。
-- Campaign Plannerは親Issue本文のMarkdown箇条書きからtask graphを作り、通常taskを子Issueとして作成する。`decision`、`gate`、`判断`、`決定` を含む項目はDecision Requestとして親Issueへコメントする。
+- Campaign PlannerはCodexを非同期起動し、repo docs優先で親Issue本文とrepository内roadmap/docsを読ませ、JSON task graphを生成させる。
+- Planner JSONが有効な場合だけ通常taskを子Issueとして作成する。Planner不正出力、空task、ID重複、未知dependency、未知task参照decisionは親Campaignを `blocked` にする。
 - Campaign Dispatcherはstate fileの `campaign` を正本にし、依存関係が解けた次taskを `plan` / `implement` / `review` / `verify` の順に同じworktreeで実行する。
 - Campaign taskは `verify` 完了後にcommit、push、draft PR作成へ進み、PR URL、completed tasks、current taskをCampaign stateへ保存する。
 - Campaign task promptには親Campaign本文の詳細contextも含める。E2Eでroadmapの1行だけではtask詳細が落ちることを確認したため修正済み。
@@ -64,7 +65,7 @@
 
 ## Next Step
 
-複数repository運用は `run-weaver repo add` 後に実GitHub Issue処理を確認する。Windows direct runnerは実機で追加確認する。self-updateとclone不要installはtag push後のrelease workflow結果を確認する。Doppler必須repoの実blocked確認はsecret値を出さずに検証できる対象repoで行う。
+Codex主導Campaign Plannerの実GitHub E2Eを `ota-takeru/truth-table-app` で確認する。親Issue本文は大枠だけにし、repo docs優先でPlannerがtask graphを作ることを確認する。複数repository運用は `run-weaver repo add` 後に実GitHub Issue処理を確認する。Windows direct runnerは実機で追加確認する。self-updateとclone不要installはtag push後のrelease workflow結果を確認する。Doppler必須repoの実blocked確認はsecret値を出さずに検証できる対象repoで行う。
 
 ## Notes
 

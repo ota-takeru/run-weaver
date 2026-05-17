@@ -58,10 +58,23 @@ type stateCampaign struct {
 	Issue          issueRef           `json:"issue"`
 	Status         string             `json:"status"`
 	CurrentTaskID  string             `json:"currentTaskId,omitempty"`
+	Planner        *campaignPlanner   `json:"planner,omitempty"`
 	Tasks          []campaignTask     `json:"tasks"`
 	Decisions      []campaignDecision `json:"decisions,omitempty"`
 	PRs            []campaignPR       `json:"prs,omitempty"`
 	CompletedTasks []string           `json:"completedTasks,omitempty"`
+}
+
+type campaignPlanner struct {
+	Worktree        string      `json:"worktree"`
+	Branch          string      `json:"branch"`
+	ClaimID         string      `json:"claimId,omitempty"`
+	Tmux            *tmuxRef    `json:"tmux,omitempty"`
+	LastMessagePath string      `json:"lastMessagePath,omitempty"`
+	JSONLogPath     string      `json:"jsonLogPath,omitempty"`
+	StartedAt       string      `json:"startedAt"`
+	LastError       *string     `json:"lastError,omitempty"`
+	Codex           *codexState `json:"codex,omitempty"`
 }
 
 type campaignTask struct {

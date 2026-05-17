@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -10,9 +12,11 @@ import (
 )
 
 const (
+	campaignStatusPlanning         = "planning"
 	campaignStatusPlanned          = "planned"
 	campaignStatusRunning          = "running"
 	campaignStatusDecisionRequired = "decision_required"
+	campaignStatusBlocked          = "blocked"
 	campaignStatusDone             = "done"
 
 	campaignTaskPending   = "pending"
@@ -31,135 +35,15 @@ type campaignPlan struct {
 	Decisions []campaignDecision
 }
 
-func planCampaign(issue githubIssue) campaignPlan {
-	lines := strings.Split(issue.Body, "\n")
-	var tasks []campaignTask
-	var decisions []campaignDecision
-	seenTasks := map[string]int{}
-	seenDecisions := map[string]int{}
-	for _, line := range lines {
-		item, ok := roadmapItem(line)
-		if !ok {
-			continue
-		}
-		title, deps := splitDependencies(item)
-		if isDecisionGate(title) {
-			id := uniqueCampaignID("decision", title, seenDecisions)
-			decisions = append(decisions, campaignDecision{
-				ID:               id,
-				Title:            title,
-				Status:           "pending",
-				Options:          []string{"approve", "revise", "stop"},
-				Recommendation:   "approve",
-				BlockedTasks:     []string{},
-				CanContinueTasks: []string{},
-			})
-			continue
-		}
-		id := uniqueCampaignID("task", title, seenTasks)
-		tasks = append(tasks, campaignTask{
-			ID:           id,
-			Title:        title,
-			Body:         campaignTaskBody(item, issue.Body),
-			Status:       campaignTaskPending,
-			Dependencies: deps,
-			Phase:        pipelinePhasePlan,
-		})
-	}
-	if len(tasks) == 0 && strings.TrimSpace(issue.Body) != "" {
-		title := issue.Title
-		if title == "" {
-			title = "Campaign task"
-		}
-		tasks = append(tasks, campaignTask{
-			ID:     uniqueCampaignID("task", title, seenTasks),
-			Title:  title,
-			Body:   strings.TrimSpace(issue.Body),
-			Status: campaignTaskPending,
-			Phase:  pipelinePhasePlan,
-		})
-	}
-	linkDecisionTasks(tasks, decisions)
-	return campaignPlan{Tasks: tasks, Decisions: decisions}
-}
-
-func campaignTaskBody(item, campaignBody string) string {
-	item = strings.TrimSpace(item)
-	campaignBody = strings.TrimSpace(campaignBody)
-	if campaignBody == "" || campaignBody == item {
-		return item
-	}
-	return item + "\n\nCampaign context:\n" + campaignBody
-}
-
-var roadmapBulletRE = regexp.MustCompile(`^\s*(?:[-*]|\d+[.)])\s+(?:\[[ xX]\]\s*)?(.+?)\s*$`)
 var decisionAnswerRE = regexp.MustCompile(`run-weaver-decision:([a-z0-9-]+):([A-Za-z0-9_-]+)`)
-
-func roadmapItem(line string) (string, bool) {
-	matches := roadmapBulletRE.FindStringSubmatch(line)
-	if len(matches) != 2 {
-		return "", false
-	}
-	item := strings.TrimSpace(matches[1])
-	item = strings.TrimPrefix(item, "#")
-	item = strings.TrimSpace(item)
-	return item, item != ""
-}
-
-func splitDependencies(item string) (string, []string) {
-	for _, marker := range []string{"depends:", "Depends:", "after:", "After:"} {
-		index := strings.Index(item, marker)
-		if index < 0 {
-			continue
-		}
-		title := strings.TrimSpace(item[:index])
-		rawDeps := strings.Split(strings.TrimSpace(item[index+len(marker):]), ",")
-		deps := make([]string, 0, len(rawDeps))
-		for _, dep := range rawDeps {
-			dep = strings.TrimSpace(dep)
-			if dep != "" {
-				deps = append(deps, dep)
-			}
-		}
-		return title, deps
-	}
-	return item, nil
-}
-
-func isDecisionGate(title string) bool {
-	lower := strings.ToLower(title)
-	return strings.Contains(lower, "decision") ||
-		strings.Contains(lower, "gate") ||
-		strings.Contains(title, "判断") ||
-		strings.Contains(title, "決定")
-}
-
-func uniqueCampaignID(prefix, title string, seen map[string]int) string {
-	base := prefix + "-" + slugify(title)
-	seen[base]++
-	if seen[base] == 1 {
-		return base
-	}
-	return fmt.Sprintf("%s-%d", base, seen[base])
-}
-
-func linkDecisionTasks(tasks []campaignTask, decisions []campaignDecision) {
-	if len(decisions) == 0 {
-		return
-	}
-	taskIDs := make([]string, 0, len(tasks))
-	for _, task := range tasks {
-		taskIDs = append(taskIDs, task.ID)
-	}
-	for i := range decisions {
-		decisions[i].BlockedTasks = append([]string(nil), taskIDs...)
-	}
-}
 
 func processCampaign(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile) (string, bool, error) {
 	if state != nil && state.Campaign != nil {
 		if state.Job != nil {
 			return "", false, nil
+		}
+		if state.Campaign.Status == campaignStatusPlanning {
+			return completeCampaignPlanning(ctx, deps, opts, state)
 		}
 		return dispatchCampaignTask(ctx, deps, opts, state)
 	}
@@ -178,24 +62,124 @@ func processCampaign(ctx context.Context, deps daemonDeps, opts daemonOptions, s
 	if claim.Outcome != claimWon {
 		return fmt.Sprintf("campaign issue #%d claim %s", issue.Number, claim.Outcome), true, nil
 	}
-	planned, err := createCampaignState(ctx, deps.github, opts, claim.Issue)
+	completedIssues := currentCompletedIssues(state)
+	state, err = startCampaignPlanning(ctx, deps, opts, claim.Issue, claim.ClaimID)
 	if err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "campaign planner", err)
 		return "", true, err
 	}
-	planned.CompletedIssues = append([]completedIssue(nil), currentCompletedIssues(state)...)
-	if err := writeStateFile(opts.stateFilePath(), *planned); err != nil {
+	state.CompletedIssues = append([]completedIssue(nil), completedIssues...)
+	if err := writeStateFile(opts.stateFilePath(), *state); err != nil {
 		_ = markBlocked(ctx, deps.github, issue.Number, "campaign state file", err)
 		return "", true, err
 	}
-	if planned.Campaign.Status == campaignStatusDecisionRequired {
-		_ = markBlocked(ctx, deps.github, issue.Number, "campaign decision", fmt.Errorf("decision required"))
-	}
-	return fmt.Sprintf("planned campaign issue #%d with %d tasks", issue.Number, len(planned.Campaign.Tasks)), true, nil
+	return fmt.Sprintf("started campaign planner for issue #%d", issue.Number), true, nil
 }
 
-func createCampaignState(ctx context.Context, client githubClient, opts daemonOptions, issue githubIssue) (*stateFile, error) {
-	plan := planCampaign(issue)
+func startCampaignPlanning(ctx context.Context, deps daemonDeps, opts daemonOptions, issue githubIssue, claimID string) (*stateFile, error) {
+	spec, err := deps.worktree.PrepareForRepo(ctx, opts.target, opts.repo, issue, opts.repoURL)
+	if err != nil {
+		return nil, err
+	}
+	runSpec := buildCampaignPlannerRunSpec(opts.target, opts.repo, issue.Number, spec.Path)
+	if err := opts.prepareCodexRunSpec(&runSpec, spec.Path); err != nil {
+		return nil, err
+	}
+	if err := writeCampaignPlannerPromptFile(runSpec.PromptPath, issue); err != nil {
+		return nil, err
+	}
+	tmux, err := deps.runner.StartCodex(ctx, runSpec)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	return &stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        opts.target,
+		UpdatedAt:     now,
+		Daemon:        stateDaemon{Service: "run-weaver.service"},
+		Campaign: &stateCampaign{
+			Issue: issueRef{
+				Number:     issue.Number,
+				Title:      issue.Title,
+				URL:        issue.URL,
+				Repository: opts.repo,
+			},
+			Status: campaignStatusPlanning,
+			Planner: &campaignPlanner{
+				Worktree:        spec.Path,
+				Branch:          spec.Branch,
+				ClaimID:         claimID,
+				Tmux:            tmux,
+				LastMessagePath: runSpec.LastMessagePath,
+				JSONLogPath:     runSpec.JSONLogPath,
+				StartedAt:       now,
+				Codex: &codexState{
+					LastMessagePath: runSpec.LastMessagePath,
+					JSONLogPath:     runSpec.JSONLogPath,
+				},
+			},
+		},
+		Job:             nil,
+		CompletedIssues: []completedIssue{},
+	}, nil
+}
+
+func completeCampaignPlanning(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile) (string, bool, error) {
+	if state.Campaign.Planner == nil {
+		err := fmt.Errorf("campaign planner state is missing")
+		return blockCampaignPlanning(ctx, deps.github, opts, state, err)
+	}
+	plannerTmuxState := tmuxState(opts.target, state.Campaign.Planner.Tmux)
+	if plannerTmuxState == "window_exists" {
+		return "campaign planning", true, nil
+	}
+	if _, err := os.Stat(state.Campaign.Planner.LastMessagePath); err != nil {
+		if opts.target == "wsl" && plannerTmuxState == "window_missing" {
+			return blockCampaignPlanning(ctx, deps.github, opts, state, fmt.Errorf("campaign planner did not produce last-message JSON: %w", err))
+		}
+		return "campaign planning", true, nil
+	}
+	data, err := os.ReadFile(state.Campaign.Planner.LastMessagePath)
+	if err != nil {
+		return blockCampaignPlanning(ctx, deps.github, opts, state, err)
+	}
+	plan, err := parseCampaignPlannerOutput(data)
+	if err != nil {
+		return blockCampaignPlanning(ctx, deps.github, opts, state, err)
+	}
+	updated, err := createCampaignStateFromPlan(ctx, deps.github, opts, state, plan)
+	if err != nil {
+		return blockCampaignPlanning(ctx, deps.github, opts, state, err)
+	}
+	updated.CompletedIssues = append([]completedIssue(nil), state.CompletedIssues...)
+	if err := writeStateFile(opts.stateFilePath(), *updated); err != nil {
+		return "", true, err
+	}
+	if updated.Campaign.Status == campaignStatusDecisionRequired {
+		_ = markBlocked(ctx, deps.github, updated.Campaign.Issue.Number, "campaign decision", fmt.Errorf("decision required"))
+	}
+	return fmt.Sprintf("planned campaign issue #%d with %d tasks", updated.Campaign.Issue.Number, len(updated.Campaign.Tasks)), true, nil
+}
+
+func blockCampaignPlanning(ctx context.Context, client githubClient, opts daemonOptions, state *stateFile, cause error) (string, bool, error) {
+	message := cause.Error()
+	state.Campaign.Status = campaignStatusBlocked
+	if state.Campaign.Planner != nil {
+		state.Campaign.Planner.LastError = &message
+	}
+	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	_ = writeStateFile(opts.stateFilePath(), *state)
+	_ = markBlocked(ctx, client, state.Campaign.Issue.Number, "campaign planner", cause)
+	return "campaign planner blocked", true, cause
+}
+
+func createCampaignStateFromPlan(ctx context.Context, client githubClient, opts daemonOptions, state *stateFile, plan campaignPlan) (*stateFile, error) {
+	parent := githubIssue{
+		Number: state.Campaign.Issue.Number,
+		Title:  state.Campaign.Issue.Title,
+		URL:    state.Campaign.Issue.URL,
+	}
 	if err := client.EnsureLabel(ctx, readyLabel); err != nil {
 		return nil, err
 	}
@@ -206,7 +190,7 @@ func createCampaignState(ctx context.Context, client githubClient, opts daemonOp
 	for _, task := range plan.Tasks {
 		child, err := client.CreateIssue(ctx, issueCreateSpec{
 			Title:  task.Title,
-			Body:   campaignChildIssueBody(issue, task),
+			Body:   campaignChildIssueBody(parent, task),
 			Labels: []string{readyLabel, campaignTaskLabel},
 		})
 		if err != nil {
@@ -217,37 +201,33 @@ func createCampaignState(ctx context.Context, client githubClient, opts daemonOp
 		tasks = append(tasks, task)
 	}
 	decisions := plan.Decisions
-	canContinue := readyCampaignTaskIDs(tasks, map[string]bool{})
 	for i := range decisions {
-		decisions[i].CanContinueTasks = canContinue
-		decisions[i].BlockedTasks = taskIDsBlockedByDecision(tasks, canContinue)
-		if err := client.Comment(ctx, issue.Number, decisionRequestBody(decisions[i])); err != nil {
+		if decisions[i].Status == "" {
+			decisions[i].Status = "pending"
+		}
+		if err := client.Comment(ctx, parent.Number, decisionRequestBody(decisions[i])); err != nil {
 			return nil, err
 		}
 	}
 	status := campaignStatusPlanned
-	if len(decisions) > 0 && len(canContinue) == 0 {
+	if len(decisions) > 0 && !hasExecutableCampaignTask(tasks, decisions) {
 		status = campaignStatusDecisionRequired
 	}
-	state := &stateFile{
+	updated := &stateFile{
 		SchemaVersion: stateSchemaVersion,
 		Target:        opts.target,
 		UpdatedAt:     time.Now().UTC().Format(time.RFC3339),
 		Daemon:        stateDaemon{Service: "run-weaver.service"},
 		Job:           nil,
 		Campaign: &stateCampaign{
-			Issue: issueRef{
-				Number:     issue.Number,
-				Title:      issue.Title,
-				URL:        issue.URL,
-				Repository: opts.repo,
-			},
+			Issue:     state.Campaign.Issue,
+			Planner:   state.Campaign.Planner,
 			Status:    status,
 			Tasks:     tasks,
 			Decisions: decisions,
 		},
 	}
-	return state, nil
+	return updated, nil
 }
 
 func campaignChildIssueBody(parent githubIssue, task campaignTask) string {
@@ -293,7 +273,127 @@ func markdownList(values []string) string {
 	return strings.Join(lines, "\n")
 }
 
+type campaignPlannerOutput struct {
+	Tasks     []campaignPlannerTask     `json:"tasks"`
+	Decisions []campaignPlannerDecision `json:"decisions"`
+}
+
+type campaignPlannerTask struct {
+	ID           string   `json:"id"`
+	Title        string   `json:"title"`
+	Body         string   `json:"body"`
+	Dependencies []string `json:"dependencies"`
+}
+
+type campaignPlannerDecision struct {
+	ID               string   `json:"id"`
+	Title            string   `json:"title"`
+	Options          []string `json:"options"`
+	Recommendation   string   `json:"recommendation"`
+	BlockedTasks     []string `json:"blockedTasks"`
+	CanContinueTasks []string `json:"canContinueTasks"`
+}
+
+func parseCampaignPlannerOutput(data []byte) (campaignPlan, error) {
+	var raw campaignPlannerOutput
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return campaignPlan{}, fmt.Errorf("parse campaign planner JSON: %w", err)
+	}
+	if len(raw.Tasks) == 0 {
+		return campaignPlan{}, fmt.Errorf("campaign planner returned no tasks")
+	}
+	tasks := make([]campaignTask, 0, len(raw.Tasks))
+	taskIDs := map[string]bool{}
+	for _, rawTask := range raw.Tasks {
+		id := strings.TrimSpace(rawTask.ID)
+		title := strings.TrimSpace(rawTask.Title)
+		body := strings.TrimSpace(rawTask.Body)
+		if id == "" || title == "" || body == "" {
+			return campaignPlan{}, fmt.Errorf("campaign planner task must include id, title, and body")
+		}
+		if taskIDs[id] {
+			return campaignPlan{}, fmt.Errorf("duplicate campaign task id %q", id)
+		}
+		taskIDs[id] = true
+		tasks = append(tasks, campaignTask{
+			ID:           id,
+			Title:        title,
+			Body:         body,
+			Status:       campaignTaskPending,
+			Dependencies: trimStringSlice(rawTask.Dependencies),
+			Phase:        pipelinePhasePlan,
+		})
+	}
+	for _, task := range tasks {
+		for _, dependency := range task.Dependencies {
+			if dependency == task.ID {
+				return campaignPlan{}, fmt.Errorf("campaign task %q cannot depend on itself", task.ID)
+			}
+			if !taskIDs[dependency] {
+				return campaignPlan{}, fmt.Errorf("campaign task %q depends on unknown task %q", task.ID, dependency)
+			}
+		}
+	}
+	decisions := make([]campaignDecision, 0, len(raw.Decisions))
+	decisionIDs := map[string]bool{}
+	for _, rawDecision := range raw.Decisions {
+		id := strings.TrimSpace(rawDecision.ID)
+		title := strings.TrimSpace(rawDecision.Title)
+		if id == "" || title == "" {
+			return campaignPlan{}, fmt.Errorf("campaign decision must include id and title")
+		}
+		if decisionIDs[id] {
+			return campaignPlan{}, fmt.Errorf("duplicate campaign decision id %q", id)
+		}
+		decisionIDs[id] = true
+		options := trimStringSlice(rawDecision.Options)
+		if len(options) == 0 {
+			return campaignPlan{}, fmt.Errorf("campaign decision %q must include options", id)
+		}
+		blocked := trimStringSlice(rawDecision.BlockedTasks)
+		canContinue := trimStringSlice(rawDecision.CanContinueTasks)
+		for _, taskID := range append(append([]string{}, blocked...), canContinue...) {
+			if !taskIDs[taskID] {
+				return campaignPlan{}, fmt.Errorf("campaign decision %q references unknown task %q", id, taskID)
+			}
+		}
+		decisions = append(decisions, campaignDecision{
+			ID:               id,
+			Title:            title,
+			Status:           "pending",
+			Options:          options,
+			Recommendation:   strings.TrimSpace(rawDecision.Recommendation),
+			BlockedTasks:     blocked,
+			CanContinueTasks: canContinue,
+		})
+	}
+	return campaignPlan{Tasks: tasks, Decisions: decisions}, nil
+}
+
+func trimStringSlice(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func hasExecutableCampaignTask(tasks []campaignTask, decisions []campaignDecision) bool {
+	completed := completedTaskSet(tasks)
+	index := nextCampaignTaskIndex(tasks, completed)
+	if index < 0 {
+		return false
+	}
+	return campaignTaskAllowedByDecisions(tasks[index].ID, decisions)
+}
+
 func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile) (string, bool, error) {
+	if state.Campaign.Status == campaignStatusBlocked {
+		return "campaign blocked", true, nil
+	}
 	if state.Campaign.Status == campaignStatusDone {
 		return "", false, nil
 	}

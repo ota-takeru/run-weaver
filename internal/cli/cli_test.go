@@ -356,6 +356,44 @@ func TestStatusIncludesCampaignProgress(t *testing.T) {
 	}
 }
 
+func TestStatusIncludesCampaignPlanningState(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir)
+	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign"},
+			Status: campaignStatusPlanning,
+			Planner: &campaignPlanner{
+				Worktree:        "/tmp/worktree",
+				Branch:          "codex/issue-7-campaign",
+				Tmux:            &tmuxRef{Session: "run-weaver", Window: "campaign-7-planner"},
+				LastMessagePath: filepath.Join(tempDir, "last-message.txt"),
+				JSONLogPath:     filepath.Join(tempDir, "codex.jsonl"),
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result := collectStatus(newFakeGitHubClient(githubIssue{}))
+
+	if result.ExitCode != exitOK {
+		t.Fatalf("exit code = %d, want %d; output = %#v", result.ExitCode, exitOK, result.Output)
+	}
+	if result.Output.Campaign == nil || result.Output.Campaign.Status != campaignStatusPlanning || result.Output.Campaign.Planner == nil {
+		t.Fatalf("campaign = %#v", result.Output.Campaign)
+	}
+	var human strings.Builder
+	printStatusHuman(&human, result.Output)
+	if !strings.Contains(human.String(), "Status: planning") || !strings.Contains(human.String(), "Planner:") {
+		t.Fatalf("human status = %q", human.String())
+	}
+}
+
 func TestReadStateFileAcceptsSchemaVersionOne(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	if err := os.WriteFile(path, []byte(`{"schemaVersion":1,"target":"wsl","daemon":{},"job":null}`+"\n"), 0o600); err != nil {

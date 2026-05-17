@@ -11,6 +11,7 @@ import (
 )
 
 const tmuxSessionName = "run-weaver"
+const campaignPlannerPhase = "campaign-planner"
 
 type commandRunner interface {
 	Run(context.Context, string, ...string) error
@@ -140,6 +141,16 @@ func buildCodexRunSpecForRepo(target, repository string, issueNumber int, worktr
 	return buildCodexRunSpecForStatePath(stateFileForRepo(target, repository), issueNumber, worktree, phase, windowName)
 }
 
+func buildCampaignPlannerRunSpec(target, repository string, issueNumber int, worktree string) codexRunSpec {
+	spec := buildCodexRunSpecForRepo(target, repository, issueNumber, worktree, campaignPlannerPhase)
+	if repository != "" {
+		spec.WindowName = repoSlug(repository) + "-campaign-" + strconv.Itoa(issueNumber) + "-planner"
+	} else {
+		spec.WindowName = "campaign-" + strconv.Itoa(issueNumber) + "-planner"
+	}
+	return spec
+}
+
 func buildCodexRunSpecForStatePath(statePath string, issueNumber int, worktree string, phase string, windowName string) codexRunSpec {
 	issueStateDir := filepath.Join(filepath.Dir(statePath), "issues", strconv.Itoa(issueNumber))
 	if phase != "" {
@@ -252,7 +263,7 @@ func buildCodexPowerShellCommand(spec codexRunSpec) string {
 
 func codexReasoningConfig(phase string) string {
 	switch phase {
-	case pipelinePhasePlan, pipelinePhaseReview:
+	case pipelinePhasePlan, pipelinePhaseReview, campaignPlannerPhase:
 		return "-c model_reasoning_effort=\"medium\""
 	case pipelinePhaseImplement:
 		return "-c model_reasoning_effort=\"low\""

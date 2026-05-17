@@ -150,6 +150,58 @@ Follow the repository AGENTS.md instructions. For the plan phase, produce and ex
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 
+func writeCampaignPlannerPromptFile(path string, issue githubIssue) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	body := fmt.Sprintf(`# Campaign Planner
+
+GitHub Campaign Issue #%d
+Title: %s
+URL: %s
+
+Issue body:
+%s
+
+Relevant comments:
+%s
+
+You are planning a run-weaver Campaign. Inspect the repository before planning. Prefer repository documentation and roadmap/progress files over the issue body when they conflict. Useful places often include README files, docs/, roadmap, progress, handoff, architecture, and issue-flow documents, but do not assume fixed filenames.
+
+Return only valid JSON. Do not include Markdown fences or explanatory text.
+
+The JSON schema is:
+{
+  "tasks": [
+    {
+      "id": "task-short-kebab-case-id",
+      "title": "PR-sized task title",
+      "body": "Concrete task instructions for Codex. Include enough repo context for implementation.",
+      "dependencies": ["task-id-this-task-depends-on"]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "decision-short-kebab-case-id",
+      "title": "Decision needed from the human",
+      "options": ["approve", "revise", "stop"],
+      "recommendation": "approve",
+      "blockedTasks": ["task-id-blocked-by-this-decision"],
+      "canContinueTasks": ["task-id-that-can-run-before-the-answer"]
+    }
+  ]
+}
+
+Rules:
+- Make each task roughly one draft PR.
+- Use task IDs for dependencies.
+- Do not ask for human approval of the whole plan.
+- Add decisions only where implementation would otherwise require a product, architecture, cost, secret, account, permission, or irreversible choice.
+- If the request or docs are too ambiguous to plan safely, return a decision that blocks the ambiguous tasks instead of guessing.
+`, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments))
+	return os.WriteFile(path, []byte(body), 0o600)
+}
+
 func relevantIssueComments(comments []githubComment) string {
 	lines := make([]string, 0, len(comments))
 	for _, comment := range comments {

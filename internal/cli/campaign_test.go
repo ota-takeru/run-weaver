@@ -8,35 +8,65 @@ import (
 	"testing"
 )
 
-func TestPlanCampaignBuildsTasksAndDecisionGates(t *testing.T) {
-	plan := planCampaign(githubIssue{
-		Number: 1,
-		Title:  "Campaign",
-		Body: strings.Join([]string{
-			"- Build planner",
-			"- Decision gate: choose retry policy",
-			"- Add dispatcher depends: task-build-planner",
-		}, "\n"),
-	})
+func TestParseCampaignPlannerOutputBuildsTasksAndDecisionGates(t *testing.T) {
+	plan, err := parseCampaignPlannerOutput([]byte(`{
+		"tasks": [
+			{"id": "task-build-planner", "title": "Build planner", "body": "Implement planner.", "dependencies": []},
+			{"id": "task-add-dispatcher", "title": "Add dispatcher", "body": "Implement dispatcher.", "dependencies": ["task-build-planner"]}
+		],
+		"decisions": [
+			{
+				"id": "decision-retry-policy",
+				"title": "Choose retry policy",
+				"options": ["approve", "revise", "stop"],
+				"recommendation": "approve",
+				"blockedTasks": ["task-add-dispatcher"],
+				"canContinueTasks": ["task-build-planner"]
+			}
+		]
+	}`))
 
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(plan.Tasks) != 2 {
 		t.Fatalf("tasks = %#v, want 2", plan.Tasks)
 	}
 	if plan.Tasks[0].ID != "task-build-planner" {
 		t.Fatalf("task id = %q", plan.Tasks[0].ID)
 	}
-	if len(plan.Decisions) != 1 || plan.Decisions[0].ID != "decision-decision-gate-choose-retry-policy" {
+	if len(plan.Decisions) != 1 || plan.Decisions[0].ID != "decision-retry-policy" {
 		t.Fatalf("decisions = %#v", plan.Decisions)
 	}
 	if len(plan.Tasks[1].Dependencies) != 1 || plan.Tasks[1].Dependencies[0] != "task-build-planner" {
 		t.Fatalf("dependencies = %#v", plan.Tasks[1].Dependencies)
 	}
-	if !strings.Contains(plan.Tasks[0].Body, "Campaign context:") || !strings.Contains(plan.Tasks[0].Body, "Add dispatcher") {
-		t.Fatalf("task body = %q, want campaign context", plan.Tasks[0].Body)
+	if len(plan.Decisions[0].BlockedTasks) != 1 || plan.Decisions[0].BlockedTasks[0] != "task-add-dispatcher" {
+		t.Fatalf("blocked tasks = %#v", plan.Decisions[0].BlockedTasks)
 	}
 }
 
-func TestProcessOneIssuePlansCampaignAndCreatesChildIssues(t *testing.T) {
+func TestParseCampaignPlannerOutputRejectsInvalidPlans(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"invalid json", `{not-json`},
+		{"empty tasks", `{"tasks":[]}`},
+		{"duplicate task", `{"tasks":[{"id":"task-a","title":"A","body":"A"},{"id":"task-a","title":"B","body":"B"}]}`},
+		{"unknown dependency", `{"tasks":[{"id":"task-a","title":"A","body":"A","dependencies":["task-missing"]}]}`},
+		{"unknown decision task", `{"tasks":[{"id":"task-a","title":"A","body":"A"}],"decisions":[{"id":"decision-a","title":"A","options":["approve"],"blockedTasks":["task-missing"]}]}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := parseCampaignPlannerOutput([]byte(tc.body)); err == nil {
+				t.Fatal("expected error")
+			}
+		})
+	}
+}
+
+func TestProcessOneIssueStartsCampaignPlannerOnly(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
 	t.Setenv("XDG_DATA_HOME", tempDir+"/data")
@@ -57,37 +87,64 @@ func TestProcessOneIssuePlansCampaignAndCreatesChildIssues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(result, "planned campaign issue #7") {
+	if !strings.Contains(result, "started campaign planner for issue #7") {
 		t.Fatalf("result = %q", result)
 	}
-	if len(github.createdIssues) != 1 {
-		t.Fatalf("created issues = %#v, want 1 child task", github.createdIssues)
-	}
-	if !strings.Contains(github.createdIssues[0].Body, "Parent campaign: #7") {
-		t.Fatalf("child body = %q", github.createdIssues[0].Body)
-	}
-	if !slicesEqual(github.createdIssues[0].Labels, []string{readyLabel, campaignTaskLabel}) {
-		t.Fatalf("child labels = %#v", github.createdIssues[0].Labels)
+	if len(github.createdIssues) != 0 {
+		t.Fatalf("created issues = %#v, want no child task before planner completes", github.createdIssues)
 	}
 	state, err := readStateFile(defaultStateFile("wsl"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state.Campaign == nil || len(state.Campaign.Tasks) != 1 || len(state.Campaign.Decisions) != 1 {
+	if state.Campaign == nil || state.Campaign.Status != campaignStatusPlanning || state.Campaign.Planner == nil {
 		t.Fatalf("campaign state = %#v", state.Campaign)
 	}
-	if !strings.Contains(github.comments[len(github.comments)-1].Body, "## blocked tasks") {
-		t.Fatalf("comments = %#v, want decision request", github.comments)
+	if state.Campaign.Tasks != nil {
+		t.Fatalf("campaign tasks = %#v, want nil until planner completes", state.Campaign.Tasks)
+	}
+	promptPath := strings.TrimSuffix(state.Campaign.Planner.Codex.LastMessagePath, "last-message.txt") + "campaign-planner-prompt.md"
+	if !strings.Contains(readFileString(t, promptPath), "Return only valid JSON") {
+		t.Fatalf("planner prompt was not written")
 	}
 }
 
-func TestProcessOneIssuePlansCampaignPreservesCompletedIssues(t *testing.T) {
+func readFileString(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func TestCampaignPlannerCompletionCreatesChildIssues(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
 	t.Setenv("XDG_DATA_HOME", tempDir+"/data")
+	lastMessage := filepath.Join(tempDir, "planner-last-message.json")
+	if err := os.WriteFile(lastMessage, []byte(`{
+		"tasks": [
+			{"id": "task-add-planner", "title": "Add planner", "body": "Implement planner.", "dependencies": []},
+			{"id": "task-add-dispatcher", "title": "Add dispatcher", "body": "Implement dispatcher.", "dependencies": ["task-add-planner"]}
+		],
+		"decisions": [
+			{"id": "decision-api", "title": "Choose API", "options": ["approve", "revise", "stop"], "recommendation": "approve", "blockedTasks": ["task-add-dispatcher"], "canContinueTasks": ["task-add-planner"]}
+		]
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
 		SchemaVersion: stateSchemaVersion,
 		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign"},
+			Status: campaignStatusPlanning,
+			Planner: &campaignPlanner{
+				LastMessagePath: lastMessage,
+				Tmux:            &tmuxRef{Session: "run-weaver", Window: "missing"},
+			},
+		},
 		CompletedIssues: []completedIssue{{
 			Issue:  issueRef{Number: 3, Title: "Done"},
 			Branch: "codex/issue-3-done",
@@ -96,15 +153,9 @@ func TestProcessOneIssuePlansCampaignPreservesCompletedIssues(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	github := newFakeGitHubClient(githubIssue{
-		Number: 7,
-		Title:  "Campaign",
-		Body:   "- Add planner",
-		URL:    "https://github.com/example/repo/issues/7",
-		Labels: []githubLabel{{Name: readyLabel}, {Name: campaignLabel}},
-	})
+	github := newFakeGitHubClient(githubIssue{Number: 7, Title: "Campaign"})
 
-	_, err := processOneIssue(daemonDeps{
+	result, err := processOneIssue(daemonDeps{
 		github:   github,
 		worktree: newWorktreeManager(&fakeCommandRunner{}),
 		runner:   newTmuxRunner(&fakeCommandRunner{}),
@@ -113,12 +164,159 @@ func TestProcessOneIssuePlansCampaignPreservesCompletedIssues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !strings.Contains(result, "planned campaign issue #7 with 2 tasks") {
+		t.Fatalf("result = %q", result)
+	}
+	if len(github.createdIssues) != 2 {
+		t.Fatalf("created issues = %#v, want 2 child tasks", github.createdIssues)
+	}
+	if !strings.Contains(github.createdIssues[0].Body, "Parent campaign: #7") {
+		t.Fatalf("child body = %q", github.createdIssues[0].Body)
+	}
+	if !slicesEqual(github.createdIssues[0].Labels, []string{readyLabel, campaignTaskLabel}) {
+		t.Fatalf("child labels = %#v", github.createdIssues[0].Labels)
+	}
+	if !strings.Contains(github.comments[len(github.comments)-1].Body, "## blocked tasks") {
+		t.Fatalf("comments = %#v, want decision request", github.comments)
+	}
 	updated, err := readStateFile(defaultStateFile("wsl"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	if updated.Campaign == nil || updated.Campaign.Status != campaignStatusPlanned || len(updated.Campaign.Tasks) != 2 || len(updated.Campaign.Decisions) != 1 {
+		t.Fatalf("campaign state = %#v", updated.Campaign)
+	}
 	if len(updated.CompletedIssues) != 1 || updated.CompletedIssues[0].Issue.Number != 3 {
 		t.Fatalf("completed issues = %#v", updated.CompletedIssues)
+	}
+}
+
+func TestCampaignPlannerInvalidOutputBlocksParent(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	lastMessage := filepath.Join(tempDir, "planner-last-message.json")
+	if err := os.WriteFile(lastMessage, []byte(`{"tasks":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign"},
+			Status: campaignStatusPlanning,
+			Planner: &campaignPlanner{
+				LastMessagePath: lastMessage,
+				Tmux:            &tmuxRef{Session: "run-weaver", Window: "missing"},
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{Number: 7, Title: "Campaign"})
+
+	_, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(&fakeCommandRunner{}),
+		runner:   newTmuxRunner(&fakeCommandRunner{}),
+	}, daemonOptions{target: "wsl", repoURL: "https://github.com/example/repo.git"})
+
+	if err == nil {
+		t.Fatal("expected planner error")
+	}
+	updated, readErr := readStateFile(defaultStateFile("wsl"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if updated.Campaign.Status != campaignStatusBlocked || updated.Campaign.Planner.LastError == nil {
+		t.Fatalf("campaign = %#v", updated.Campaign)
+	}
+	if !github.added[blockedLabel] {
+		t.Fatal("campaign parent should be marked blocked")
+	}
+}
+
+func TestCampaignPlannerMissingOutputBlocksParent(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign"},
+			Status: campaignStatusPlanning,
+			Planner: &campaignPlanner{
+				LastMessagePath: filepath.Join(tempDir, "missing-last-message.json"),
+				Tmux:            &tmuxRef{Session: "run-weaver", Window: "missing"},
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{Number: 7, Title: "Campaign"})
+
+	_, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(&fakeCommandRunner{}),
+		runner:   newTmuxRunner(&fakeCommandRunner{}),
+	}, daemonOptions{target: "wsl", repoURL: "https://github.com/example/repo.git"})
+
+	if err == nil {
+		t.Fatal("expected planner error")
+	}
+	updated, readErr := readStateFile(defaultStateFile("wsl"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if updated.Campaign.Status != campaignStatusBlocked || updated.Campaign.Planner.LastError == nil {
+		t.Fatalf("campaign = %#v", updated.Campaign)
+	}
+	if !strings.Contains(*updated.Campaign.Planner.LastError, "did not produce") {
+		t.Fatalf("last error = %q", *updated.Campaign.Planner.LastError)
+	}
+	if !github.added[blockedLabel] {
+		t.Fatal("campaign parent should be marked blocked")
+	}
+}
+
+func TestCampaignPlannerMissingOutputKeepsPlanningForDirectRunner(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	if err := writeStateFile(defaultStateFile("windows"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "windows",
+		Campaign: &stateCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign"},
+			Status: campaignStatusPlanning,
+			Planner: &campaignPlanner{
+				LastMessagePath: filepath.Join(tempDir, "missing-last-message.json"),
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{Number: 7, Title: "Campaign"})
+
+	result, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(&fakeCommandRunner{}),
+		runner:   newDirectRunner("windows", &fakeCommandRunner{}),
+	}, daemonOptions{target: "windows", repoURL: "https://github.com/example/repo.git"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result != "campaign planning" {
+		t.Fatalf("result = %q", result)
+	}
+	updated, readErr := readStateFile(defaultStateFile("windows"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if updated.Campaign.Status != campaignStatusPlanning {
+		t.Fatalf("campaign = %#v", updated.Campaign)
+	}
+	if github.added[blockedLabel] {
+		t.Fatal("direct runner planner should not be marked blocked while output is still absent")
 	}
 }
 
