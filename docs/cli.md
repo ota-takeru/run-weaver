@@ -21,7 +21,7 @@ run-weaver doctor --target wsl --json
 - `git` の有無
 - `gh` の有無とGitHub auth状態
 - `codex` の有無と認証状態
-- `doppler` の有無とtokenまたは設定状態。Doppler必須repositoryのみ必須
+- `doppler` の有無と `doppler run` の実行可否。Doppler必須repositoryのみ必須
 - WSL targetの場合は `tmux` の有無
 - WSL targetの場合は `systemctl --user` が利用可能で、systemd user serviceを登録できること
 - Codex専用cloneの存在
@@ -83,7 +83,7 @@ JSON出力例:
 }
 ```
 
-`overall` と各checkの `status` は `ok`、`warn`、`missing`、`auth_required`、`blocked` のいずれかです。`warn` だけなら終了コードは `0` にします。`doctor --repo owner/repo` はrepo設定の `dopplerMode` とrepo rootのDoppler設定ファイルを見てDoppler必須性を判定します。
+`overall` と各checkの `status` は `ok`、`warn`、`missing`、`auth_required`、`blocked` のいずれかです。`warn` だけなら終了コードは `0` にします。`doctor --repo owner/repo` はrepo設定の `dopplerMode` とrepo rootのDoppler設定ファイルを見てDoppler必須性を判定し、必須repositoryでは `doppler run -- git --version` が通ることまで確認します。設定ファイルがあるだけでは認証済みとは扱いません。
 
 終了コード:
 
@@ -427,7 +427,7 @@ Codex CLI起動の初期仕様:
 - tmux window終了後にJSONLログが `codex: command not found` などCodex起動失敗を示す場合は、stuckした `running` のままにせず `blocked` とする
 - JSONLログがrate limitを示し、Codex session idを取得できる場合は `blocked` にせず、次回pollで `codex exec resume <session>` により同じworktreeと前回sessionから再開する
 - session idを取得できない場合でも、同じworktreeへ移動して `codex exec resume --last` を試す
-- Doppler必須repositoryでDoppler CLIまたは認証がない場合はCodex起動前に `blocked` とし、Doppler不要repositoryではDoppler未インストールでも続行する
+- Doppler必須repositoryでDoppler CLIまたは `doppler run` 可能な認証/設定がない場合はCodex起動前に `blocked` とし、Doppler不要repositoryではDoppler未インストールでも続行する
 - Codexに渡すDoppler service tokenは環境変数から注入し、ログ、Issueコメント、PR本文、state fileには値を出さない
 
 WSL targetでは、この `codex exec` をtmux window内で起動します。`run-weaver install --target wsl` は実行時PATHをsystemd user serviceの `Environment=PATH=...` に保存し、nvmなどユーザーPATH上の `codex` もserviceから見えるようにします。tmux session名は `run-weaver`、window名は単一repo互換では `issue-<number>`、repo登録経由では `<repo-slug>-issue-<number>` とします。Windows targetではtmuxを使わず、PowerShell経由のdirect runnerでCodexを非同期起動します。

@@ -58,16 +58,24 @@ func checkDopplerReady(required bool, repoRoot string) doctorCheck {
 	if _, err := lookPath("doppler"); err != nil {
 		return newDoctorCheck("doppler", "doppler", "missing", "doppler is required but not found in PATH")
 	}
-	if os.Getenv("DOPPLER_TOKEN") != "" {
-		return newDoctorCheck("doppler", "doppler", "ok", "DOPPLER_TOKEN is set")
+
+	probeDir := existingDir(repoRoot)
+	if err := probeDopplerRun(probeDir); err == nil {
+		if os.Getenv("DOPPLER_TOKEN") != "" {
+			return newDoctorCheck("doppler", "doppler", "ok", "DOPPLER_TOKEN is set and doppler run works")
+		}
+		if hasDopplerConfig(repoRoot) {
+			return newDoctorCheck("doppler", "doppler", "ok", "repository Doppler config works")
+		}
+		return newDoctorCheck("doppler", "doppler", "ok", "local Doppler config works")
 	}
 	if hasDopplerConfig(repoRoot) {
-		return newDoctorCheck("doppler", "doppler", "ok", "repository Doppler config found")
+		return newDoctorCheck("doppler", "doppler", "auth_required", "repository Doppler config was found, but doppler run failed")
 	}
-	if err := runShortCommand("doppler", "configure", "get", "project"); err != nil {
-		return newDoctorCheck("doppler", "doppler", "auth_required", "doppler is required but DOPPLER_TOKEN is not set and local config was not found")
+	if os.Getenv("DOPPLER_TOKEN") != "" {
+		return newDoctorCheck("doppler", "doppler", "auth_required", "DOPPLER_TOKEN is set, but doppler run failed")
 	}
-	return newDoctorCheck("doppler", "doppler", "ok", "local Doppler config found")
+	return newDoctorCheck("doppler", "doppler", "auth_required", "doppler is required but DOPPLER_TOKEN is not set and doppler run failed")
 }
 
 func requireDopplerForCodex(mode, repoRoot string) error {
@@ -80,4 +88,19 @@ func requireDopplerForCodex(mode, repoRoot string) error {
 		return fmt.Errorf("%s: %s", check.Status, check.Message)
 	}
 	return nil
+}
+
+func probeDopplerRun(dir string) error {
+	_, err := runShortCommandInDir(dir, "doppler", "run", "--", "git", "--version")
+	return err
+}
+
+func existingDir(path string) string {
+	if path == "" {
+		return ""
+	}
+	if info, err := os.Stat(path); err == nil && info.IsDir() {
+		return path
+	}
+	return ""
 }

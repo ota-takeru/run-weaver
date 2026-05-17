@@ -1,5 +1,23 @@
 # Process Log
 
+## 2026-05-18 - Release Readiness Audit
+
+Review:
+
+- Immediate fixes:
+  - Doppler必須repositoryで `doppler.yaml` などの設定ファイルがあるだけで認証OK扱いになる穴を修正した。
+  - 必須repositoryではCodex起動前に `doppler run -- git --version` を実行し、失敗時は `auth_required` / `blocked` として止めるようにした。
+  - Doppler事前検査の単体テストを追加し、CLI / architecture / progress / handoffを更新した。
+  - `go test ./...`、`go test -race ./...`、`go vet ./...`、Linux / Windows amd64 / arm64のrelease相当cross-buildを確認した。
+  - latest release v0.1.2のasset取得、release binaryの `--help`、`update --check` の最新/更新あり判定を確認した。
+- Future tasks:
+  - 実GitHub Issueへのdaemon実行、Windows実機direct runner、Doppler必須repoの実blocked確認は、外部書き込みや実機環境が必要なため継続する。
+  - 現branchは `origin/main` より1 commit進んだ状態からさらに未コミット修正を持つため、`scripts/release.sh` のdry-runはremote HEAD一致ガードで停止した。push判断後に再実行する。
+- Human-facing reports:
+  - `ota-takeru/run-weaver#1` は `running` ラベル付きだがtmux windowがなく、JSONLに `codex: command not found` が残っている。更新後daemon pollで `blocked` へ寄せるか、人間が `running` を外して再投入する必要がある。
+  - latest release v0.1.2のasset自体は取得・起動できるが、今回のDoppler修正は未リリースのため、次releaseへ含める必要がある。
+  - 今回はtag push、GitHub Release作成、Issueラベル/コメント変更、draft PR作成、secret表示、外部アカウント設定変更は行っていない。
+
 ## 2026-05-17 - WSL Codex PATH Startup Handling
 
 Review:

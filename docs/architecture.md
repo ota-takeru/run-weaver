@@ -64,7 +64,7 @@ Codexは人間用 `src` を直接触りません。Codex専用cloneを作り、I
 
 Dopplerが必要なrepositoryでは、DB認証情報や環境変数をDopplerで一元管理します。CodexにはDoppler service token `dev-agent` だけを渡します。
 
-repo設定の `dopplerMode` は `auto`、`required`、`optional` のいずれかです。`auto` ではrepo rootの `doppler.yaml`、`doppler.yml`、`.doppler.yaml`、`.doppler.yml` を検出した場合だけDoppler必須とします。必須repositoryでDoppler CLIや認証がない場合、agentはCodex起動前にIssueを `blocked` にします。Doppler不要repositoryではDoppler未インストールでも通常の `codex exec` で進めます。service tokenやsecretの実体をログ、Issueコメント、PR本文には出しません。
+repo設定の `dopplerMode` は `auto`、`required`、`optional` のいずれかです。`auto` ではrepo rootの `doppler.yaml`、`doppler.yml`、`.doppler.yaml`、`.doppler.yml` を検出した場合だけDoppler必須とします。必須repositoryでDoppler CLIや `doppler run` 可能な認証/設定がない場合、agentはCodex起動前にIssueを `blocked` にします。Doppler設定ファイルがあるだけでは認証済みとは扱いません。Doppler不要repositoryではDoppler未インストールでも通常の `codex exec` で進めます。service tokenやsecretの実体をログ、Issueコメント、PR本文には出しません。
 
 ### Runner
 

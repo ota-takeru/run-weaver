@@ -20,6 +20,7 @@ const (
 )
 
 var runShortCommandOutput = defaultRunShortCommandOutput
+var runShortCommandInDir = defaultRunShortCommandInDir
 var lookPath = exec.LookPath
 
 type doctorResult struct {
@@ -353,9 +354,16 @@ func runShortCommand(name string, args ...string) error {
 }
 
 func defaultRunShortCommandOutput(name string, args ...string) ([]byte, error) {
+	return defaultRunShortCommandInDir("", name, args...)
+}
+
+func defaultRunShortCommandInDir(dir, name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
