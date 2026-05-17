@@ -1,5 +1,21 @@
 # Process Log
 
+## 2026-05-18 - Rate Limit Status False Positive
+
+Review:
+
+- Immediate fixes:
+  - `ota-takeru/run-weaver#2` のJSONLログでは、Codexが読んだdocs本文やdiff内の `rate limit` 文言が `aggregated_output` に残っており、実際のCodex rate limit errorではないことを確認した。
+  - `codexLogLooksRateLimited` をログ全体の単純な文字列検索から、JSONLのトップレベル `error` またはfailure/error系eventのmessage/details/errorだけを見る判定へ絞った。
+  - `last-message.txt` が存在する完了済みjobではrate limit resumeより完了処理を優先し、`status` でも `codex_completed` を `rate_limited_waiting` より優先するようにした。
+  - command output内の `rate limit` 文言では誤検出しないテストと、実error eventは検出するテストを追加した。
+  - `GOCACHE=/tmp/run-weaver-go-build-cache go test ./internal/cli -run 'RateLimited|RateLimit|CodexLogLooksRateLimited'` と `GOCACHE=/tmp/run-weaver-go-build-cache go test ./...` で確認した。
+- Future tasks:
+  - Codex CLIのJSONL error schemaが変わった場合は、rate limit判定対象のevent type / fieldを追加する。
+- Human-facing reports:
+  - 今回の `rate_limited_waiting` はrate limit残量不足ではなく、ログ本文検索による誤検出だった。
+  - 実GitHub Issueへのコメント投稿、ラベル変更、push、release作成、secret表示は行っていない。
+
 ## 2026-05-18 - Rate Limit Issue Communication
 
 Review:

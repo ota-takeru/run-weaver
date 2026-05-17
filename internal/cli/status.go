@@ -370,11 +370,11 @@ func jobRuntimeState(output statusOutput) string {
 	case doneLabel:
 		return "done"
 	case runningLabel:
-		if codexRateLimited(output.Job) && output.Reconciliation.TmuxState != "window_exists" {
-			return "rate_limited_waiting"
-		}
 		if codexLastMessageExists(output.Job) && output.Reconciliation.TmuxState != "window_exists" {
 			return "codex_completed"
+		}
+		if codexRateLimited(output.Job) && output.Reconciliation.TmuxState != "window_exists" {
+			return "rate_limited_waiting"
 		}
 		if output.Reconciliation.TmuxState == "window_exists" {
 			return "codex_running"

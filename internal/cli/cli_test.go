@@ -537,6 +537,47 @@ func TestStatusRuntimeStateRateLimitedWaiting(t *testing.T) {
 	}
 }
 
+func TestStatusRuntimeStateCompletedWinsOverRateLimitText(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir)
+	lastMessage := filepath.Join(tempDir, "last-message.txt")
+	if err := os.WriteFile(lastMessage, []byte("done"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	jsonLog := filepath.Join(tempDir, "codex.jsonl")
+	logLine := `{"type":"item.completed","item":{"type":"command_execution","aggregated_output":"docs mention rate limit handling"}}` + "\n"
+	if err := os.WriteFile(jsonLog, []byte(logLine), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add export"},
+			LabelState: runningLabel,
+			Tmux:       &tmuxRef{Session: "run-weaver", Window: "issue-42"},
+			Codex:      &codexState{JSONLogPath: jsonLog, LastMessagePath: lastMessage},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		return nil, errors.New("tmux window missing")
+	})
+	defer restoreCommands()
+
+	result := collectStatus(newFakeGitHubClient(githubIssue{
+		Number: 42,
+		Labels: []githubLabel{{Name: runningLabel}},
+	}))
+
+	if result.Output.Job == nil || result.Output.Job.RuntimeState != "codex_completed" {
+		t.Fatalf("job = %#v, want codex_completed", result.Output.Job)
+	}
+}
+
 func TestWindowsProcessRunningParsesTasklistCSV(t *testing.T) {
 	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
 		if name != "tasklist" {

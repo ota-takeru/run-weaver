@@ -423,3 +423,83 @@ func TestCompleteCurrentJobResumesRateLimitedCodexWithLastFallback(t *testing.T)
 		t.Fatalf("commands = %#v, want resume --last", commands.calls)
 	}
 }
+
+func TestCompleteCurrentJobDoesNotResumeCompletedLogThatMentionsRateLimit(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	lastMessage := tempDir + "/last-message.txt"
+	if err := os.WriteFile(lastMessage, []byte("done"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	jsonLog := tempDir + "/codex.jsonl"
+	logLine := `{"type":"item.completed","item":{"type":"command_execution","aggregated_output":"docs mention rate limit resume behavior"}}` + "\n"
+	if err := os.WriteFile(jsonLog, []byte(logLine), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add export"},
+			LabelState: runningLabel,
+			Branch:     "codex/issue-42-add-export",
+			Worktree:   tempDir + "/worktrees/issue-42",
+			Codex: &codexState{
+				JSONLogPath:     jsonLog,
+				LastMessagePath: lastMessage,
+			},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{Number: 42, Title: "Add export"})
+	commands := &fakeCommandRunner{
+		outputs: map[string][]byte{
+			"git\x00-C\x00" + tempDir + "/worktrees/issue-42\x00status\x00--porcelain": []byte(" M docs/progress.md\n"),
+		},
+	}
+
+	result, completed, err := completeCurrentJob(context.Background(), daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !completed || !strings.Contains(result, "completed issue #42") {
+		t.Fatalf("result = %q completed = %v, want completed issue", result, completed)
+	}
+	if commands.ranPrefix("tmux", "new-window") {
+		t.Fatalf("commands = %#v, should not resume completed log", commands.calls)
+	}
+	if len(github.comments) != 1 || !strings.Contains(github.comments[0].Body, "run-weaver completed this issue") {
+		t.Fatalf("comments = %#v, want completion comment only", github.comments)
+	}
+}
+
+func TestCodexLogLooksRateLimitedIgnoresCommandOutputMentions(t *testing.T) {
+	path := t.TempDir() + "/codex.jsonl"
+	log := `{"type":"item.completed","item":{"type":"command_execution","aggregated_output":"docs mention rate limit handling"}}` + "\n"
+	if err := os.WriteFile(path, []byte(log), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if codexLogLooksRateLimited(path) {
+		t.Fatal("command output mentioning rate limit should not be treated as a Codex rate limit")
+	}
+}
+
+func TestCodexLogLooksRateLimitedDetectsErrorEvents(t *testing.T) {
+	path := t.TempDir() + "/codex.jsonl"
+	log := `{"type":"turn.failed","error":{"message":"rate limit reached"}}` + "\n"
+	if err := os.WriteFile(path, []byte(log), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if !codexLogLooksRateLimited(path) {
+		t.Fatal("rate limit error event should be detected")
+	}
+}

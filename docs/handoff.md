@@ -60,6 +60,7 @@
 - Windows targetのCodex起動はtmuxではなくdirect runnerに分岐する。WSL targetはtmux runnerを継続する。
 - WSLでtmux windowが終了し、JSONLログが `codex: command not found` などCodex起動失敗を示す場合、daemonは stuckした `running` のままにせずIssue/stateを `blocked` に更新する。
 - rate limit resume attemptは `blocked` にせず `running` のまま扱い、Issueコメントにattempt番号、session、worktree、JSONLログpath、検出時刻を残す。state fileでは `retryCount`、`lastGitHubCommentAt`、`lastError` を更新する。secret値やJSONLログ本文はIssueコメントに載せない。
+- rate limit判定はJSONLログ全体の文字列検索ではなく、トップレベル `error` またはfailure/error系eventのmessage/details/errorだけを対象にする。docs本文やcommand outputに `rate limit` が含まれるだけでは `rate_limited_waiting` にしない。`last-message.txt` がある場合は完了を優先する。
 - Campaign子Issueには `run-weaver:campaign-task` を付け、通常ready Issue取得から除外する。
 - pending decision gateがある場合、Dispatcherは `can continue tasks` に含まれるtaskだけを実行し、それ以外は `decision_required` で停止する。
 - 同一repository内の通常IssueはIssue番号昇順で評価し、repo内では常に最大1 jobだけ実行する。

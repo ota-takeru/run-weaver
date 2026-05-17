@@ -137,6 +137,9 @@ func resumeRateLimitedCodex(ctx context.Context, deps daemonDeps, opts daemonOpt
 	if tmuxState(opts.target, state.Job.Tmux) == "window_exists" {
 		return false, nil
 	}
+	if _, err := os.Stat(state.Job.Codex.LastMessagePath); err == nil {
+		return false, nil
+	}
 	if !codexLogLooksRateLimited(state.Job.Codex.JSONLogPath) {
 		return false, nil
 	}
@@ -226,7 +229,59 @@ func codexLogLooksRateLimited(path string) bool {
 	if err != nil {
 		return false
 	}
-	text := strings.ToLower(string(data))
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var value any
+		if err := json.Unmarshal([]byte(line), &value); err != nil {
+			if textLooksRateLimited(line) {
+				return true
+			}
+			continue
+		}
+		if codexJSONLineLooksRateLimited(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func codexJSONLineLooksRateLimited(value any) bool {
+	typed, ok := value.(map[string]any)
+	if !ok {
+		return false
+	}
+	if textLooksRateLimited(jsonFieldText(typed["error"])) {
+		return true
+	}
+	eventType := strings.ToLower(jsonFieldText(typed["type"]))
+	if !strings.Contains(eventType, "error") && !strings.Contains(eventType, "fail") {
+		return false
+	}
+	return textLooksRateLimited(jsonFieldText(typed["message"])) ||
+		textLooksRateLimited(jsonFieldText(typed["details"])) ||
+		textLooksRateLimited(jsonFieldText(typed["error"]))
+}
+
+func jsonFieldText(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case map[string]any, []any:
+		data, err := json.Marshal(typed)
+		if err != nil {
+			return ""
+		}
+		return string(data)
+	default:
+		return ""
+	}
+}
+
+func textLooksRateLimited(text string) bool {
+	text = strings.ToLower(text)
 	return strings.Contains(text, "rate limit") || strings.Contains(text, "rate_limit") || strings.Contains(text, "ratelimit")
 }
 
