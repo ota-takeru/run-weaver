@@ -16,7 +16,7 @@ Definition of Done:
 
 Recommended Next Step:
 
-- 実GitHub Campaign IssueでPlanner / Dispatcherの統合テストを行う。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repositoryを確認してから実行する。
+- 実GitHub Campaign IssueでPlanner / Dispatcherの統合テストを行う。あわせて同一repository内に複数の `run-weaver:ready` Issueを作り、古いIssue順の順次処理、依存Issueの待機、stacked PR作成を確認する。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repositoryを確認してから実行する。
 
 ## Completed
 
@@ -102,14 +102,20 @@ Recommended Next Step:
 - Campaign子Issueに `run-weaver:campaign-task` を付け、通常task取得から除外するようにした
 - pending decision gateがある場合、`can continue tasks` に含まれないtaskを実行せず `decision_required` にするようにした
 - repo別rate limit resumeで `<repo-slug>-issue-<number>` window名を維持するようにした
+- 同一repository内の通常IssueをIssue番号昇順で評価し、実行中jobがある場合は別Issueを開始しないようにした
+- 通常Issue本文、タイトル、人間コメントから `depends: #123` などの依存関係を検出し、依存先が未完了なら待機、曖昧またはPR情報不足なら対象Issueをblockedにするようにした
+- 依存先IssueのPR branchをbaseにしたstacked draft PR作成を追加した
+- state schemaを `3` に上げ、通常Issueの依存情報、base branch、`completedIssues` を保存するようにした
+- `status` のJSONとhuman outputに `readyQueue` を追加した
 
 ## Upcoming Sequence
 
 1. 実GitHub Campaign IssueでPlanner / DispatcherとDoppler auto判定の統合テスト
-2. 複数repository登録後の実GitHub Issue処理確認
-3. Windows target direct runnerの実機確認
-4. self-updateとclone不要install手順のCI / release workflow結果確認
-5. `run-weaver:ready` 以外のフィルタ検討
+2. 同一repository内の複数ready Issue順次処理とstacked PRの実GitHub確認
+3. 複数repository登録後の実GitHub Issue処理確認
+4. Windows target direct runnerの実機確認
+5. self-updateとclone不要install手順のCI / release workflow結果確認
+6. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch
 

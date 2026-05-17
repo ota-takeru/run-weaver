@@ -389,6 +389,7 @@ type statusOutput struct {
 	Daemon         daemonStatus         `json:"daemon"`
 	Job            *statusJob           `json:"job"`
 	Campaign       *statusCampaign      `json:"campaign,omitempty"`
+	ReadyQueue     []readyQueueItem     `json:"readyQueue,omitempty"`
 	Repositories   []statusRepository   `json:"repositories,omitempty"`
 	Reconciliation reconciliationStatus `json:"reconciliation"`
 }

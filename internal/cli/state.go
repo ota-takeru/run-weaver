@@ -7,15 +7,16 @@ import (
 	"path/filepath"
 )
 
-const stateSchemaVersion = 2
+const stateSchemaVersion = 3
 
 type stateFile struct {
-	SchemaVersion int            `json:"schemaVersion"`
-	Target        string         `json:"target"`
-	UpdatedAt     string         `json:"updatedAt"`
-	Daemon        stateDaemon    `json:"daemon"`
-	Job           *stateJob      `json:"job"`
-	Campaign      *stateCampaign `json:"campaign,omitempty"`
+	SchemaVersion   int              `json:"schemaVersion"`
+	Target          string           `json:"target"`
+	UpdatedAt       string           `json:"updatedAt"`
+	Daemon          stateDaemon      `json:"daemon"`
+	Job             *stateJob        `json:"job"`
+	Campaign        *stateCampaign   `json:"campaign,omitempty"`
+	CompletedIssues []completedIssue `json:"completedIssues,omitempty"`
 }
 
 type stateDaemon struct {
@@ -24,19 +25,33 @@ type stateDaemon struct {
 }
 
 type stateJob struct {
-	Issue               issueRef    `json:"issue"`
-	LabelState          string      `json:"labelState"`
-	Branch              string      `json:"branch"`
-	Worktree            string      `json:"worktree"`
-	ClaimID             string      `json:"claimId"`
-	ClaimedAt           string      `json:"claimedAt"`
-	CampaignTaskID      string      `json:"campaignTaskId,omitempty"`
-	PipelinePhase       string      `json:"pipelinePhase,omitempty"`
-	RetryCount          int         `json:"retryCount,omitempty"`
-	LastGitHubCommentAt string      `json:"lastGitHubCommentAt"`
-	Tmux                *tmuxRef    `json:"tmux"`
-	Codex               *codexState `json:"codex"`
-	LastError           *string     `json:"lastError"`
+	Issue               issueRef          `json:"issue"`
+	LabelState          string            `json:"labelState"`
+	Branch              string            `json:"branch"`
+	Worktree            string            `json:"worktree"`
+	BaseBranch          string            `json:"baseBranch,omitempty"`
+	Dependencies        []issueDependency `json:"dependencies,omitempty"`
+	ClaimID             string            `json:"claimId"`
+	ClaimedAt           string            `json:"claimedAt"`
+	CampaignTaskID      string            `json:"campaignTaskId,omitempty"`
+	PipelinePhase       string            `json:"pipelinePhase,omitempty"`
+	RetryCount          int               `json:"retryCount,omitempty"`
+	LastGitHubCommentAt string            `json:"lastGitHubCommentAt"`
+	Tmux                *tmuxRef          `json:"tmux"`
+	Codex               *codexState       `json:"codex"`
+	LastError           *string           `json:"lastError"`
+}
+
+type completedIssue struct {
+	Issue  issueRef `json:"issue"`
+	Branch string   `json:"branch"`
+	PRURL  string   `json:"prUrl"`
+}
+
+type issueDependency struct {
+	IssueNumber int    `json:"issueNumber"`
+	Branch      string `json:"branch,omitempty"`
+	PRURL       string `json:"prUrl,omitempty"`
 }
 
 type stateCampaign struct {
@@ -88,7 +103,7 @@ func readStateFile(path string) (*stateFile, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return nil, fmt.Errorf("parse state file %s: %w", path, err)
 	}
-	if state.SchemaVersion == 1 {
+	if state.SchemaVersion == 1 || state.SchemaVersion == 2 {
 		state.SchemaVersion = stateSchemaVersion
 	}
 	if state.SchemaVersion != stateSchemaVersion {

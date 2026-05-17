@@ -45,7 +45,7 @@
 - Campaign Plannerは親Issue本文のMarkdown箇条書きからtask graphを作り、通常taskを子Issueとして作成する。`decision`、`gate`、`判断`、`決定` を含む項目はDecision Requestとして親Issueへコメントする。
 - Campaign Dispatcherはstate fileの `campaign` を正本にし、依存関係が解けた次taskを `plan` / `implement` / `review` / `verify` の順に同じworktreeで実行する。
 - Campaign taskは `verify` 完了後にcommit、push、draft PR作成へ進み、PR URL、completed tasks、current taskをCampaign stateへ保存する。
-- `status` はCampaign progressをhuman / JSONで表示する。state schemaは `2` で、schema `1` は読み込み時に互換扱いする。
+- `status` はCampaign progressと通常Issueの `readyQueue` をhuman / JSONで表示する。state schemaは `3` で、schema `1` / `2` は読み込み時に互換扱いする。
 - `run-weaver repo add/list/remove` で監視対象repositoryを管理できる。repo設定は `repos.json` に保存し、secret値は保存しない。
 - 複数repository登録時、daemonはrepoごとに `gh --repo`、repo別clone、repo別worktree、repo別stateを使い、repo間は同時実行する。
 - `status` は登録済みrepositoryのstateを集約表示し、`--repo owner/repo` で対象repoだけを表示する。
@@ -55,10 +55,13 @@
 - Windows targetのCodex起動はtmuxではなくdirect runnerに分岐する。WSL targetはtmux runnerを継続する。
 - Campaign子Issueには `run-weaver:campaign-task` を付け、通常ready Issue取得から除外する。
 - pending decision gateがある場合、Dispatcherは `can continue tasks` に含まれるtaskだけを実行し、それ以外は `decision_required` で停止する。
+- 同一repository内の通常IssueはIssue番号昇順で評価し、repo内では常に最大1 jobだけ実行する。
+- 通常Issueのタイトル、本文、人間コメントから `depends: #123`、`blocked by #123`、`stacked on #123`、`依存: #123`、`#123 の後` などを検出し、依存先が未完了なら待機、曖昧またはPR branch / URL不足なら対象Issueを `blocked` にする。
+- 依存が解決済みの通常Issueは、依存先branchをbaseにしたstacked draft PRとして作成する。通常Issue完了後は後続依存解決用に `completedIssues` へPR URLとbranchを保存する。
 
 ## Next Step
 
-実GitHub Campaign IssueでPlanner / DispatcherとDoppler auto判定の統合テストを行う。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repository、親Issue、ラベル、Doppler要否を確認してから実行する。複数repository運用は `run-weaver repo add` 後に実GitHub Issue処理を確認する。Windows direct runnerは実機で追加確認する。
+実GitHub Campaign IssueでPlanner / DispatcherとDoppler auto判定の統合テストを行う。あわせて同一repository内に複数ready Issueを置き、古いIssue順の順次処理、依存待機、stacked PR作成を確認する。外部Issue、子Issue、コメント、branch、draft PRを実際に作るため、対象repository、親Issue、ラベル、Doppler要否を確認してから実行する。複数repository運用は `run-weaver repo add` 後に実GitHub Issue処理を確認する。Windows direct runnerは実機で追加確認する。
 
 ## Notes
 
@@ -79,6 +82,7 @@
 - Campaign実行時は、対象repositoryに子IssueとDecision Requestコメントを作成する。taskごとにdraft PRを作る。
 - Campaign decision answerは親Campaign Issueコメント内の `run-weaver-decision:<decision-id>:<option>` を読み取ってstateへ保存する。
 - Campaign task dependencyは `depends: task-...` のtask ID形式を使う。
+- 通常Issue dependencyは `depends: #123` などのIssue番号形式を使う。依存表現が曖昧な場合、agentは独立PRとして推測実行せず `blocked` にする。
 - Dopplerが必要なrepoは `run-weaver repo add --doppler required` で明示できる。Doppler不要repoは `--doppler optional` で自動検出を上書きできる。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor / statusはGitHub Actionsの `windows-latest` で自動検証する方針。実GitHub IssueへのWindowsからの書き込み検証は、認証と外部副作用を増やすため今回の範囲外。

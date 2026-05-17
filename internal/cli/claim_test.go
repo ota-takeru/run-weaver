@@ -146,13 +146,18 @@ func (c *fakeGitHubClient) ViewIssue(_ context.Context, number int) (githubIssue
 			break
 		}
 	}
-	issue.Comments = append([]githubComment(nil), c.comments...)
+	issue.Comments = append(append([]githubComment(nil), issue.Comments...), c.comments...)
 	return issue, nil
 }
 
-func (c *fakeGitHubClient) AddLabel(_ context.Context, _ int, label string) error {
+func (c *fakeGitHubClient) AddLabel(_ context.Context, number int, label string) error {
 	c.added[label] = true
 	c.issue.Labels = append(c.issue.Labels, githubLabel{Name: label})
+	for i := range c.issues {
+		if c.issues[i].Number == number {
+			c.issues[i].Labels = append(c.issues[i].Labels, githubLabel{Name: label})
+		}
+	}
 	return nil
 }
 

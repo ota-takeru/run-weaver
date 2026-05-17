@@ -73,6 +73,58 @@ func TestCompleteCurrentJobCreatesDraftPR(t *testing.T) {
 	if updated.Job.LabelState != doneLabel {
 		t.Fatalf("state label = %q, want done", updated.Job.LabelState)
 	}
+	if len(updated.CompletedIssues) != 1 || updated.CompletedIssues[0].Issue.Number != 42 || updated.CompletedIssues[0].PRURL == "" {
+		t.Fatalf("completed issues = %#v", updated.CompletedIssues)
+	}
+}
+
+func TestCompleteCurrentJobCreatesStackedDraftPR(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	lastMessage := tempDir + "/last-message.txt"
+	if err := os.WriteFile(lastMessage, []byte("done"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:        issueRef{Number: 11, Title: "Stacked"},
+			LabelState:   runningLabel,
+			Branch:       "codex/issue-11-stacked",
+			Worktree:     tempDir + "/worktrees/issue-11",
+			Dependencies: []issueDependency{{IssueNumber: 10, Branch: "codex/issue-10-base", PRURL: "https://github.com/example/repo/pull/10"}},
+			Codex:        &codexState{LastMessagePath: lastMessage},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{Number: 11, Title: "Stacked"})
+	commands := &fakeCommandRunner{
+		outputs: map[string][]byte{
+			"git\x00-C\x00" + tempDir + "/worktrees/issue-11\x00status\x00--porcelain": []byte(" M index.html\n"),
+		},
+	}
+
+	_, completed, err := completeCurrentJob(context.Background(), daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !completed {
+		t.Fatal("expected completion")
+	}
+	if github.draftPR.Base != "codex/issue-10-base" {
+		t.Fatalf("draft PR = %#v, want stacked base", github.draftPR)
+	}
+	if !strings.Contains(github.draftPR.Body, "Depends on #10: https://github.com/example/repo/pull/10") {
+		t.Fatalf("body = %q", github.draftPR.Body)
+	}
 }
 
 func TestCompleteCurrentJobBlocksWithoutChanges(t *testing.T) {

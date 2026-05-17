@@ -32,6 +32,10 @@ func (m worktreeManager) Prepare(ctx context.Context, target string, issue githu
 }
 
 func (m worktreeManager) PrepareForRepo(ctx context.Context, target, repository string, issue githubIssue, repoURL string) (worktreeSpec, error) {
+	return m.PrepareForRepoWithBase(ctx, target, repository, issue, repoURL, "")
+}
+
+func (m worktreeManager) PrepareForRepoWithBase(ctx context.Context, target, repository string, issue githubIssue, repoURL, baseBranch string) (worktreeSpec, error) {
 	spec := buildWorktreeSpecForRepo(target, repository, issue)
 	if err := m.ensureClone(ctx, spec.CloneDir, repoURL); err != nil {
 		return spec, err
@@ -42,7 +46,11 @@ func (m worktreeManager) PrepareForRepo(ctx context.Context, target, repository 
 	if _, err := os.Stat(filepath.Join(spec.Path, ".git")); err == nil {
 		return spec, nil
 	}
-	if err := m.commands.Run(ctx, "git", "-C", spec.CloneDir, "worktree", "add", "-B", spec.Branch, spec.Path, "origin/HEAD"); err != nil {
+	baseRef := "origin/HEAD"
+	if baseBranch != "" {
+		baseRef = "origin/" + baseBranch
+	}
+	if err := m.commands.Run(ctx, "git", "-C", spec.CloneDir, "worktree", "add", "-B", spec.Branch, spec.Path, baseRef); err != nil {
 		return spec, err
 	}
 	return spec, nil

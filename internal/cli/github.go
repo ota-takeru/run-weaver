@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -186,6 +187,27 @@ func buildDraftPRSpec(issue githubIssue, branch string) draftPRSpec {
 	}
 }
 
+func buildStackedDraftPRSpec(issue githubIssue, branch string, dependencies []issueDependency) draftPRSpec {
+	spec := buildDraftPRSpec(issue, branch)
+	if len(dependencies) == 0 {
+		return spec
+	}
+	base := dependencies[len(dependencies)-1]
+	spec.Base = base.Branch
+	var body strings.Builder
+	body.WriteString(fmt.Sprintf("Closes #%d\n", issue.Number))
+	for _, dependency := range dependencies {
+		body.WriteString(fmt.Sprintf("Depends on #%d", dependency.IssueNumber))
+		if dependency.PRURL != "" {
+			body.WriteString(": ")
+			body.WriteString(dependency.PRURL)
+		}
+		body.WriteString("\n")
+	}
+	spec.Body = body.String()
+	return spec
+}
+
 func (c ghClient) run(ctx context.Context, args ...string) ([]byte, error) {
 	fullArgs := make([]string, 0, len(args)+2)
 	fullArgs = append(fullArgs, args...)
@@ -214,6 +236,9 @@ func filterClaimableIssues(issues []githubIssue) []githubIssue {
 		}
 		filtered = append(filtered, issue)
 	}
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].Number < filtered[j].Number
+	})
 	return filtered
 }
 

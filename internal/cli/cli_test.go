@@ -261,7 +261,7 @@ func TestStatusJSON(t *testing.T) {
 	if code != exitStateUnavailable {
 		t.Fatalf("exit code = %d, want %d; stderr = %q", code, exitStateUnavailable, stderr.String())
 	}
-	if got := stdout.String(); !bytes.Contains([]byte(got), []byte(`"schemaVersion":2`)) {
+	if got := stdout.String(); !bytes.Contains([]byte(got), []byte(`"schemaVersion":3`)) {
 		t.Fatalf("stdout = %q, want status schema version", got)
 	}
 }

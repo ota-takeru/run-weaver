@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -89,6 +90,7 @@ func collectStatusForRepo(client githubClient, repository string) statusResult {
 	if state.Campaign != nil {
 		output.Campaign = stateCampaignToStatusCampaign(state.Campaign)
 	}
+	output.ReadyQueue = collectReadyQueueStatus(client, state)
 
 	conflicts := detectStatusConflicts(output)
 	output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, conflicts...)
@@ -143,6 +145,9 @@ func printStatusHuman(w io.Writer, output statusOutput) {
 				fmt.Fprintf(w, "  Worktree: %s\n", emptyAsUnknown(repo.Status.Job.Worktree))
 			}
 			fmt.Fprintf(w, "  State file: %s\n", repo.Status.StateFile)
+			if len(repo.Status.ReadyQueue) > 0 {
+				fmt.Fprintf(w, "  Ready queue: %d\n", len(repo.Status.ReadyQueue))
+			}
 			if len(repo.Status.Reconciliation.Conflicts) == 0 {
 				fmt.Fprintln(w, "  Conflicts: none")
 			} else {
@@ -185,6 +190,21 @@ func printStatusHuman(w io.Writer, output statusOutput) {
 			fmt.Fprintf(w, "  PRs: %d\n", len(output.Campaign.PRs))
 		}
 	}
+	if len(output.ReadyQueue) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Ready queue:")
+		for _, item := range output.ReadyQueue {
+			deps := ""
+			if len(item.Dependencies) > 0 {
+				parts := make([]string, 0, len(item.Dependencies))
+				for _, dependency := range item.Dependencies {
+					parts = append(parts, "#"+strconv.Itoa(dependency))
+				}
+				deps = " depends on " + strings.Join(parts, ", ")
+			}
+			fmt.Fprintf(w, "  #%d %s: %s%s\n", item.Issue.Number, item.Issue.Title, item.State, deps)
+		}
+	}
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Reconciliation:")
@@ -202,6 +222,46 @@ func printStatusHuman(w io.Writer, output statusOutput) {
 		return
 	}
 	fmt.Fprintf(w, "  Conflicts: %s\n", strings.Join(output.Reconciliation.Conflicts, ", "))
+}
+
+func collectReadyQueueStatus(client githubClient, state *stateFile) []readyQueueItem {
+	issues, err := client.ListReadyIssues(context.Background())
+	if err != nil {
+		return nil
+	}
+	sort.Slice(issues, func(i, j int) bool {
+		return issues[i].Number < issues[j].Number
+	})
+	queue := make([]readyQueueItem, 0, len(issues))
+	for _, listed := range issues {
+		issue, err := client.ViewIssue(context.Background(), listed.Number)
+		if err != nil {
+			continue
+		}
+		dependencies, ambiguous := detectIssueDependencies(issue)
+		item := readyQueueItem{
+			Issue: issueRef{
+				Number: issue.Number,
+				Title:  issue.Title,
+				URL:    issue.URL,
+			},
+			State:        readyQueueStateReady,
+			Dependencies: dependencies,
+		}
+		switch {
+		case ambiguous:
+			item.State = readyQueueStateBlockedDependency
+		case len(dependencies) > 0:
+			_, blocked, waiting, err := resolveIssueDependencies(context.Background(), client, state, dependencies)
+			if err != nil || blocked != "" {
+				item.State = readyQueueStateBlockedDependency
+			} else if waiting {
+				item.State = readyQueueStateWaitingDependency
+			}
+		}
+		queue = append(queue, item)
+	}
+	return queue
 }
 
 func stateCampaignToStatusCampaign(campaign *stateCampaign) *statusCampaign {

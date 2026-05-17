@@ -1,5 +1,25 @@
 # Process Log
 
+## 2026-05-17 - Same Repository Issue Queue
+
+Review:
+
+- Immediate fixes:
+  - 通常ready Issue取得結果をIssue番号昇順で扱い、同一repository内では実行中jobがある間に別Issueを開始しないようにした。
+  - 通常Issueのタイトル、本文、人間コメントから `depends: #123`、`blocked by #123`、`stacked on #123`、`依存: #123`、`#123 の後` などを検出する依存resolverを追加した。
+  - 依存先が未完了なら待機扱いにして次候補へ進み、曖昧な依存やPR branch / URL不足は対象Issueだけ `blocked` にするようにした。
+  - 依存解決済みIssueでは依存先branchをbaseにworktreeを作り、draft PRも同じbase branchを指定するstacked PRにした。
+  - state schemaを `3` に上げ、通常Issueの `baseBranch`、`dependencies`、`completedIssues` を保存するようにした。
+  - `status` のhuman / JSON outputに `readyQueue` を追加した。
+  - ready queue、stacked PR、schema互換、同一repo実行中job保護の単体テストを追加した。
+- Future tasks:
+  - 実GitHub Issueで複数ready Issue、依存待機、stacked PR作成を確認する。
+  - 実運用で依存表現の揺れが足りなければ、決定的パターンを追加する。
+  - stale `running` 自動解除は従来どおり未実装で、人間判断に残す。
+- Human-facing reports:
+  - stacked PRは依存先PRがdraft/openで存在し、branchを復元できる場合だけ作る。
+  - 今回は実GitHub Issue、push、draft PR、外部アカウント、secretには触れていない。
+
 ## 2026-05-17 - Doppler Optional Projects And Runner Hardening
 
 Review:

@@ -83,6 +83,23 @@ func TestWorktreePrepareClonesAndAddsWorktree(t *testing.T) {
 	}
 }
 
+func TestWorktreePrepareWithBaseUsesDependencyBranch(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tempDir)
+	commands := &fakeCommandRunner{}
+	manager := newWorktreeManager(commands)
+
+	spec, err := manager.PrepareForRepoWithBase(context.Background(), "wsl", "", githubIssue{Number: 43, Title: "Stacked issue"}, "https://example.test/repo.git", "codex/issue-42-base")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	clonePath := filepath.Join(tempDir, "run-weaver", "src")
+	if !commands.ran("git", "-C", clonePath, "worktree", "add", "-B", spec.Branch, spec.Path, "origin/codex/issue-42-base") {
+		t.Fatalf("commands = %#v, want dependency base ref", commands.calls)
+	}
+}
+
 func TestWorktreePrepareReusesExistingWorktree(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tempDir)

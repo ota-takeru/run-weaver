@@ -53,11 +53,11 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 		return "", true, err
 	}
 
-	prURL, err := deps.github.CreateDraftPR(ctx, buildDraftPRSpec(githubIssue{
+	prURL, err := deps.github.CreateDraftPR(ctx, buildStackedDraftPRSpec(githubIssue{
 		Number: state.Job.Issue.Number,
 		Title:  state.Job.Issue.Title,
 		URL:    state.Job.Issue.URL,
-	}, state.Job.Branch))
+	}, state.Job.Branch, state.Job.Dependencies))
 	if err != nil {
 		_ = markBlocked(ctx, deps.github, state.Job.Issue.Number, "draft PR", err)
 		_ = writeBlockedState(opts, githubIssue{Number: state.Job.Issue.Number, Title: state.Job.Issue.Title, URL: state.Job.Issue.URL}, state.Job.ClaimID, worktreeSpec{Path: state.Job.Worktree, Branch: state.Job.Branch}, state.Job.Tmux, "draft PR", err)
@@ -78,6 +78,11 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 	}
 	state.Job.LabelState = doneLabel
 	state.Job.LastError = nil
+	recordCompletedIssue(state, completedIssue{
+		Issue:  state.Job.Issue,
+		Branch: state.Job.Branch,
+		PRURL:  prURL,
+	})
 	if wasCampaignTask {
 		state.Job = nil
 	}
@@ -86,6 +91,19 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 		return "", true, err
 	}
 	return fmt.Sprintf("completed issue #%d with draft PR %s", completedIssueNumber, prURL), true, nil
+}
+
+func recordCompletedIssue(state *stateFile, completed completedIssue) {
+	if state == nil || completed.Issue.Number == 0 {
+		return
+	}
+	for i := range state.CompletedIssues {
+		if state.CompletedIssues[i].Issue.Number == completed.Issue.Number {
+			state.CompletedIssues[i] = completed
+			return
+		}
+	}
+	state.CompletedIssues = append(state.CompletedIssues, completed)
 }
 
 func resumeRateLimitedCodex(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile) (bool, error) {
