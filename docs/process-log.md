@@ -1,5 +1,19 @@
 # Process Log
 
+## 2026-05-17 - Release Watch Flow
+
+Review:
+
+- Immediate fixes:
+  - `scripts/release.sh` に `--watch` を追加し、`--push --watch` でtag push後にrelease workflow完了まで待てるようにした。
+  - workflow完了後、GitHub ReleaseにLinux / Windows、amd64 / arm64の4 assetが揃っていることを確認する処理を追加した。
+  - README、architecture、CLI docs、progress、handoffにmaintainer release flowの `--push --watch` を反映した。
+- Future tasks:
+  - 実release workflowの成功確認は、人間が `scripts/release.sh --push --watch` を明示実行した後に行う。
+- Human-facing reports:
+  - `--watch` は `--push` 必須で、dry-runではtag作成、push、GitHub Release作成を行わない。
+  - 今回は実tag作成、push、GitHub Release作成、外部アカウント設定、secretには触れていない。
+
 ## 2026-05-17 - Repo Registration Status Error Fix
 
 Review:

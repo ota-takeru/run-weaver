@@ -140,9 +140,10 @@ scripts/release.sh
 scripts/release.sh --bump minor
 scripts/release.sh --version v0.1.0
 scripts/release.sh --push
+scripts/release.sh --push --watch
 ```
 
-`scripts/release.sh` はremote tagから次の `vMAJOR.MINOR.PATCH` を計算します。tagがまだ無い場合の初回は `v0.1.0`、既定の採番はpatch bumpです。事前検証では `go test ./...` とLinux / Windows、amd64 / arm64のrelease cross-buildを実行します。`--push` 指定時だけannotated tagを作成してpushし、既存のGitHub Actions release workflowがGitHub Releaseとassetを作成します。
+`scripts/release.sh` はremote tagから次の `vMAJOR.MINOR.PATCH` を計算します。tagがまだ無い場合の初回は `v0.1.0`、既定の採番はpatch bumpです。事前検証では `go test ./...` とLinux / Windows、amd64 / arm64のrelease cross-buildを実行します。`--push` 指定時だけannotated tagを作成してpushし、既存のGitHub Actions release workflowがGitHub Releaseとassetを作成します。`--push --watch` ではtag push後にrelease workflow完了まで待ち、4つのrelease assetが作成されたことも確認します。
 
 ## 設計文書
 

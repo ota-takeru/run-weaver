@@ -7,13 +7,15 @@ BRANCH="main"
 BUMP="patch"
 VERSION=""
 PUSH=0
+WATCH=0
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/release.sh [--push] [--bump patch|minor|major] [--version vX.Y.Z] [--remote origin] [--branch main]
+Usage: scripts/release.sh [--push] [--watch] [--bump patch|minor|major] [--version vX.Y.Z] [--remote origin] [--branch main]
 
 Prepares a run-weaver release tag. By default this is a dry run.
 Use --push to create an annotated tag and push it to trigger the release workflow.
+Use --push --watch to wait for the release workflow and verify release assets.
 USAGE
 }
 
@@ -55,12 +57,75 @@ release_preflight_builds() {
   GOOS=windows GOARCH=arm64 go build -ldflags "$LDFLAGS" -o "$TMP_DIR/windows-arm64/run-weaver.exe" ./cmd/run-weaver
 }
 
+wait_for_release_workflow() {
+  tag="$1"
+  commit="$2"
+  run_id=""
+  attempts=0
+
+  while [ "$attempts" -lt 30 ]; do
+    run_id="$(gh run list \
+      --repo "$RELEASE_REPO" \
+      --workflow release.yml \
+      --event push \
+      --branch "$tag" \
+      --commit "$commit" \
+      --limit 1 \
+      --json databaseId \
+      --jq '.[0].databaseId // ""')"
+    if [ -n "$run_id" ]; then
+      break
+    fi
+    attempts=$((attempts + 1))
+    sleep 2
+  done
+
+  if [ -z "$run_id" ]; then
+    die "release workflow run was not found for $tag ($commit)"
+  fi
+
+  echo "watching release workflow run: $run_id"
+  gh run watch "$run_id" --repo "$RELEASE_REPO" --exit-status
+}
+
+verify_release_assets() {
+  tag="$1"
+  missing=""
+
+  assets="$(gh release view "$tag" \
+    --repo "$RELEASE_REPO" \
+    --json assets \
+    --jq '.assets[].name')"
+
+  for expected in \
+    run-weaver_linux_amd64.tar.gz \
+    run-weaver_linux_arm64.tar.gz \
+    run-weaver_windows_amd64.zip \
+    run-weaver_windows_arm64.zip
+  do
+    if ! printf '%s\n' "$assets" | grep -Fx "$expected" >/dev/null; then
+      missing="${missing}${missing:+, }$expected"
+    fi
+  done
+
+  if [ -n "$missing" ]; then
+    die "release $tag is missing asset(s): $missing"
+  fi
+
+  echo "verified release assets:"
+  printf '%s\n' "$assets" | sed 's/^/  /'
+}
+
 trap cleanup EXIT
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --push)
       PUSH=1
+      shift
+      ;;
+    --watch)
+      WATCH=1
       shift
       ;;
     --bump)
@@ -101,6 +166,10 @@ esac
 
 if [ -n "$VERSION" ] && ! is_semver_tag "$VERSION"; then
   die "--version must use vMAJOR.MINOR.PATCH format"
+fi
+
+if [ "$WATCH" -eq 1 ] && [ "$PUSH" -eq 0 ]; then
+  die "--watch requires --push"
 fi
 
 REMOTE_URL="$(git remote get-url "$REMOTE" 2>/dev/null)" || die "git remote '$REMOTE' is not configured"
@@ -186,6 +255,9 @@ echo "remote: $REMOTE ($REMOTE_URL)"
 echo "branch: $BRANCH"
 echo "workflow trigger: git push $REMOTE $TAG"
 echo "preflight: go test ./... and release cross-builds passed"
+if [ "$WATCH" -eq 1 ]; then
+  echo "post-push: watch release workflow and verify release assets"
+fi
 echo
 
 if [ "$PUSH" -eq 0 ]; then
@@ -193,6 +265,7 @@ if [ "$PUSH" -eq 0 ]; then
   echo "planned commands:"
   echo "  git tag -a $TAG -m 'Release $TAG'"
   echo "  git push $REMOTE $TAG"
+  echo "  scripts/release.sh --push --watch"
   echo
   echo "Run with --push to create the tag and trigger GitHub Actions."
   exit 0
@@ -204,3 +277,9 @@ git push "$REMOTE" "$TAG"
 echo "pushed $TAG"
 echo "Actions: https://github.com/$RELEASE_REPO/actions/workflows/release.yml"
 echo "Release: https://github.com/$RELEASE_REPO/releases/tag/$TAG"
+
+if [ "$WATCH" -eq 1 ]; then
+  wait_for_release_workflow "$TAG" "$LOCAL_HEAD"
+  verify_release_assets "$TAG"
+  echo "release $TAG completed"
+fi

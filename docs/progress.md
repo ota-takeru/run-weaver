@@ -106,6 +106,7 @@ Recommended Next Step:
 - `status` のJSONとhuman outputに `readyQueue` を追加した
 - maintainer用 `scripts/release.sh` を追加し、dry-run既定で次tag計算、事前検証、明示的なtag pushによるrelease workflow起動を行えるようにした
 - `scripts/release.sh` の事前検証にLinux / Windows、amd64 / arm64のrelease cross-buildを追加した
+- `scripts/release.sh --push --watch` でtag push後のrelease workflow完了待ちとrelease asset確認を行えるようにした
 - 実GitHub Issue `ota-takeru/truth-table-app#3` / `#4` で同一repository内のIssue番号順処理、依存待機、依存先branchをbaseにしたstacked draft PR #5 / #6作成を確認した
 - 実GitHub Campaign Issue `ota-takeru/truth-table-app#7` でCampaign検出、子Issue #8 / #9 作成、decision request、`plan` / `implement` / `review` / `verify` pipeline、draft PR #10 / #11作成、Campaign progress表示、decision gate停止/再開、Campaign子Issueの通常ready除外を確認した
 - Campaign task promptに親Campaign本文の詳細contextを含めるように修正し、Campaign planning時に既存の `completedIssues` を保持するようにした
