@@ -73,7 +73,8 @@ Recommended Next Step:
 ## Upcoming Sequence
 
 1. GitHub ActionsのWindows job結果確認
-2. Windows daemon常駐方式とログ保存場所の設計
+2. Windows daemon常駐方式とログ保存場所の判断
+3. Windows install / doctor仕様の実装
 
 ## Open Decisions To Watch
 
@@ -81,3 +82,7 @@ Recommended Next Step:
 - stale `running` の解除を将来も人間判断に固定するか、自動解除へ拡張するか
 - Windows targetのログ保存場所
 - GitHub API直実装へ移行する時期
+
+## Pending Human Decisions
+
+- `docs/decision-prep-windows-daemon.md` のWindows daemon常駐方式とログ保存場所。推奨案はper-user Task Scheduler + `%LOCALAPPDATA%`。

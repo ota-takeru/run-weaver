@@ -30,7 +30,7 @@
 
 ## Next Step
 
-GitHub ActionsのWindows job結果を確認し、失敗があればWindows固有差分を修正する。
+GitHub ActionsのWindows job結果確認と、Windows daemon常駐方式 / ログ保存場所の判断を行う。
 
 ## Notes
 
@@ -48,6 +48,7 @@ GitHub ActionsのWindows job結果を確認し、失敗があればWindows固有
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor / statusはGitHub Actionsの `windows-latest` で自動検証する方針。実GitHub IssueへのWindowsからの書き込み検証は、認証と外部副作用を増やすため今回の範囲外。
 - Windows targetのdaemon常駐方式とログ保存場所は未決定。初期daemon flowの実GitHub連携はWSL統合テストの実績を優先する。
+- Windows daemon常駐方式とログ保存場所の判断資料は `docs/decision-prep-windows-daemon.md`。推奨案はper-user Task Scheduler + `%LOCALAPPDATA%\run-weaver`。
 - 手元Windowsで追加確認する場合は、PowerShellで `.\scripts\check-windows.ps1` を実行する。このscriptはGitHub書き込みやsecret表示を行わない。
 
 ## Windows CI / Local Check

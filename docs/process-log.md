@@ -1,5 +1,19 @@
 # Process Log
 
+## 2026-05-17 - Windows Daemon Decision Prep
+
+Review:
+
+- Immediate fixes:
+  - Windows daemon常駐方式とログ保存場所の判断に向けて、`docs/decision-prep-windows-daemon.md` を作成した。
+  - 推奨案はper-user Task Scheduler + `%LOCALAPPDATA%\run-weaver` 配下のstate / logs / issue logs。
+- Future tasks:
+  - ユーザー判断後、Windows install / doctor仕様を実装する。
+  - GitHub ActionsのWindows job結果確認は、pushまたはPR作成後に行う。
+- Human-facing reports:
+  - pushは自動では行わないため、CI確認にはユーザーのpush依頼またはユーザー操作が必要。
+  - Windows daemon常駐方式とログ保存場所は重要判断のため、ユーザー判断が必要。
+
 ## 2026-05-17 - Windows CI Validation
 
 Review:
