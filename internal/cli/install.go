@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -123,11 +124,11 @@ func wslServiceFile(binary string, opts installOptions) string {
 
 func wslServicePath(binary string) string {
 	parts := []string{
-		filepath.Dir(binary),
+		path.Dir(filepath.ToSlash(binary)),
 		filepath.Join(homeDir(), ".local", "bin"),
 	}
 	if current := os.Getenv("PATH"); current != "" {
-		parts = append(parts, filepath.SplitList(current)...)
+		parts = append(parts, strings.Split(current, ":")...)
 	} else {
 		parts = append(parts, "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin")
 	}
@@ -140,7 +141,7 @@ func wslServicePath(binary string) string {
 		seen[part] = true
 		cleaned = append(cleaned, part)
 	}
-	return strings.Join(cleaned, string(os.PathListSeparator))
+	return strings.Join(cleaned, ":")
 }
 
 func systemdQuote(value string) string {

@@ -118,6 +118,7 @@ Recommended Next Step:
 - WSL installがsystemd user serviceへ実行時PATHを保存するようにし、nvmなどユーザーPATH上の `codex` をserviceから見えるようにした
 - tmux window終了後にJSONLログが `codex: command not found` などCodex起動失敗を示す場合、daemonがIssue/stateを `blocked` に更新するようにした
 - Doppler必須repositoryでは設定ファイルの存在だけで認証OKにせず、Codex起動前に `doppler run -- git --version` が通ることを確認するようにした
+- WSL service PATH生成をOS非依存でLinux形式に固定し、Windows CI上でもWSL service fileテストが通るようにした
 - リリース前確認として、`go test ./...`、`go test -race ./...`、`go vet ./...`、Linux / Windows amd64 / arm64のrelease相当cross-build、latest release asset取得、`update --check` を確認した
 
 ## Upcoming Sequence

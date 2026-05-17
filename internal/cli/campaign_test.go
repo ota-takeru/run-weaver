@@ -285,6 +285,7 @@ func TestCampaignPlannerMissingOutputBlocksParent(t *testing.T) {
 func TestCampaignPlannerMissingOutputKeepsPlanningForDirectRunner(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	t.Setenv("LOCALAPPDATA", filepath.Join(tempDir, "localappdata"))
 	if err := writeStateFile(defaultStateFile("windows"), stateFile{
 		SchemaVersion: stateSchemaVersion,
 		Target:        "windows",
