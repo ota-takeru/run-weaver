@@ -252,6 +252,8 @@ func TestDoctorRepoRequiredDopplerBlocksWhenMissing(t *testing.T) {
 }
 
 func TestStatusJSON(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
 	var stdout, stderr bytes.Buffer
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir)

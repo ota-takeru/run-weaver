@@ -238,6 +238,10 @@ func TestCampaignPlannerInvalidOutputBlocksParent(t *testing.T) {
 func TestCampaignPlannerMissingOutputBlocksParent(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	restoreCommands := stubCommandEnvironment(t, map[string]error{
+		commandKey("tmux", "has-session", "-t", "run-weaver:missing"): errFakeCommand,
+	})
+	defer restoreCommands()
 	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
 		SchemaVersion: stateSchemaVersion,
 		Target:        "wsl",
