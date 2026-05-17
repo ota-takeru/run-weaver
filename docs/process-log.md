@@ -1,5 +1,25 @@
 # Process Log
 
+## 2026-05-17 - Codex Planner Campaign E2E
+
+Review:
+
+- Immediate fixes:
+  - `ota-takeru/truth-table-app#12` でE2E用 `docs/roadmap.md` を追加し、Campaign Plannerがrepo docsを優先して読める状態にした。
+  - `ota-takeru/truth-table-app#13` を親Issue本文「roadmap進めてください」形式のCampaignとして作成し、Codex Plannerが `docs/roadmap.md` を読んで3 task + 1 decisionのJSON graphを生成することを確認した。
+  - Planner完了後に子Issue #14 / #15 / #16 とDecision Requestが作成され、state上のCampaign progressにtask / decision / planner情報が保存されることを確認した。
+  - Decision未回答の状態で継続可能task #14 / #15 が順に実行され、draft PR #17 / #18 が作成されることを確認した。
+  - Campaignが `decision_required` で停止した後、`run-weaver-decision:export-feature-scope:approve` コメントで再開し、blocked task #16 からdraft PR #19 が作成され、Campaignが `done` になることを確認した。
+- Future tasks:
+  - 複数repository登録後の実GitHub Issue処理を確認する。
+  - Windows target direct runnerを実機で確認する。
+  - tag push後にrelease workflowとGitHub Release assetを確認する。
+  - Doppler必須repoの実blocked確認を、secret値を出さずに検証できる対象repoで行う。
+- Human-facing reports:
+  - `ota-takeru/truth-table-app` にはE2E用PR #12、Campaign #13、子Issue #14 / #15 / #16、draft PR #17 / #18 / #19 を作成済み。
+  - #17 / #18 / #19 はdraft PRのまま残している。
+  - secret値、外部アカウント設定、release tag push、GitHub Release作成は行っていない。
+
 ## 2026-05-17 - Codex Driven Campaign Planner
 
 Review:

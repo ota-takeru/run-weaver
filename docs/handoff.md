@@ -62,10 +62,11 @@
 - 通常Issueのタイトル、本文、人間コメントから `depends: #123`、`blocked by #123`、`stacked on #123`、`依存: #123`、`#123 の後` などを検出し、依存先が未完了なら待機、曖昧またはPR branch / URL不足なら対象Issueを `blocked` にする。
 - 依存が解決済みの通常Issueは、依存先branchをbaseにしたstacked draft PRとして作成する。通常Issue完了後は後続依存解決用に `completedIssues` へPR URLとbranchを保存する。
 - `ota-takeru/truth-table-app` でWSL E2Eを実施済み。通常Issue #3 / #4 からdraft PR #5 / #6を作成し、#6 が #5 のbranchをbaseにしたstacked PRであることを確認した。Campaign #7 から子Issue #8 / #9、draft PR #10 / #11を作成し、decision gate停止/再開とCampaign progress表示を確認した。
+- `ota-takeru/truth-table-app#12` でE2E用 `docs/roadmap.md` を追加し、Codex主導Campaign Planner E2Eを実施済み。Campaign #13 は親Issue本文を「roadmap進めてください」形式にし、Plannerが `docs/roadmap.md` を読んで3 task + 1 decisionのJSON graphを生成した。子Issue #14 / #15 / #16、draft PR #17 / #18 / #19、Decision Request、decision gate停止/回答再開、Campaign doneを確認した。
 
 ## Next Step
 
-Codex主導Campaign Plannerの実GitHub E2Eを `ota-takeru/truth-table-app` で確認する。親Issue本文は大枠だけにし、repo docs優先でPlannerがtask graphを作ることを確認する。複数repository運用は `run-weaver repo add` 後に実GitHub Issue処理を確認する。Windows direct runnerは実機で追加確認する。self-updateとclone不要installはtag push後のrelease workflow結果を確認する。Doppler必須repoの実blocked確認はsecret値を出さずに検証できる対象repoで行う。
+複数repository運用は `run-weaver repo add` 後に実GitHub Issue処理を確認する。Windows direct runnerは実機で追加確認する。self-updateとclone不要installはtag push後のrelease workflow結果を確認する。Doppler必須repoの実blocked確認はsecret値を出さずに検証できる対象repoで行う。
 
 ## Notes
 

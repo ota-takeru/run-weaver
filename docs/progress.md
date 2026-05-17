@@ -2,14 +2,10 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、Codex主導Campaign Planner導入後の統合確認です。
+現在の優先タスクは、リリース前の残り実機確認です。
 
 Definition of Done:
 
-- `run-weaver:campaign` + `run-weaver:ready` の親Issueで、Codex Plannerがrepo docs優先でtask graph JSONを生成する
-- Planner完了後に子Issue、Decision Request、state上のCampaign progressが作成される
-- Planner不正出力では親Campaignを `blocked` にする
-- 実GitHub Campaign Issueで「roadmap進めてください」形式のE2Eを確認する
 - 複数repository登録後の実GitHub Issue処理を確認する
 - Windows target direct runnerを実機で確認する
 - self-updateとclone不要install手順のCI / release workflow結果を確認する
@@ -17,7 +13,7 @@ Definition of Done:
 
 Recommended Next Step:
 
-- `ota-takeru/truth-table-app` で、親Issue本文は大枠だけにしたCodex主導Campaign Planner E2Eを行う。Plannerがrepo docs優先でtask graph JSONを作り、子Issue化とDispatcher実行まで進むことを確認する。
+- 複数repository登録後の実GitHub Issue処理、Windows target direct runner実機確認、release workflow結果確認を進める。Doppler必須repoの実blocked確認は、secret値を出さずに検証できる対象repoで行う。
 
 ## Completed
 
@@ -115,15 +111,16 @@ Recommended Next Step:
 - Campaign task promptに親Campaign本文の詳細contextを含めるように修正し、Campaign planning時に既存の `completedIssues` を保持するようにした
 - Campaign開始時にCodex Plannerを非同期起動し、repo docs優先のJSON task graphを検証してから子Issue化する方式へ変更した
 - Planner出力の正常parse、不正JSON、空task、重複ID、未知dependency、未知task参照decision、Planner失敗blocked、planning status表示の単体テストを追加した
+- 実GitHub Campaign Issue `ota-takeru/truth-table-app#13` で、親Issue本文は「roadmap進めてください」形式にし、repo docs優先のCodex Planner JSON生成、子Issue #14 / #15 / #16 作成、Decision Request、decision gate停止/回答再開、draft PR #17 / #18 / #19 作成、Campaign doneを確認した
+- E2E準備として `ota-takeru/truth-table-app#12` で `docs/roadmap.md` を追加し、Plannerが同ファイルを読んでtask graphを生成することを確認した
 
 ## Upcoming Sequence
 
-1. Codex主導Campaign Plannerの実GitHub E2E確認
-2. 複数repository登録後の実GitHub Issue処理確認
-3. Windows target direct runnerの実機確認
-4. self-updateとclone不要install手順のCI / release workflow結果確認
-5. Doppler必須repositoryでの実blocked確認
-6. `run-weaver:ready` 以外のフィルタ検討
+1. 複数repository登録後の実GitHub Issue処理確認
+2. Windows target direct runnerの実機確認
+3. self-updateとclone不要install手順のCI / release workflow結果確認
+4. Doppler必須repositoryでの実blocked確認
+5. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch
 
