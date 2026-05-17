@@ -31,7 +31,7 @@
 - `run-weaver install --target windows` はper-user Task Scheduler task `run-weaver` を作成または更新する。
 - GitHub ActionsのLinux / Windows jobは最新確認時点で成功済み。
 - `status` は `labelState` に加えて表示用の `runtimeState` を返す。`codex_running`、`codex_completed`、`needs_attention` を区別する。
-- Codexがrate limitで中断した場合、daemonはJSONLログからsession idを取得し、同じworktreeで `codex exec resume <session>` を起動する。session idが取れない場合は同じworktreeで `codex exec resume --last` を試す。
+- Codexがrate limitで中断した場合、daemonはJSONLログからsession idを取得し、Issueにrate limit検出と自動resume attemptの中間コメントを投稿してから、同じworktreeで `codex exec resume <session>` を起動する。session idが取れない場合は同じworktreeで `codex exec resume --last` を試す。
 - `install` は常駐設定を作るが、実際に使える状態には `doctor` が確認する依存関係と認証、`run-weaver repo add` による対象repository登録、対象Issueの `run-weaver:ready` ラベルが必要。
 - release buildの `run-weaver daemon` は起動時にGitHub Releases latestを確認し、新しいassetがあればself-updateしてから処理を続ける。開発ビルドはversion `dev` のため自動更新しない。
 - `run-weaver update --check` / `run-weaver update` を追加済み。
@@ -59,6 +59,7 @@
 - Doppler必須repoでは `doppler run -- codex ...`、不要repoでは通常の `codex ...` を使う。Doppler設定ファイルがあるだけでは認証済み扱いにしない。tokenやsecret値はstate、Issueコメント、PR本文、docs例に保存しない。
 - Windows targetのCodex起動はtmuxではなくdirect runnerに分岐する。WSL targetはtmux runnerを継続する。
 - WSLでtmux windowが終了し、JSONLログが `codex: command not found` などCodex起動失敗を示す場合、daemonは stuckした `running` のままにせずIssue/stateを `blocked` に更新する。
+- rate limit resume attemptは `blocked` にせず `running` のまま扱い、Issueコメントにattempt番号、session、worktree、JSONLログpath、検出時刻を残す。state fileでは `retryCount`、`lastGitHubCommentAt`、`lastError` を更新する。secret値やJSONLログ本文はIssueコメントに載せない。
 - Campaign子Issueには `run-weaver:campaign-task` を付け、通常ready Issue取得から除外する。
 - pending decision gateがある場合、Dispatcherは `can continue tasks` に含まれるtaskだけを実行し、それ以外は `decision_required` で停止する。
 - 同一repository内の通常IssueはIssue番号昇順で評価し、repo内では常に最大1 jobだけ実行する。
@@ -81,7 +82,7 @@
 - Codex完了後、daemonがworktreeの変更をcommitしてからpush / draft PR作成へ進む。変更なしなら `blocked` にする。
 - Codex promptにはIssueタイトル、本文、run-weaver管理コメントを除いた人間コメントを渡す。本文なしでもタイトルが具体的なら実行する。
 - status表示の細分化は実装済み。CI確認待ち。
-- rate limit再開は人間確認条件を迂回しない。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回す。
+- rate limit再開は人間確認条件を迂回しない。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回す。rate limit中間コメントにもsecret値やJSONLログ本文は載せない。
 - self-updateはGitHub Releasesからbinary assetを取得するだけで、GitHub Issueや外部アカウント設定は変更しない。release作成にはtag pushが必要なため、実release workflow検証は人間のpush判断後に行う。
 - release作成は利用者向け `run-weaver` CLIには含めず、maintainer用 `scripts/release.sh` で行う。通常確認ではdry-runまでにし、`--push` は人間が明示実行する。workflowとassetまで一連で確認する場合は `--push --watch` を使う。
 - 自動更新を止める場合は `RUN_WEAVER_NO_UPDATE=1` を設定する。

@@ -427,6 +427,8 @@ Codex CLI起動の初期仕様:
 - tmux window終了後にJSONLログが `codex: command not found` などCodex起動失敗を示す場合は、stuckした `running` のままにせず `blocked` とする
 - JSONLログがrate limitを示し、Codex session idを取得できる場合は `blocked` にせず、次回pollで `codex exec resume <session>` により同じworktreeと前回sessionから再開する
 - session idを取得できない場合でも、同じworktreeへ移動して `codex exec resume --last` を試す
+- rate limit検出時はIssueに中間コメントを投稿し、resume attempt番号、session、worktree、JSONLログpath、検出時刻を残す。secret値やJSONLログ本文はコメントしない
+- rate limit resume attemptはstate fileの `retryCount`、`lastGitHubCommentAt`、`lastError` にも反映する
 - Doppler必須repositoryでDoppler CLIまたは `doppler run` 可能な認証/設定がない場合はCodex起動前に `blocked` とし、Doppler不要repositoryではDoppler未インストールでも続行する
 - Codexに渡すDoppler service tokenは環境変数から注入し、ログ、Issueコメント、PR本文、state fileには値を出さない
 

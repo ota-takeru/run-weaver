@@ -206,7 +206,7 @@ func relevantIssueComments(comments []githubComment) string {
 	lines := make([]string, 0, len(comments))
 	for _, comment := range comments {
 		text := strings.TrimSpace(comment.Body)
-		if text == "" || strings.Contains(text, claimMarkerPrefix) || strings.HasPrefix(text, "run-weaver blocked") {
+		if text == "" || isRunWeaverComment(text) {
 			continue
 		}
 		lines = append(lines, "- "+text)

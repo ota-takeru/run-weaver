@@ -75,6 +75,7 @@ Recommended Next Step:
 - GitHub ActionsのLinux / Windows jobが最新コミット `847e6d3` で成功した
 - `status` のJSONとhuman outputに `runtimeState` を追加し、`codex_running`、`codex_completed`、`needs_attention` を区別するようにした
 - Codexがrate limitで中断した場合に、同じworktreeと前回sessionから `codex exec resume` で自動再開する処理を追加した
+- rate limit検出時にIssueへ中間コメントを投稿し、resume attempt番号、session、worktree、JSONLログpath、検出時刻を伝えるようにした
 - READMEとCLI docsにインストール手順と、install後に使うための前提条件を追記した
 - release buildの `daemon` 起動時にGitHub Releases latestを確認してself-updateする処理を追加した
 - `run-weaver update --check` / `run-weaver update` を追加した

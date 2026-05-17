@@ -278,10 +278,11 @@ func TestCompleteCurrentJobResumesRateLimitedCodex(t *testing.T) {
 	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
 		t.Fatal(err)
 	}
+	github := newFakeGitHubClient(githubIssue{Number: 42})
 	commands := &fakeCommandRunner{failFirstHasSession: true}
 
 	result, completed, err := completeCurrentJob(context.Background(), daemonDeps{
-		github:   newFakeGitHubClient(githubIssue{Number: 42}),
+		github:   github,
 		worktree: newWorktreeManager(commands),
 		runner:   newTmuxRunner(commands),
 	}, daemonOptions{target: "wsl"})
@@ -298,12 +299,27 @@ func TestCompleteCurrentJobResumesRateLimitedCodex(t *testing.T) {
 	if !commands.ranPrefix("tmux", "new-window", "-t", tmuxSessionName, "-n", "issue-42") {
 		t.Fatalf("commands = %#v, want tmux new-window", commands.calls)
 	}
+	if len(github.comments) != 1 || !strings.Contains(github.comments[0].Body, "run-weaver detected a Codex rate limit interruption") {
+		t.Fatalf("comments = %#v, want rate limit resume comment", github.comments)
+	}
+	if !strings.Contains(github.comments[0].Body, "json log: "+jsonLog) {
+		t.Fatalf("comment = %q, want json log path", github.comments[0].Body)
+	}
 	updated, err := readStateFile(defaultStateFile("wsl"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if updated.Job.Codex.SessionID == nil || *updated.Job.Codex.SessionID != "session-123" {
 		t.Fatalf("session id = %#v", updated.Job.Codex.SessionID)
+	}
+	if updated.Job.RetryCount != 1 {
+		t.Fatalf("retry count = %d, want 1", updated.Job.RetryCount)
+	}
+	if updated.Job.LastGitHubCommentAt == "" {
+		t.Fatal("last GitHub comment timestamp should be recorded")
+	}
+	if updated.Job.LastError == nil || !strings.Contains(*updated.Job.LastError, "resume attempt 1 started") {
+		t.Fatalf("last error = %#v, want rate limit resume message", updated.Job.LastError)
 	}
 }
 

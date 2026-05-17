@@ -55,6 +55,8 @@ run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --
 10. 作業後にdraft PRを作成する
 11. Issueに結果コメントを投稿し、`done` または `blocked` ラベルへ更新する
 
+Codexがrate limitで中断した場合、`run-weaver` はIssueを `blocked` にせず `running` のまま自動resumeを試します。このときIssueにはresume attempt番号、session、worktree、JSONLログpath、検出時刻だけを含む中間コメントを投稿し、secret値やログ本文は載せません。
+
 Campaign Issueでは、親Issue本文の大枠指示とrepository内docsをCodex Plannerが読み、PR単位のtask graphとdecision gateをJSONで生成します。Plannerはrepo docsを優先し、親Issue本文は「どのroadmapを進めるか」を伝える補助入力として扱います。Plannerが作った通常taskは `run-weaver:campaign-task` 付きの子Issueとして作成し、通常ready Issue取得からは除外します。人間判断が必要な箇所だけDecision Requestとして親Issueへコメントします。回答は `run-weaver-decision:<decision-id>:<option>` を含む親Issueコメントで返します。Dispatcherは子Issueを `plan`、`implement`、`review`、`verify` の順に処理し、taskごとにdraft PRを作成します。
 
 通常Issueが同じrepositoryに複数ある場合、daemonはIssue番号の小さい順に最大1件ずつ処理します。Issue本文、タイトル、人間コメントに `depends: #123`、`blocked by #123`、`stacked on #123`、`依存: #123`、`#123 の後` などの明確な依存があれば、依存先Issueが `done` になりPR branchを復元できるまで待機します。依存先が完了済みなら、そのbranchをbaseにしたstacked draft PRを作ります。依存表現が曖昧なIssueは `blocked` にし、次の実行可能Issueへ進みます。

@@ -1,5 +1,21 @@
 # Process Log
 
+## 2026-05-18 - Rate Limit Issue Communication
+
+Review:
+
+- Immediate fixes:
+  - Codex rate limit検出時にIssueへ中間コメントを投稿し、resume attempt番号、session、worktree、JSONLログpath、検出時刻を残すようにした。
+  - rate limit resume attemptをstate fileの `retryCount`、`lastGitHubCommentAt`、`lastError` に反映するようにした。
+  - rate limit中間コメントが将来のCodex promptや依存検出で人間コメントとして混ざらないよう、run-weaver管理コメント除外条件に追加した。
+  - README、architecture、CLI、GitHub Issue flow、progress、handoffにrate limit中間通知仕様を反映した。
+  - `GOCACHE=/tmp/run-weaver-go-build-cache go test ./internal/cli -run 'RateLimited|WritePromptFileIgnores|DetectIssueDependencies'` と `GOCACHE=/tmp/run-weaver-go-build-cache go test ./...` で確認した。
+- Future tasks:
+  - 実運用でrate limitが長く続く場合、コメント頻度の上限や次回再開予定時刻の表示を追加するか検討する。
+- Human-facing reports:
+  - Issueコメントにはsecret値、環境変数値、JSONLログ本文を載せず、ローカルpathとsession情報だけを載せる。
+  - 今回は実GitHub Issueへのコメント投稿、ラベル変更、push、release作成、secret表示は行っていない。
+
 ## 2026-05-18 - Release Readiness Audit
 
 Review:

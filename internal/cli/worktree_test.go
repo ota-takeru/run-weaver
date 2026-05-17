@@ -60,6 +60,35 @@ func TestWritePromptFileAllowsTitleOnly(t *testing.T) {
 	}
 }
 
+func TestWritePromptFileIgnoresRunWeaverRateLimitComments(t *testing.T) {
+	path := t.TempDir() + "/issues/42/prompt.md"
+
+	if err := writePromptFile(path, githubIssue{
+		Number: 42,
+		Title:  "Add README",
+		URL:    "https://example.test/42",
+		Comments: []githubComment{{
+			Body: "<!-- run-weaver-rate-limit:claim:1 -->\nrun-weaver detected a Codex rate limit interruption and started an automatic resume attempt.",
+		}, {
+			Body: "Please include setup notes.",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if strings.Contains(got, "rate limit interruption") {
+		t.Fatalf("prompt = %q, should ignore run-weaver rate limit comments", got)
+	}
+	if !strings.Contains(got, "Please include setup notes.") {
+		t.Fatalf("prompt = %q, want human comment", got)
+	}
+}
+
 func TestWorktreePrepareClonesAndAddsWorktree(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tempDir)
