@@ -1,5 +1,26 @@
 # Process Log
 
+## 2026-05-17 - GitHub Release Self Update
+
+Review:
+
+- Immediate fixes:
+  - release buildで `Version` にtag名を埋め込むためのversion変数とrelease workflowを追加した。
+  - `daemon` 起動時にGitHub Releases latestを確認し、新しいassetがある場合だけself-updateする処理を追加した。
+  - `run-weaver update --check` / `run-weaver update` を追加した。
+  - 開発ビルドでは自動更新せず、`RUN_WEAVER_NO_UPDATE=1` でrelease buildでも一時停止できるようにした。
+  - project clone不要の `scripts/install.sh` / `scripts/install.ps1` を追加した。
+  - WSL installがskeletonのままだとclone不要install後に常駐できないため、systemd user service作成を追加した。
+  - `--repo-url` がGitHub URLならowner/repoを自動推定し、install後のdaemonがrepository外のcwdから動いても `gh` にrepository指定を渡せるようにした。
+  - release version比較、asset選択、tar.gz / zip展開の単体テストを追加した。
+- Future tasks:
+  - tag `v*` push時のrelease workflow結果を確認する。
+  - systemd user serviceの実WSL環境での有効化結果を確認する。
+  - systemd user serviceで `gh`、`codex`、`doppler` のPATHやDoppler環境変数が不足する環境があれば、service fileのEnvironment設定を追加する。
+- Human-facing reports:
+  - 実release作成にはtag pushが必要で、pushは自動では行わない。
+  - GitHub Releasesから取得するため、install script実行時はnetwork accessが必要。
+
 ## 2026-05-17 - Codex Rate Limit Resume
 
 Review:

@@ -2,18 +2,19 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、status表示細分化の検証です。
+現在の優先タスクは、GitHub Releases配布と起動時self-updateの検証です。
 
 Definition of Done:
 
-- GitHub ActionsのWindows jobで `go test ./...`、`go build ./cmd/run-weaver`、`go test ./internal/cli -run Windows` が通る
-- Windows targetのdoctor / statusについて、state file、process、GitHub照合相当の挙動をfake command込みのテストで確認する
-- Windows固有の未実装または環境依存事項をdocsに記録する
-- 手元Windows確認は任意とし、必要な場合は `scripts/check-windows.ps1` を実行するだけで済む
+- release buildで `internal/cli.Version` にtag名を埋め込み、GitHub Release assetを作成できる
+- `daemon` 起動時にlatest releaseを確認し、newer versionがある場合だけ対応assetを取得する
+- 開発ビルドでは自動更新せず、`RUN_WEAVER_NO_UPDATE=1` でrelease buildでも一時停止できる
+- ローカルproject cloneなしで `scripts/install.sh` / `scripts/install.ps1` からGitHub Releasesのbinaryを導入できる
+- 更新処理とinstall手順をdocsに記録する
 
 Recommended Next Step:
 
-- GitHub ActionsのWindows job結果を確認し、失敗があればWindows固有差分を修正する。
+- GitHub ActionsのLinux / Windows CIと、tag release workflowの結果を確認する。
 
 ## Completed
 
@@ -76,10 +77,14 @@ Recommended Next Step:
 - `status` のJSONとhuman outputに `runtimeState` を追加し、`codex_running`、`codex_completed`、`needs_attention` を区別するようにした
 - Codexがrate limitで中断した場合に、同じworktreeと前回sessionから `codex exec resume` で自動再開する処理を追加した
 - READMEとCLI docsにインストール手順と、install後に使うための前提条件を追記した
+- release buildの `daemon` 起動時にGitHub Releases latestを確認してself-updateする処理を追加した
+- `run-weaver update --check` / `run-weaver update` を追加した
+- GitHub Release asset作成workflowと、project clone不要の `scripts/install.sh` / `scripts/install.ps1` を追加した
+- `run-weaver install --target wsl --repo-url <url>` でsystemd user serviceを作成または更新する処理を追加した
 
 ## Upcoming Sequence
 
-1. rate limit自動再開とインストール手順のCI検証結果確認
+1. self-updateとclone不要install手順のCI / release workflow結果確認
 2. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch

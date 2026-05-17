@@ -1,0 +1,50 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build assets
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/linux-amd64 dist/linux-arm64 dist/windows-amd64 dist/windows-arm64
+          LDFLAGS="-X github.com/ota-takeru/run-weaver/internal/cli.Version=${VERSION}"
+          GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/linux-amd64/run-weaver ./cmd/run-weaver
+          GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/linux-arm64/run-weaver ./cmd/run-weaver
+          GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/windows-amd64/run-weaver.exe ./cmd/run-weaver
+          GOOS=windows GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/windows-arm64/run-weaver.exe ./cmd/run-weaver
+          tar -C dist/linux-amd64 -czf dist/run-weaver_linux_amd64.tar.gz run-weaver
+          tar -C dist/linux-arm64 -czf dist/run-weaver_linux_arm64.tar.gz run-weaver
+          zip -j dist/run-weaver_windows_amd64.zip dist/windows-amd64/run-weaver.exe
+          zip -j dist/run-weaver_windows_arm64.zip dist/windows-arm64/run-weaver.exe
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            dist/run-weaver_linux_amd64.tar.gz \
+            dist/run-weaver_linux_arm64.tar.gz \
+            dist/run-weaver_windows_amd64.zip \
+            dist/run-weaver_windows_arm64.zip \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes

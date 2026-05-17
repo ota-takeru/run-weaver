@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -25,6 +27,10 @@ var validTargets = map[string]struct{}{
 
 // Run executes the run-weaver CLI and returns a process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
+	if code, handled := maybeAutoUpdateOnStartup(args, stderr); handled {
+		return code
+	}
+
 	if len(args) == 0 {
 		printRootUsage(stderr)
 		return exitUsage
@@ -39,6 +45,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runInstall(args[1:], stdout, stderr)
 	case "daemon":
 		return runDaemon(args[1:], stdout, stderr)
+	case "update":
+		return runUpdate(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		printRootUsage(stdout)
 		return exitOK
@@ -47,6 +55,38 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		printRootUsage(stderr)
 		return exitUsage
 	}
+}
+
+func runUpdate(args []string, stdout, stderr io.Writer) int {
+	fs := newFlagSet("update", stderr)
+	checkOnly := fs.Bool("check", false, "check for an update without installing it")
+	if !parseFlags(fs, args, stderr) {
+		return exitUsage
+	}
+
+	result, err := checkReleaseUpdate(context.Background())
+	if err != nil {
+		fmt.Fprintf(stderr, "update error: %v\n", err)
+		return exitConfigMissing
+	}
+	if !result.Available {
+		fmt.Fprintf(stdout, "run-weaver is up to date (%s)\n", Version)
+		return exitOK
+	}
+	if *checkOnly {
+		fmt.Fprintf(stdout, "update available: %s -> %s\n", Version, result.Version)
+		return exitOK
+	}
+	if err := installReleaseUpdate(context.Background(), result, argsForRestart(nil)); err != nil {
+		if errors.Is(err, errUpdateRestarting) {
+			fmt.Fprintf(stdout, "installed run-weaver %s; restarting\n", result.Version)
+			return exitOK
+		}
+		fmt.Fprintf(stderr, "update error: %v\n", err)
+		return exitConfigMissing
+	}
+	fmt.Fprintf(stdout, "installed run-weaver %s\n", result.Version)
+	return exitOK
 }
 
 func runDoctor(args []string, stdout, stderr io.Writer) int {
@@ -108,13 +148,14 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "--poll-interval must be greater than zero")
 		return exitUsage
 	}
+	if *repoURL == "" {
+		fmt.Fprintf(stderr, "--repo-url is required for install --target %s\n", *target)
+		return exitConfigMissing
+	}
+	repoName := resolveRepoName(*repo, *repoURL)
 	if *target == "windows" {
-		if *repoURL == "" {
-			fmt.Fprintln(stderr, "--repo-url is required for install --target windows")
-			return exitConfigMissing
-		}
 		if err := installWindows(windowsInstallOptions{
-			Repo:         *repo,
+			Repo:         repoName,
 			RepoURL:      *repoURL,
 			Binary:       *binary,
 			PollInterval: *pollInterval,
@@ -126,7 +167,16 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 		return exitOK
 	}
 
-	fmt.Fprintf(stdout, "install skeleton for target %s\n", *target)
+	if err := installWSL(installOptions{
+		Repo:         repoName,
+		RepoURL:      *repoURL,
+		Binary:       *binary,
+		PollInterval: *pollInterval,
+	}); err != nil {
+		fmt.Fprintf(stderr, "install error: %v\n", err)
+		return exitConfigMissing
+	}
+	fmt.Fprintf(stdout, "installed systemd user service run-weaver for target wsl\n")
 	return exitOK
 }
 
@@ -154,7 +204,7 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 	}
 
 	deps := daemonDeps{
-		github:   ghClient{repo: *repo},
+		github:   ghClient{repo: resolveRepoName(*repo, *repoURL)},
 		worktree: newWorktreeManager(nil),
 		runner:   newTmuxRunner(nil),
 	}
@@ -208,6 +258,32 @@ func validateTarget(target string, required bool, stderr io.Writer) bool {
 	return true
 }
 
+func resolveRepoName(repo, repoURL string) string {
+	if repo != "" {
+		return repo
+	}
+	return inferGitHubRepo(repoURL)
+}
+
+func inferGitHubRepo(repoURL string) string {
+	value := strings.TrimSuffix(strings.TrimSpace(repoURL), ".git")
+	switch {
+	case strings.HasPrefix(value, "https://github.com/"):
+		value = strings.TrimPrefix(value, "https://github.com/")
+	case strings.HasPrefix(value, "http://github.com/"):
+		value = strings.TrimPrefix(value, "http://github.com/")
+	case strings.HasPrefix(value, "git@github.com:"):
+		value = strings.TrimPrefix(value, "git@github.com:")
+	default:
+		return ""
+	}
+	parts := strings.Split(value, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return ""
+	}
+	return parts[0] + "/" + parts[1]
+}
+
 func printRootUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage: run-weaver <command> [flags]")
 	fmt.Fprintln(w)
@@ -216,6 +292,7 @@ func printRootUsage(w io.Writer) {
 	fmt.Fprintln(w, "  status   Show daemon and job status")
 	fmt.Fprintln(w, "  install  Install target-specific daemon configuration")
 	fmt.Fprintln(w, "  daemon   Run the issue processing daemon")
+	fmt.Fprintln(w, "  update   Update run-weaver from GitHub Releases")
 }
 
 func writeJSON(w io.Writer, value any) {

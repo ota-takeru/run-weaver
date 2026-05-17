@@ -103,8 +103,14 @@ agent自体はGitHub Releases経由で配布します。
 
 導入は以下の2段階を想定します。
 
-- `install.sh` / `install.ps1`: 初回取得と基本設定
+- `install.sh` / `install.ps1`: GitHub Releasesのlatest asset取得と基本設定
 - `run-weaver install`: targetごとの常駐設定
+
+release assetは `.github/workflows/release.yml` がtag `v*` push時に作成します。asset名はOS/ARCHごとに固定し、Linuxは `run-weaver_linux_<arch>.tar.gz`、Windowsは `run-weaver_windows_<arch>.zip` とします。release buildでは `-ldflags` で `internal/cli.Version` にtag名を埋め込みます。
+
+`run-weaver daemon` は起動時にGitHub Releasesのlatest releaseを確認します。latestが現在versionより新しければ対応assetをdownloadし、現在の実行ファイルを置き換えます。Linux / WSLでは置換後に同じPIDで更新後binaryへexecします。Windowsでは実行中のexeを直接置換できないため、一時ファイルを置いてから現在processを終了し、`cmd` 経由で置換後に同じ引数で起動し直します。`install.sh` / `install.ps1` は常にlatest releaseを取得するため、`run-weaver install` 自体では自動更新を行いません。
+
+開発ビルドのversionは `dev` であり、自動更新は行いません。運用上、自動更新を止める必要がある場合は `RUN_WEAVER_NO_UPDATE=1` を設定します。
 
 ## 将来拡張
 

@@ -53,6 +53,20 @@ func TestDoctorRejectsInvalidTarget(t *testing.T) {
 	}
 }
 
+func TestInferGitHubRepo(t *testing.T) {
+	cases := map[string]string{
+		"https://github.com/example/repo.git":  "example/repo",
+		"https://github.com/example/repo":      "example/repo",
+		"git@github.com:example/repo.git":      "example/repo",
+		"https://example.com/example/repo.git": "",
+	}
+	for input, want := range cases {
+		if got := inferGitHubRepo(input); got != want {
+			t.Fatalf("inferGitHubRepo(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 func TestDoctorJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	tempDir := t.TempDir()
