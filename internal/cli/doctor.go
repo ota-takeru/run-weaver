@@ -20,6 +20,8 @@ const (
 	exitTargetMismatch = 4
 )
 
+var runShortCommandOutput = defaultRunShortCommandOutput
+
 type doctorResult struct {
 	Output   doctorOutput
 	ExitCode int
@@ -323,18 +325,23 @@ func insertAfter(checks []doctorCheck, id string, check doctorCheck) []doctorChe
 }
 
 func runShortCommand(name string, args ...string) error {
+	_, err := runShortCommandOutput(name, args...)
+	return err
+}
+
+func defaultRunShortCommandOutput(name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
-	if err := cmd.Run(); err != nil {
+	out, err := cmd.Output()
+	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return ctx.Err()
+			return nil, ctx.Err()
 		}
-		return err
+		return nil, err
 	}
-	return nil
+	return out, nil
 }
 
 func isWSL() bool {

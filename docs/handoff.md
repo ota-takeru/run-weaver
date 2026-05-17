@@ -23,6 +23,7 @@
 - `daemon` の継続poll loop、`--poll-interval`、claim後失敗時のblocked state file更新を実装済み。
 - 実GitHub Issue `ota-takeru/truth-table-app#1` で、本文付きIssueからCodex実行、README追加、commit、branch push、draft PR #2作成、`done` ラベル更新まで確認済み。
 - Issue本文と人間コメントはCodex promptへ渡される。本文なしでもタイトルが具体的なら実行し、情報不足の場合だけblockする方針。
+- Windows targetの `status` は、PID照合に `tasklist` のCSV出力を使うようにした。CSV解析の単体テストは追加済みだが、Windows実機では未検証。
 
 ## Next Step
 
@@ -43,6 +44,7 @@ Windows targetのdoctor / statusを実機または相当環境で追加検証す
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
 - state fileがない状態の `status` は終了コード1で、JSON/human出力は返す。
 - Windows targetのdoctor checkはWindows実機で追加検証が必要。
+- Windows targetのstatus process照合は `tasklist` に依存するため、Windows実機で終了済みPIDと稼働中PIDの両方を確認する。
 
 ## WSL Integration Test Prep
 

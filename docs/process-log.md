@@ -1,5 +1,19 @@
 # Process Log
 
+## 2026-05-17 - Windows Status Process Check
+
+Review:
+
+- Immediate fixes:
+  - Windows targetの `status` で `os.FindProcess` だけではPID生存確認にならないため、`tasklist /FI "PID eq <pid>" /FO CSV /NH` のCSV出力を解析してprocess照合するようにした。
+  - `tasklist` の一致、不一致、実行失敗の単体テストを追加した。
+  - `go test ./...` と `go build ./cmd/run-weaver` を確認した。
+- Future tasks:
+  - Windows実機またはWindows相当環境で `run-weaver doctor --target windows` と `run-weaver status` を実行し、Task Scheduler、state file path、process照合、GitHub照合を確認する。
+  - Windows targetのdaemon起動方式は初期実装の必須範囲外として、実機検証時に未実装事項へ分類する。
+- Human-facing reports:
+  - この環境はLinux/WSLのため、Windows実機でのdoctor / status検証は未実施。
+
 ## 2026-05-16 - WSL Integration Success
 
 Review:

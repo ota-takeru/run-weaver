@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,8 @@ import (
 	"syscall"
 	"time"
 )
+
+var currentGOOS = runtime.GOOS
 
 type statusResult struct {
 	Output   statusOutput
@@ -138,10 +141,10 @@ func stateJobToStatusJob(job *stateJob) *statusJob {
 }
 
 func defaultStatusTarget() string {
-	if runtime.GOOS == "windows" {
+	if currentGOOS == "windows" {
 		return "windows"
 	}
-	if runtime.GOOS == "linux" && isWSL() {
+	if currentGOOS == "linux" && isWSL() {
 		return "wsl"
 	}
 	return ""
@@ -155,10 +158,31 @@ func processRunning(pid int) bool {
 	if err != nil {
 		return false
 	}
-	if runtime.GOOS == "windows" {
-		return true
+	if currentGOOS == "windows" {
+		return windowsProcessRunning(pid)
 	}
 	return process.Signal(syscall.Signal(0)) == nil
+}
+
+func windowsProcessRunning(pid int) bool {
+	out, err := runShortCommandOutput("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/FO", "CSV", "/NH")
+	if err != nil {
+		return false
+	}
+	reader := csv.NewReader(strings.NewReader(string(out)))
+	reader.FieldsPerRecord = -1
+	for {
+		record, err := reader.Read()
+		if errors.Is(err, io.EOF) {
+			return false
+		}
+		if err != nil || len(record) < 2 {
+			return false
+		}
+		if record[1] == strconv.Itoa(pid) {
+			return true
+		}
+	}
 }
 
 func processState(running bool, pid int) string {

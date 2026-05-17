@@ -119,6 +119,8 @@ run-weaver status --repo example/repo
 
 `--repo` は `gh` CLIへ渡すowner/repo指定です。未指定の場合はカレントディレクトリのGitHub repository解決に任せます。
 
+process照合はtargetごとの実行環境に合わせます。WSLではPIDへsignal 0を送り、Windowsでは `tasklist` のPID検索結果を使います。tmux照合はWSL targetのみ対象です。
+
 人間向け出力例:
 
 ```text

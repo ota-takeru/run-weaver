@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"runtime"
 	"testing"
 )
@@ -181,6 +182,51 @@ func TestStatusDetectsGitHubLabelMismatch(t *testing.T) {
 	}
 	if !containsString(result.Output.Reconciliation.Conflicts, "github_label_mismatch") {
 		t.Fatalf("conflicts = %#v, want github_label_mismatch", result.Output.Reconciliation.Conflicts)
+	}
+}
+
+func TestWindowsProcessRunningParsesTasklistCSV(t *testing.T) {
+	original := runShortCommandOutput
+	t.Cleanup(func() {
+		runShortCommandOutput = original
+	})
+	runShortCommandOutput = func(name string, args ...string) ([]byte, error) {
+		if name != "tasklist" {
+			t.Fatalf("command = %q, want tasklist", name)
+		}
+		return []byte("\"run-weaver.exe\",\"4321\",\"Console\",\"1\",\"12,345 K\"\r\n"), nil
+	}
+
+	if !windowsProcessRunning(4321) {
+		t.Fatal("windowsProcessRunning returned false, want true")
+	}
+}
+
+func TestWindowsProcessRunningReturnsFalseWhenTasklistHasNoMatch(t *testing.T) {
+	original := runShortCommandOutput
+	t.Cleanup(func() {
+		runShortCommandOutput = original
+	})
+	runShortCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return []byte("INFO: No tasks are running which match the specified criteria.\r\n"), nil
+	}
+
+	if windowsProcessRunning(4321) {
+		t.Fatal("windowsProcessRunning returned true, want false")
+	}
+}
+
+func TestWindowsProcessRunningReturnsFalseOnTasklistError(t *testing.T) {
+	original := runShortCommandOutput
+	t.Cleanup(func() {
+		runShortCommandOutput = original
+	})
+	runShortCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return nil, errors.New("tasklist failed")
+	}
+
+	if windowsProcessRunning(4321) {
+		t.Fatal("windowsProcessRunning returned true, want false")
 	}
 }
 
