@@ -52,12 +52,15 @@ run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --
 7. Codex専用cloneからIssue専用worktreeを作る
 8. repositoryのDoppler要否を判定し、必須ならDoppler経由で環境変数を注入する
 9. WSL側ではtmux session、Windows側ではdirect runnerでCodex CLIをworktree上で実行する
-10. 作業後にdraft PRを作成する
-11. Issueに結果コメントを投稿し、`done` または `blocked` ラベルへ更新する
+10. 作業後、draft PR作成前に最新baseを取り込み、競合があればCodexで1回だけ解消を試す
+11. 競合解消と検証を通過した場合だけdraft PRを作成する
+12. Issueに結果コメントを投稿し、`done` または `blocked` ラベルへ更新する
 
 Codex promptでは、repositoryの `AGENTS.md` が禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合、調査、レビュー、委譲可能な小タスクにCodex built-in subagentsを使うよう指示します。利用不可または禁止されている場合はセルフレビューで続行します。
 
 Codexがrate limitで中断した場合、`run-weaver` はIssueを `blocked` にせず `running` のまま自動resumeを試します。このときIssueにはresume attempt番号、session、worktree、JSONLログpath、検出時刻だけを含む中間コメントを投稿し、secret値やログ本文は載せません。
+
+draft PR作成前のbase取り込みで通常のmerge conflictが出た場合、`run-weaver` は同じworktree上でCodexを `conflict-resolve` phaseとして1回だけ起動します。未解消のconflict marker、unmerged file、`git diff --check` の失敗が残る場合、またはlockfile、GitHub Actions workflow、migrationなど高リスクな競合を検出した場合はPRを作らず `blocked` にします。
 
 Campaign Issueでは、親Issue本文の大枠指示とrepository内docsをCodex Plannerが読み、PR単位のtask graphとdecision gateをJSONで生成します。Plannerはrepo docsを優先し、親Issue本文は「どのroadmapを進めるか」を伝える補助入力として扱います。Plannerが作った通常taskは `run-weaver:campaign-task` 付きの子Issueとして作成し、通常ready Issue取得からは除外します。人間判断が必要な箇所だけDecision Requestとして親Issueへコメントします。回答は `run-weaver-decision:<decision-id>:<option>` を含む親Issueコメントで返します。Dispatcherは子Issueを `plan`、`implement`、`review`、`verify` の順に処理し、taskごとにdraft PRを作成します。
 

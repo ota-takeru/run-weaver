@@ -127,6 +127,251 @@ func TestCompleteCurrentJobCreatesStackedDraftPR(t *testing.T) {
 	}
 }
 
+func TestCompleteCurrentJobStartsConflictResolutionBeforePush(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	lastMessage := tempDir + "/last-message.txt"
+	if err := os.WriteFile(lastMessage, []byte("done"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	worktree := tempDir + "/worktrees/issue-42"
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add export"},
+			LabelState: runningLabel,
+			Branch:     "codex/issue-42-add-export",
+			Worktree:   worktree,
+			Codex:      &codexState{LastMessagePath: lastMessage},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	commands := &fakeCommandRunner{
+		failFirstHasSession: true,
+		outputs: map[string][]byte{
+			"git\x00-C\x00" + worktree + "\x00status\x00--porcelain":                  []byte(" M index.html\n"),
+			"git\x00-C\x00" + worktree + "\x00diff\x00--name-only\x00--diff-filter=U": []byte("internal/app.go\n"),
+		},
+		runErrors: map[string]error{
+			"git\x00-C\x00" + worktree + "\x00merge\x00--no-edit\x00origin/HEAD": errFakeCommand,
+		},
+	}
+
+	result, completed, err := completeCurrentJob(context.Background(), daemonDeps{
+		github:   newFakeGitHubClient(githubIssue{Number: 42, Title: "Add export"}),
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !completed || !strings.Contains(result, "started conflict resolution") {
+		t.Fatalf("result = %q completed = %v", result, completed)
+	}
+	if commands.ranPrefix("git", "-C", worktree, "push") {
+		t.Fatalf("commands = %#v, should not push before conflict resolution", commands.calls)
+	}
+	if !commands.ranPrefix("tmux", "new-window", "-t", tmuxSessionName, "-n", "issue-42") {
+		t.Fatalf("commands = %#v, want conflict resolver Codex", commands.calls)
+	}
+	updated, err := readStateFile(defaultStateFile("wsl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Job.PipelinePhase != conflictResolvePhase || updated.Job.ConflictRetryCount != 1 {
+		t.Fatalf("job = %#v, want conflict resolution phase", updated.Job)
+	}
+	if updated.Job.Codex == nil || !strings.Contains(updated.Job.Codex.LastMessagePath, conflictResolvePhase) {
+		t.Fatalf("codex state = %#v, want conflict phase paths", updated.Job.Codex)
+	}
+}
+
+func TestCompleteCurrentJobBlocksHighRiskConflict(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	lastMessage := tempDir + "/last-message.txt"
+	if err := os.WriteFile(lastMessage, []byte("done"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	worktree := tempDir + "/worktrees/issue-42"
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add deps"},
+			LabelState: runningLabel,
+			Branch:     "codex/issue-42-add-deps",
+			Worktree:   worktree,
+			Codex:      &codexState{LastMessagePath: lastMessage},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{Number: 42, Title: "Add deps"})
+	commands := &fakeCommandRunner{
+		outputs: map[string][]byte{
+			"git\x00-C\x00" + worktree + "\x00status\x00--porcelain":                  []byte(" M go.mod\n"),
+			"git\x00-C\x00" + worktree + "\x00diff\x00--name-only\x00--diff-filter=U": []byte("go.sum\n"),
+		},
+		runErrors: map[string]error{
+			"git\x00-C\x00" + worktree + "\x00merge\x00--no-edit\x00origin/HEAD": errFakeCommand,
+		},
+	}
+
+	_, completed, err := completeCurrentJob(context.Background(), daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl"})
+
+	if err == nil || !strings.Contains(err.Error(), "high-risk conflict") {
+		t.Fatalf("err = %v, want high-risk conflict", err)
+	}
+	if !completed {
+		t.Fatal("high-risk conflict should complete this daemon cycle")
+	}
+	if !github.added[blockedLabel] {
+		t.Fatal("blocked label was not added")
+	}
+	if commands.ranPrefix("tmux", "new-window") {
+		t.Fatalf("commands = %#v, should not start Codex for high-risk conflict", commands.calls)
+	}
+}
+
+func TestCompleteCampaignTaskBlocksHighRiskConflict(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	lastMessage := tempDir + "/last-message.txt"
+	if err := os.WriteFile(lastMessage, []byte("done"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	worktree := tempDir + "/worktrees/issue-101"
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:          issueRef{Number: 101, Title: "Add deps"},
+			LabelState:     runningLabel,
+			Branch:         "codex/issue-101-add-deps",
+			Worktree:       worktree,
+			CampaignTaskID: "task-add-deps",
+			PipelinePhase:  pipelinePhaseVerify,
+			Codex:          &codexState{LastMessagePath: lastMessage},
+		},
+		Campaign: &stateCampaign{
+			Issue:         issueRef{Number: 7, Title: "Campaign"},
+			Status:        campaignStatusRunning,
+			CurrentTaskID: "task-add-deps",
+			Tasks: []campaignTask{{
+				ID:          "task-add-deps",
+				Title:       "Add deps",
+				IssueNumber: 101,
+				Status:      campaignTaskRunning,
+				Phase:       pipelinePhaseVerify,
+			}},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{Number: 101, Title: "Add deps"})
+	commands := &fakeCommandRunner{
+		outputs: map[string][]byte{
+			"git\x00-C\x00" + worktree + "\x00status\x00--porcelain":                  []byte(" M go.mod\n"),
+			"git\x00-C\x00" + worktree + "\x00diff\x00--name-only\x00--diff-filter=U": []byte("go.sum\n"),
+		},
+		runErrors: map[string]error{
+			"git\x00-C\x00" + worktree + "\x00merge\x00--no-edit\x00origin/HEAD": errFakeCommand,
+		},
+	}
+
+	_, completed, err := completeCurrentJob(context.Background(), daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl"})
+
+	if err == nil || !strings.Contains(err.Error(), "high-risk conflict") {
+		t.Fatalf("err = %v, want high-risk conflict", err)
+	}
+	if !completed {
+		t.Fatal("high-risk conflict should complete this daemon cycle")
+	}
+	if !github.added[blockedLabel] {
+		t.Fatal("blocked label was not added")
+	}
+	updated, err := readStateFile(defaultStateFile("wsl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Campaign == nil || updated.Campaign.Status != campaignStatusBlocked || updated.Campaign.CurrentTaskID != "" {
+		t.Fatalf("campaign = %#v, want blocked with no current task", updated.Campaign)
+	}
+	if updated.Job == nil || updated.Job.LabelState != blockedLabel {
+		t.Fatalf("job = %#v, want blocked", updated.Job)
+	}
+}
+
+func TestCompleteCurrentJobFinishesAfterConflictResolution(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	worktree := tempDir + "/worktrees/issue-42"
+	if err := os.MkdirAll(worktree, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(worktree+"/index.html", []byte("<h1>resolved</h1>\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	lastMessage := tempDir + "/conflict-last-message.txt"
+	if err := os.WriteFile(lastMessage, []byte("resolved"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:              issueRef{Number: 42, Title: "Add export"},
+			LabelState:         runningLabel,
+			Branch:             "codex/issue-42-add-export",
+			Worktree:           worktree,
+			PipelinePhase:      conflictResolvePhase,
+			ConflictRetryCount: 1,
+			Codex:              &codexState{LastMessagePath: lastMessage},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	github := newFakeGitHubClient(githubIssue{Number: 42, Title: "Add export"})
+	commands := &fakeCommandRunner{
+		outputs: map[string][]byte{
+			"git\x00-C\x00" + worktree + "\x00diff\x00--name-only\x00--diff-filter=U": []byte(""),
+			"git\x00-C\x00" + worktree + "\x00status\x00--porcelain":                  []byte(" M index.html\n"),
+		},
+	}
+
+	result, completed, err := completeCurrentJob(context.Background(), daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !completed || !strings.Contains(result, "completed issue #42") {
+		t.Fatalf("result = %q completed = %v", result, completed)
+	}
+	if !github.added[doneLabel] {
+		t.Fatal("done label was not added")
+	}
+}
+
 func TestCompleteCurrentJobBlocksWithoutChanges(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir+"/state")

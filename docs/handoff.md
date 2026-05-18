@@ -100,6 +100,7 @@
 - 初期実装のCodex起動は `codex exec` を使う。
 - Codexは `--sandbox workspace-write --ask-for-approval never` で起動する。
 - Codex完了後、daemonがworktreeの変更をcommitしてからpush / draft PR作成へ進む。変更なしなら `blocked` にする。
+- push / draft PR作成前に `origin` をfetchしてbaseをmergeする。通常のconflictはCodex `conflict-resolve` phaseで1回だけ解消を試し、lockfile / workflow / migrationなど高リスク競合または未解消競合はPRを作らず `blocked` にする。
 - Codex promptにはIssueタイトル、本文、run-weaver管理コメントを除いた人間コメントを渡す。本文なしでもタイトルが具体的なら実行する。AGENTS.mdが禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合、調査、レビュー、委譲可能な小タスクにはCodex built-in subagentsを使うよう指示する。
 - status表示の細分化は実装済み。CI確認待ち。
 - rate limit再開は人間確認条件を迂回しない。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回す。rate limit中間コメントにもsecret値やJSONLログ本文は載せない。

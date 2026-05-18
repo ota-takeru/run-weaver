@@ -153,6 +153,7 @@ Recommended Next Step:
 - Campaign task promptに親Campaign本文の詳細contextを含めるように修正し、Campaign planning時に既存の `completedIssues` を保持するようにした
 - Campaign開始時にCodex Plannerを非同期起動し、repo docs優先のJSON task graphを検証してから子Issue化する方式へ変更した
 - Planner出力の正常parse、不正JSON、空task、重複ID、未知dependency、未知task参照decision、Planner失敗blocked、planning status表示の単体テストを追加した
+- draft PR作成前に最新baseをmergeし、通常conflictはCodex `conflict-resolve` phaseで1回だけ解消、高リスクまたは未解消conflictはPRを作らず `blocked` にする処理を追加した
 - 実GitHub Campaign Issue `ota-takeru/truth-table-app#13` で、親Issue本文は「roadmap進めてください」形式にし、repo docs優先のCodex Planner JSON生成、子Issue #14 / #15 / #16 作成、Decision Request、decision gate停止/回答再開、draft PR #17 / #18 / #19 作成、Campaign doneを確認した
 - E2E準備として `ota-takeru/truth-table-app#12` で `docs/roadmap.md` を追加し、Plannerが同ファイルを読んでtask graphを生成することを確認した
 - Git repository外での `run-weaver repo add` 失敗理由を分かりやすくし、legacy単一repo stateの `status` がIssue URLからrepositoryを推定して `gh --repo` を使えるようにした。複数repository表示では別repositoryのlegacy stateを誤表示しないようにした

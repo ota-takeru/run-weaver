@@ -409,7 +409,9 @@ run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --
 - Codex専用cloneからIssue専用worktreeを作成
 - Doppler必須repositoryでは `doppler run --` 経由で環境変数を注入し、不要repositoryではDopplerなしで続行
 - Codex CLIをworktree上で実行
-- draft PRを作成
+- Codex完了後にworktreeの変更をcommitし、draft PR作成前に最新baseを取り込む
+- 通常のmerge conflictはCodex `conflict-resolve` phaseで1回だけ解消を試し、高リスク競合または未解消競合は `blocked` にする
+- 競合解消と検証を通過した場合だけdraft PRを作成
 - Issueへ結果コメントを投稿
 - `done` または `blocked` ラベルへ更新
 
@@ -430,6 +432,8 @@ Codex CLI起動の初期仕様:
 - session idを取得できない場合でも、同じworktreeへ移動して `codex exec resume --last` を試す
 - rate limit検出時はIssueに中間コメントを投稿し、resume attempt番号、session、worktree、JSONLログpath、検出時刻を残す。secret値やJSONLログ本文はコメントしない
 - rate limit resume attemptはstate fileの `retryCount`、`lastGitHubCommentAt`、`lastError` にも反映する
+- Codex完了後はpush / draft PR作成の前に `origin` をfetchし、PR baseをworktreeへmergeする。通常のmerge conflictはCodexを `conflict-resolve` phaseとして1回だけ起動し、unmerged file、conflict marker、`git diff --check` の失敗が残らない場合だけ続行する
+- lockfile、GitHub Actions workflow、migrationなどの高リスク競合、または1回のconflict resolve後も解消できない競合は、draft PRを作らず `blocked` とする
 - Doppler必須repositoryでDoppler CLIまたは `doppler run` 可能な認証/設定がない場合はCodex起動前に `blocked` とし、Doppler不要repositoryではDoppler未インストールでも続行する
 - Codexに渡すDoppler service tokenは環境変数から注入し、ログ、Issueコメント、PR本文、state fileには値を出さない
 

@@ -1,5 +1,20 @@
 # Process Log
 
+## 2026-05-18 - Conflict Resolution Before Draft PR
+
+Review:
+
+- Immediate fixes:
+  - Codex完了後のcommit直後、push / draft PR作成前に `origin` をfetchしてPR baseをmergeし、base側の更新によるconflictを事前検出するようにした。
+  - 通常のmerge conflictは同じworktree上でCodexを `conflict-resolve` phaseとして1回だけ起動し、解消後にunmerged file、conflict marker、`git diff --check` を検証してからPR作成へ進むようにした。
+  - lockfile、GitHub Actions workflow、migrationなどの高リスク競合、または1回の解消後も残る競合はPRを作らず `blocked` にするようにした。
+- Future tasks:
+  - conflictが多い場合は、Campaign task間のexpected filesや暗黙依存スコアを追加して事前予測を強める。
+  - `status` に `conflict-resolve` phaseや競合ファイル一覧をより見やすく出すか検討する。
+- Human-facing reports:
+  - 高リスク競合や未解消競合ではdraft PRを作らず、Issueを `blocked` にしてworktreeを残す。
+  - 今回のMVPでは自動解消を1回に制限し、全task間の依存グラフ推定や大規模な事前merge matrixは入れていない。
+
 ## 2026-05-18 - Safe Daemon Update Request
 
 Review:

@@ -82,7 +82,7 @@ tmux window名はIssue番号を含めます。
 
 Codexがrate limitで中断した場合、agentはJSONLログからsession idを取得し、ローカルstateに保存します。次回pollでtmux windowが終了済みなら、Issueへrate limit検出と自動resume attemptの中間コメントを投稿してから、同じworktree上で `codex exec resume <session>` を起動し、前回sessionと作業ツリーを引き継ぎます。session idを取得できない場合は、同じworktree上で `codex exec resume --last` を試します。中間コメントにはattempt番号、session、worktree、JSONLログpath、検出時刻だけを含め、secretやログ本文は含めません。state fileには `retryCount`、`lastGitHubCommentAt`、rate limit resume中であることを示す `lastError` を残します。rate limit再開は人間確認条件を迂回しません。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回します。
 
-Codex完了の初期判定は、最終応答ファイルが存在し、対象tmux windowが終了していることです。完了後はbranchをpushし、draft PRを作成してIssueを `done` に更新します。
+Codex完了の初期判定は、最終応答ファイルが存在し、対象tmux windowが終了していることです。完了後はworktreeの変更をcommitし、push / draft PR作成の前に `origin` をfetchしてPR baseをmergeします。merge conflictが起きた場合、lockfile、GitHub Actions workflow、migrationなどの高リスク競合はPRを作らず `blocked` にします。通常の競合は同じworktree上でCodexを `conflict-resolve` phaseとして1回だけ起動し、unmerged file、conflict marker、`git diff --check` の失敗が残らない場合だけpushとdraft PR作成へ進みます。
 
 Doppler必須repositoryでは `doppler run -- codex ...` でCodexを起動します。agentはtokenの値をstate file、tmuxログ、構造化ログ、Issueコメント、PR本文に出しません。tmux上でもtoken値が表示されないよう、コマンドライン引数ではなく環境変数として注入します。
 

@@ -12,6 +12,7 @@ import (
 
 const tmuxSessionName = "run-weaver"
 const campaignPlannerPhase = "campaign-planner"
+const conflictResolvePhase = "conflict-resolve"
 
 type commandRunner interface {
 	Run(context.Context, string, ...string) error
@@ -263,7 +264,7 @@ func buildCodexPowerShellCommand(spec codexRunSpec) string {
 
 func codexReasoningConfig(phase string) string {
 	switch phase {
-	case pipelinePhasePlan, pipelinePhaseReview, campaignPlannerPhase:
+	case pipelinePhasePlan, pipelinePhaseReview, campaignPlannerPhase, conflictResolvePhase:
 		return "-c model_reasoning_effort=\"medium\""
 	case pipelinePhaseImplement:
 		return "-c model_reasoning_effort=\"low\""

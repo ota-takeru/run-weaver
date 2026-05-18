@@ -191,6 +191,7 @@ func TestTmuxRunnerHandlesConcurrentSessionCreation(t *testing.T) {
 type fakeCommandRunner struct {
 	calls               []commandCall
 	outputs             map[string][]byte
+	runErrors           map[string]error
 	failFirstHasSession bool
 	failNewSession      bool
 	failNewWindow       bool
@@ -203,6 +204,11 @@ type commandCall struct {
 
 func (r *fakeCommandRunner) Run(_ context.Context, name string, args ...string) error {
 	r.calls = append(r.calls, commandCall{name: name, args: append([]string(nil), args...)})
+	if r.runErrors != nil {
+		if err := r.runErrors[name+"\x00"+strings.Join(args, "\x00")]; err != nil {
+			return err
+		}
+	}
 	if r.failFirstHasSession && name == "tmux" && len(args) >= 1 && args[0] == "has-session" {
 		r.failFirstHasSession = false
 		return errFakeCommand

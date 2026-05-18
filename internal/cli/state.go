@@ -36,6 +36,7 @@ type stateJob struct {
 	CampaignTaskID      string            `json:"campaignTaskId,omitempty"`
 	PipelinePhase       string            `json:"pipelinePhase,omitempty"`
 	RetryCount          int               `json:"retryCount,omitempty"`
+	ConflictRetryCount  int               `json:"conflictRetryCount,omitempty"`
 	LastGitHubCommentAt string            `json:"lastGitHubCommentAt"`
 	Tmux                *tmuxRef          `json:"tmux"`
 	Codex               *codexState       `json:"codex"`

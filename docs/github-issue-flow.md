@@ -152,6 +152,8 @@ agentが自力で進められない場合は `blocked` にします。
 - 人間判断が必要な仕様不明点がある
 - claim状態がGitHubとstate fileで矛盾している
 
+draft PR作成前に最新baseをmergeしてconflictを検出します。通常のconflictは同じworktree上でCodexを `conflict-resolve` phaseとして1回だけ起動し、unmerged file、conflict marker、`git diff --check` の失敗が残らない場合だけPR作成へ進めます。lockfile、GitHub Actions workflow、migrationなどの高リスク競合、または1回の解消後も残る競合は `blocked` にし、PRは作成しません。
+
 blockedコメントには以下を含めます。
 
 - 失敗した段階
@@ -176,7 +178,7 @@ secretやtokenの値はコメントに含めません。
 
 ## Draft PR
 
-作業完了時は必ずdraft PRを作成します。
+作業完了時は、PR作成前のbase取り込みと競合検証を通過した場合にdraft PRを作成します。高リスク競合または未解消競合で `blocked` になった場合、draft PRは作成しません。
 
 PR本文にはIssueへの参照を含めます。
 

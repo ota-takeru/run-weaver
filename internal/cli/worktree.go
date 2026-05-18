@@ -62,6 +62,53 @@ func (m worktreeManager) PushBranch(ctx context.Context, worktree, branch string
 	return m.commands.Run(ctx, "git", "-C", worktree, "push", "-u", "origin", branch)
 }
 
+func (m worktreeManager) FetchOrigin(ctx context.Context, worktree string) error {
+	return m.commands.Run(ctx, "git", "-C", worktree, "fetch", "origin")
+}
+
+func (m worktreeManager) MergeBase(ctx context.Context, worktree, baseRef string) error {
+	return m.commands.Run(ctx, "git", "-C", worktree, "merge", "--no-edit", baseRef)
+}
+
+func (m worktreeManager) UnmergedFiles(ctx context.Context, worktree string) ([]string, error) {
+	out, err := m.commands.Output(ctx, "git", "-C", worktree, "diff", "--name-only", "--diff-filter=U")
+	if err != nil {
+		return nil, err
+	}
+	return parseGitPathLines(out), nil
+}
+
+func (m worktreeManager) ChangedFiles(ctx context.Context, worktree string) ([]string, error) {
+	diffOut, err := m.commands.Output(ctx, "git", "-C", worktree, "diff", "--name-only", "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	untrackedOut, err := m.commands.Output(ctx, "git", "-C", worktree, "ls-files", "--others", "--exclude-standard")
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var files []string
+	for _, file := range append(parseGitPathLines(diffOut), parseGitPathLines(untrackedOut)...) {
+		if !seen[file] {
+			seen[file] = true
+			files = append(files, file)
+		}
+	}
+	return files, nil
+}
+
+func parseGitPathLines(out []byte) []string {
+	var files []string
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+	return files
+}
+
 func (m worktreeManager) CommitAll(ctx context.Context, worktree, message string) (bool, error) {
 	status, err := m.commands.Output(ctx, "git", "-C", worktree, "status", "--porcelain")
 	if err != nil {

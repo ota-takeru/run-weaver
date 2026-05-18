@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
 
 const rateLimitResumePrompt = `Continue the interrupted work from the previous session. Review the existing worktree, git diff, and prior context before making changes. Preserve previous progress and continue toward the original GitHub Issue goal.`
+const conflictResolveMaxAttempts = 1
 
 const rateLimitCommentMarkerPrefix = "run-weaver-rate-limit:"
 
@@ -35,8 +37,23 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 	if !codexCompletionReady(opts.target, state.Job) {
 		return "", false, nil
 	}
-	if advanced, result, err := advanceCampaignPipeline(ctx, deps, opts, state); advanced || err != nil {
-		return result, true, err
+	resolvedConflict := false
+	if state.Job.PipelinePhase == conflictResolvePhase {
+		if err := validateConflictResolution(ctx, deps.worktree, state.Job.Worktree); err != nil {
+			blockCompletionJob(ctx, deps, opts, state, "conflict resolution", err)
+			return "", true, err
+		}
+		if state.Job.CampaignTaskID != "" {
+			state.Job.PipelinePhase = pipelinePhaseVerify
+		} else {
+			state.Job.PipelinePhase = ""
+		}
+		resolvedConflict = true
+	}
+	if !resolvedConflict {
+		if advanced, result, err := advanceCampaignPipeline(ctx, deps, opts, state); advanced || err != nil {
+			return result, true, err
+		}
 	}
 
 	committed, err := deps.worktree.CommitAll(ctx, state.Job.Worktree, fmt.Sprintf("Implement issue #%d", state.Job.Issue.Number))
@@ -49,6 +66,12 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 		err := fmt.Errorf("codex completed without file changes")
 		_ = markBlocked(ctx, deps.github, state.Job.Issue.Number, "codex result", err)
 		_ = writeBlockedState(opts, githubIssue{Number: state.Job.Issue.Number, Title: state.Job.Issue.Title, URL: state.Job.Issue.URL}, state.Job.ClaimID, worktreeSpec{Path: state.Job.Worktree, Branch: state.Job.Branch}, state.Job.Tmux, "codex result", err)
+		return "", true, err
+	}
+
+	if started, err := startConflictResolutionIfNeeded(ctx, deps, opts, state); started {
+		return fmt.Sprintf("started conflict resolution for issue #%d", state.Job.Issue.Number), true, err
+	} else if err != nil {
 		return "", true, err
 	}
 
@@ -96,6 +119,168 @@ func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions
 		return "", true, err
 	}
 	return fmt.Sprintf("completed issue #%d with draft PR %s", completedIssueNumber, prURL), true, nil
+}
+
+func startConflictResolutionIfNeeded(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile) (bool, error) {
+	if state == nil || state.Job == nil {
+		return false, nil
+	}
+	baseRef := conflictBaseRef(state.Job)
+	if err := deps.worktree.FetchOrigin(ctx, state.Job.Worktree); err != nil {
+		blockCompletionJob(ctx, deps, opts, state, "git fetch", err)
+		return false, err
+	}
+	if err := deps.worktree.MergeBase(ctx, state.Job.Worktree, baseRef); err == nil {
+		return false, nil
+	}
+	files, err := deps.worktree.UnmergedFiles(ctx, state.Job.Worktree)
+	if err != nil {
+		blockCompletionJob(ctx, deps, opts, state, "base merge", err)
+		return false, err
+	}
+	if len(files) == 0 {
+		err := fmt.Errorf("base merge failed without unmerged files")
+		blockCompletionJob(ctx, deps, opts, state, "base merge", err)
+		return false, err
+	}
+	if reason := highRiskConflictReason(files); reason != "" {
+		err := fmt.Errorf("high-risk conflict: %s; files: %s", reason, strings.Join(files, ", "))
+		blockCompletionJob(ctx, deps, opts, state, "base merge", err)
+		return false, err
+	}
+	if state.Job.ConflictRetryCount >= conflictResolveMaxAttempts {
+		err := fmt.Errorf("conflict resolution retry limit reached; files: %s", strings.Join(files, ", "))
+		blockCompletionJob(ctx, deps, opts, state, "conflict resolution", err)
+		return false, err
+	}
+	runSpec := buildCodexRunSpecForRepo(opts.target, opts.repo, state.Job.Issue.Number, state.Job.Worktree, conflictResolvePhase)
+	if err := opts.prepareCodexRunSpec(&runSpec, state.Job.Worktree); err != nil {
+		blockCompletionJob(ctx, deps, opts, state, "conflict resolution", err)
+		return false, err
+	}
+	if err := writeConflictResolvePromptFile(runSpec.PromptPath, state.Job, baseRef, files); err != nil {
+		blockCompletionJob(ctx, deps, opts, state, "conflict resolution", err)
+		return false, err
+	}
+	tmux, err := deps.runner.StartCodex(ctx, runSpec)
+	if err != nil {
+		blockCompletionJob(ctx, deps, opts, state, "conflict resolution", err)
+		return false, err
+	}
+	state.Job.PipelinePhase = conflictResolvePhase
+	state.Job.ConflictRetryCount++
+	state.Job.Tmux = tmux
+	state.Job.Codex = &codexState{
+		LastMessagePath: runSpec.LastMessagePath,
+		JSONLogPath:     runSpec.JSONLogPath,
+	}
+	message := fmt.Sprintf("base merge conflicted with %s; conflict resolution attempt %d started for %s", baseRef, state.Job.ConflictRetryCount, strings.Join(files, ", "))
+	state.Job.LastError = &message
+	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	if err := writeStateFile(opts.stateFilePath(), *state); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func blockCompletionJob(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile, stage string, cause error) {
+	if state != nil && state.Job != nil && state.Job.CampaignTaskID != "" {
+		blockCampaignTaskPhase(ctx, deps.github, opts, state, state.Job.CampaignTaskID, stage, cause)
+		return
+	}
+	if state == nil || state.Job == nil {
+		return
+	}
+	_ = markBlocked(ctx, deps.github, state.Job.Issue.Number, stage, cause)
+	_ = writeBlockedState(opts, githubIssue{Number: state.Job.Issue.Number, Title: state.Job.Issue.Title, URL: state.Job.Issue.URL}, state.Job.ClaimID, worktreeSpec{Path: state.Job.Worktree, Branch: state.Job.Branch}, state.Job.Tmux, stage, cause)
+}
+
+func conflictBaseRef(job *stateJob) string {
+	if job != nil && job.BaseBranch != "" {
+		return "origin/" + job.BaseBranch
+	}
+	return "origin/HEAD"
+}
+
+func highRiskConflictReason(files []string) string {
+	for _, file := range files {
+		base := strings.ToLower(filepath.Base(file))
+		clean := strings.ToLower(filepath.ToSlash(file))
+		switch base {
+		case "go.sum", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "composer.lock", "gemfile.lock", "cargo.lock":
+			return "lockfile conflict"
+		}
+		if strings.HasPrefix(clean, ".github/workflows/") {
+			return "workflow conflict"
+		}
+		if strings.Contains(clean, "migration") || strings.Contains(clean, "migrations/") {
+			return "migration conflict"
+		}
+	}
+	return ""
+}
+
+func validateConflictResolution(ctx context.Context, worktree worktreeManager, path string) error {
+	files, err := worktree.UnmergedFiles(ctx, path)
+	if err != nil {
+		return err
+	}
+	if len(files) > 0 {
+		return fmt.Errorf("conflict markers still need resolution in %s", strings.Join(files, ", "))
+	}
+	changedFiles, err := worktree.ChangedFiles(ctx, path)
+	if err != nil {
+		return err
+	}
+	if files, err := filesWithConflictMarkers(path, changedFiles); err != nil {
+		return err
+	} else if len(files) > 0 {
+		return fmt.Errorf("conflict markers remain in %s", strings.Join(files, ", "))
+	}
+	return worktree.commands.Run(ctx, "git", "-C", path, "diff", "--check")
+}
+
+func filesWithConflictMarkers(root string, candidates []string) ([]string, error) {
+	var matches []string
+	for _, file := range candidates {
+		clean := filepath.Clean(file)
+		if clean == "." || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) || filepath.IsAbs(clean) {
+			continue
+		}
+		path := filepath.Join(root, clean)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		text := string(data)
+		if strings.Contains(text, "<<<<<<<") || strings.Contains(text, ">>>>>>>") {
+			matches = append(matches, filepath.ToSlash(clean))
+		}
+	}
+	return matches, nil
+}
+
+func writeConflictResolvePromptFile(path string, job *stateJob, baseRef string, files []string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	body := fmt.Sprintf(`# Conflict Resolution
+
+GitHub Issue #%d
+Title: %s
+URL: %s
+
+Base ref:
+%s
+
+Conflicted files:
+%s
+
+Resolve only the merge conflicts in the listed files. Preserve both the original issue change and the incoming base change when they are compatible. Do not add unrelated features or broad refactors. Do not edit files that are unrelated to this conflict unless required to make the resolution compile or pass focused checks.
+
+After resolving, run focused verification if practical. Leave a concise final summary with the files resolved and checks run.
+`, job.Issue.Number, job.Issue.Title, job.Issue.URL, baseRef, "- "+strings.Join(files, "\n- "))
+	return os.WriteFile(path, []byte(body), 0o600)
 }
 
 func blockFailedCodexStartup(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile) (bool, error) {
