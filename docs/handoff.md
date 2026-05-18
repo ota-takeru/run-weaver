@@ -74,7 +74,22 @@
 
 ## Next Step
 
-複数repository運用は `run-weaver repo add` 後に実GitHub Issue処理を確認する。Windows direct runnerは実機で追加確認する。self-updateとclone不要installはtag push後のrelease workflow結果を確認する。Doppler必須repoの実blocked確認はsecret値を出さずに検証できる対象repoで行う。2026-05-18時点のリリース前ローカル確認では、latest release v0.1.2のasset取得と `update --check`、release相当cross-build、Goテスト/静的チェックは通過済み。
+`docs/progress.md` の Remaining Task Inventory が残タスクの正本。次に進める順序は、複数repository登録後の実GitHub Issue処理確認、Windows direct runner実機確認、Doppler必須repoの実blocked確認、tag push後のrelease workflow / clone不要install / self-update確認。release workflow確認はtag pushが必要なため、人間が `scripts/release.sh --push --watch` を明示実行できるタイミングで行う。2026-05-18時点のリリース前ローカル確認では、latest release v0.1.2のasset取得と `update --check`、release相当cross-build、Goテスト/静的チェックは通過済み。
+
+## Remaining Task Inventory Summary
+
+1. 複数repository登録後の実GitHub Issue処理確認
+   - 少なくとも2つの検証repositoryで `run-weaver repo add` を行い、repo別clone / worktree / state、`gh --repo`、repo間同時処理、同一repo内1 job制限、`status` 集約表示を確認する。
+   - 完了時は作成されたIssue / PR番号と、`done` または期待どおりの `blocked` まで進んだ結果を `docs/process-log.md` に記録する。
+2. Windows target direct runnerの実機確認
+   - Windows実機で `scripts/check-windows.ps1`、`install --target windows`、`doctor --target windows`、daemon起動、direct runnerのCodex起動、daemon log、issue別JSONL log、state更新を確認する。
+   - 実GitHub書き込みを行う場合は対象repoとIssueを事前に明確にする。
+3. self-updateとclone不要installのrelease workflow確認
+   - 未リリースのDoppler修正を含む次tagで、人間が `scripts/release.sh --push --watch` を実行した後、4 asset、`scripts/install.sh` / `scripts/install.ps1`、`run-weaver update --check` / `update` / daemon起動時self-updateを確認する。
+4. Doppler必須repositoryでの実blocked確認
+   - secret値を出さずに使える検証repoをDoppler必須扱いにし、Dopplerが使えない状態でCodex起動前に `blocked` へ止まり、Issueコメント / state / logにsecret値が出ないことを確認する。
+5. stuck `running` Issueの整理
+   - `ota-takeru/run-weaver#1` は `running` ラベル付きだがtmux windowなし、JSONLに `codex: command not found` が残っている。Issueラベル / コメント変更を伴うため、人間判断後にdaemonで `blocked` へ寄せるか、`running` を外して再投入する。
 
 ## Notes
 
