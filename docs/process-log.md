@@ -1,5 +1,19 @@
 # Process Log
 
+## 2026-05-18 - Safe Daemon Update Request
+
+Review:
+
+- Immediate fixes:
+  - 手動 `run-weaver update` がbinary更新に加えてstate rootの `update-request.json` にdaemon更新要求を残すようにした。
+  - 継続daemon loopがpoll安全地点で更新要求を読み、Issue claim、worktree、Codex完了処理、commit、push、PR作成、ラベル更新の途中ではなく、次の処理に入る前に自己更新・再起動するようにした。
+  - 更新要求作成、daemon安全地点での再起動判定、既に最新の場合のstale要求削除を単体テストで固定した。
+- Future tasks:
+  - `status` にupdate pendingやdaemon binary versionを表示するか検討する。
+  - 実release assetで、旧daemonが更新要求を拾ってWindows direct runner / WSL tmux sessionを壊さず再起動することを確認する。
+- Human-facing reports:
+  - daemon再起動は既存Codex session、tmux window、direct runner processを停止しない。再起動後daemonがstate file、JSONLログ、last messageを再照合する。
+
 ## 2026-05-18 - Codex Subagent Prompt Guidance
 
 Review:

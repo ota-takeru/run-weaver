@@ -37,6 +37,12 @@ func runDaemonLoop(stdout, stderr io.Writer, deps daemonDeps, opts daemonOptions
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
+		if restarting, err := maybeApplyDaemonUpdateAtSafePoint(opts.target, nil); restarting {
+			fmt.Fprintln(stderr, "daemon update applied; restarting")
+			return exitOK
+		} else if err != nil {
+			fmt.Fprintf(stderr, "update warning: %v\n", err)
+		}
 		result, err := processOneIssue(deps, opts)
 		if err != nil {
 			fmt.Fprintf(stderr, "daemon error: %v\n", err)
@@ -54,6 +60,12 @@ func runMultiRepoDaemonLoop(stdout, stderr io.Writer, repos []repoEntry, target 
 	defer ticker.Stop()
 	configPath := defaultRepoConfigFile(target)
 	for {
+		if restarting, err := maybeApplyDaemonUpdateAtSafePoint(target, nil); restarting {
+			fmt.Fprintln(safeStderr, "daemon update applied; restarting")
+			return exitOK
+		} else if err != nil {
+			fmt.Fprintf(safeStderr, "update warning: %v\n", err)
+		}
 		current := repos
 		if config, err := readRepoConfig(configPath); err == nil {
 			current = enabledRepoEntries(config)

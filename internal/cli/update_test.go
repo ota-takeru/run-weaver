@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"io"
 	"net/http"
 	"os"
@@ -148,6 +149,128 @@ func TestExtractReleaseBinaryFromZip(t *testing.T) {
 	}
 	if string(got) != "binary" {
 		t.Fatalf("binary = %q", got)
+	}
+}
+
+func TestWriteDaemonUpdateRequestsUsesCurrentTarget(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(tempDir, "state"))
+	originalGOOS := currentGOOS
+	currentGOOS = "linux"
+	defer func() { currentGOOS = originalGOOS }()
+
+	paths, err := writeDaemonUpdateRequests("v0.2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 || paths[0] != updateRequestPath("wsl") {
+		t.Fatalf("paths = %#v", paths)
+	}
+	data, err := os.ReadFile(paths[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(data); !strings.Contains(got, `"targetVersion": "v0.2.0"`) || !strings.Contains(got, `"source": "run-weaver update"`) {
+		t.Fatalf("request = %s", got)
+	}
+}
+
+func TestRunUpdateRequestsDaemonRefresh(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(tempDir, "state"))
+	originalVersion := Version
+	originalGOOS := currentGOOS
+	originalCheck := checkReleaseUpdateFunc
+	originalInstall := installReleaseUpdateFunc
+	defer func() {
+		Version = originalVersion
+		currentGOOS = originalGOOS
+		checkReleaseUpdateFunc = originalCheck
+		installReleaseUpdateFunc = originalInstall
+	}()
+	Version = "v0.1.0"
+	currentGOOS = "linux"
+	checkReleaseUpdateFunc = func(context.Context) (updateInfo, error) {
+		return updateInfo{Available: true, Version: "v0.2.0"}, nil
+	}
+	installReleaseUpdateFunc = func(context.Context, updateInfo, []string) error {
+		return nil
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := runUpdate(nil, &stdout, &stderr); code != exitOK {
+		t.Fatalf("exit = %d stderr = %q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "daemon update requested") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !daemonUpdateRequested("wsl") {
+		t.Fatal("daemon update request was not written")
+	}
+}
+
+func TestDaemonSafeUpdateAppliesRequest(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(tempDir, "state"))
+	originalVersion := Version
+	originalCheck := checkReleaseUpdateFunc
+	originalInstall := installReleaseUpdateFunc
+	defer func() {
+		Version = originalVersion
+		checkReleaseUpdateFunc = originalCheck
+		installReleaseUpdateFunc = originalInstall
+	}()
+	Version = "v0.1.0"
+	if err := writeDaemonUpdateRequest(updateRequestPath("wsl"), daemonUpdateRequest{SchemaVersion: updateRequestSchemaVersion, Source: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	var gotArgs []string
+	checkReleaseUpdateFunc = func(context.Context) (updateInfo, error) {
+		return updateInfo{Available: true, Version: "v0.2.0"}, nil
+	}
+	installReleaseUpdateFunc = func(_ context.Context, _ updateInfo, args []string) error {
+		gotArgs = append([]string(nil), args...)
+		return errUpdateRestarting
+	}
+
+	restarting, err := maybeApplyDaemonUpdateAtSafePoint("wsl", []string{"daemon", "--target", "wsl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !restarting {
+		t.Fatal("daemon update should restart")
+	}
+	if strings.Join(gotArgs, " ") != "daemon --target wsl" {
+		t.Fatalf("restart args = %#v", gotArgs)
+	}
+}
+
+func TestDaemonSafeUpdateClearsStaleRequestWhenAlreadyCurrent(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(tempDir, "state"))
+	originalVersion := Version
+	originalCheck := checkReleaseUpdateFunc
+	defer func() {
+		Version = originalVersion
+		checkReleaseUpdateFunc = originalCheck
+	}()
+	Version = "v0.2.0"
+	if err := writeDaemonUpdateRequest(updateRequestPath("wsl"), daemonUpdateRequest{SchemaVersion: updateRequestSchemaVersion, Source: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	checkReleaseUpdateFunc = func(context.Context) (updateInfo, error) {
+		return updateInfo{Available: false, Version: "v0.2.0"}, nil
+	}
+
+	restarting, err := maybeApplyDaemonUpdateAtSafePoint("wsl", []string{"daemon"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restarting {
+		t.Fatal("already-current request should not restart")
+	}
+	if daemonUpdateRequested("wsl") {
+		t.Fatal("stale update request was not cleared")
 	}
 }
 

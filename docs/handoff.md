@@ -35,6 +35,7 @@
 - `install` は常駐設定を作るが、実際に使える状態には `doctor` が確認する依存関係と認証、`run-weaver repo add` による対象repository登録、対象Issueの `run-weaver:ready` ラベルが必要。
 - release buildの `run-weaver daemon` は起動時にGitHub Releases latestを確認し、新しいassetがあればself-updateしてから処理を続ける。開発ビルドはversion `dev` のため自動更新しない。
 - `run-weaver update --check` / `run-weaver update` を追加済み。
+- `run-weaver update` はbinary更新に加えてstate rootの `update-request.json` にdaemon更新要求を残す。継続中daemonは次のpoll安全地点で要求を読み、実行中Codex sessionやtmux windowを止めずに自己更新・再起動する。再起動後はstate file、JSONLログ、last messageを再照合する。
 - release assetのzip / tar.gz展開処理は共通のbinary書き込み helper を使うように整理済み。
 - `.github/workflows/release.yml` はtag `v*` push時にLinux / Windows、amd64 / arm64のrelease assetを作成する。
 - maintainer用 `scripts/release.sh` は次tag計算と事前検証をdry-runで行い、`--push` 指定時だけannotated tagをpushしてrelease workflowを起動する。事前検証では `go test ./...` とLinux / Windows、amd64 / arm64のrelease cross-buildを実行する。`--push --watch` ではworkflow完了待ちとrelease asset確認まで行う。

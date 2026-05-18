@@ -135,7 +135,7 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\install-run-weaver.ps1
 
 Windowsの `install` はper-user Task Scheduler task `run-weaver` を作成または更新します。daemonの標準出力と標準エラーは `%LOCALAPPDATA%\run-weaver\logs\daemon.log` に追記されます。
 
-release buildの `run-weaver daemon` は起動時にGitHub Releasesのlatest releaseを確認し、新しいassetがあれば自動更新してから処理を続けます。インストールscriptは常にlatest releaseを取得し、手動更新は `run-weaver update` で実行できます。開発ビルドはversionが `dev` のため自動更新しません。更新を一時的に止める場合は `RUN_WEAVER_NO_UPDATE=1` を設定します。
+release buildの `run-weaver daemon` は起動時にGitHub Releasesのlatest releaseを確認し、新しいassetがあれば自動更新してから処理を続けます。手動更新は `run-weaver update` で実行できます。手動更新時はdaemon更新要求をstate rootの `update-request.json` に残し、継続中daemonは次のpoll安全地点で自己更新・再起動します。実行中のCodex sessionやtmux windowは停止せず、再起動後daemonがstate fileとログを再照合します。インストールscriptは常にlatest releaseを取得します。開発ビルドはversionが `dev` のため自動更新しません。更新を一時的に止める場合は `RUN_WEAVER_NO_UPDATE=1` を設定します。
 
 ## Maintainer向けリリース
 

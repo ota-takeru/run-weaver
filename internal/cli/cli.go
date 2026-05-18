@@ -66,7 +66,7 @@ func runUpdate(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 
-	result, err := checkReleaseUpdate(context.Background())
+	result, err := checkReleaseUpdateFunc(context.Background())
 	if err != nil {
 		fmt.Fprintf(stderr, "update error: %v\n", err)
 		return exitConfigMissing
@@ -79,15 +79,20 @@ func runUpdate(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "update available: %s -> %s\n", Version, result.Version)
 		return exitOK
 	}
-	if err := installReleaseUpdate(context.Background(), result, argsForRestart(nil)); err != nil {
+	requestPaths, requestErr := writeDaemonUpdateRequests(result.Version)
+	if requestErr != nil {
+		fmt.Fprintf(stderr, "update error: %v\n", requestErr)
+		return exitConfigMissing
+	}
+	if err := installReleaseUpdateFunc(context.Background(), result, argsForRestart(nil)); err != nil {
 		if errors.Is(err, errUpdateRestarting) {
-			fmt.Fprintf(stdout, "installed run-weaver %s; restarting\n", result.Version)
+			fmt.Fprintf(stdout, "installed run-weaver %s; restarting; daemon update requested at %s\n", result.Version, strings.Join(requestPaths, ", "))
 			return exitOK
 		}
 		fmt.Fprintf(stderr, "update error: %v\n", err)
 		return exitConfigMissing
 	}
-	fmt.Fprintf(stdout, "installed run-weaver %s\n", result.Version)
+	fmt.Fprintf(stdout, "installed run-weaver %s; daemon update requested at %s\n", result.Version, strings.Join(requestPaths, ", "))
 	return exitOK
 }
 

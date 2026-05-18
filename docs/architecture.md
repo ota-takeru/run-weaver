@@ -124,7 +124,7 @@ agent自体はGitHub Releases経由で配布します。
 
 release assetは `.github/workflows/release.yml` がtag `v*` push時に作成します。maintainerは利用者向けCLIではなく `scripts/release.sh` で次tagのdry-run確認、事前検証、明示的なtag pushを行います。事前検証では `go test ./...` に加えて、Linux / Windows、amd64 / arm64のrelease cross-buildを行います。`--push --watch` ではtag push後にrelease workflow完了まで待ち、asset作成まで確認します。asset名はOS/ARCHごとに固定し、Linuxは `run-weaver_linux_<arch>.tar.gz`、Windowsは `run-weaver_windows_<arch>.zip` とします。release buildでは `-ldflags` で `internal/cli.Version` にtag名を埋め込みます。
 
-`run-weaver daemon` は起動時にGitHub Releasesのlatest releaseを確認します。latestが現在versionより新しければ対応assetをdownloadし、現在の実行ファイルを置き換えます。Linux / WSLでは置換後に同じPIDで更新後binaryへexecします。Windowsでは実行中のexeを直接置換できないため、一時ファイルを置いてから現在processを終了し、`cmd` 経由で置換後に同じ引数で起動し直します。`install.sh` / `install.ps1` は常にlatest releaseを取得するため、`run-weaver install` 自体では自動更新を行いません。
+`run-weaver daemon` は起動時にGitHub Releasesのlatest releaseを確認します。latestが現在versionより新しければ対応assetをdownloadし、現在の実行ファイルを置き換えます。Linux / WSLでは置換後に同じPIDで更新後binaryへexecします。Windowsでは実行中のexeを直接置換できないため、一時ファイルを置いてから現在processを終了し、`cmd` 経由で置換後に同じ引数で起動し直します。手動 `run-weaver update` はstate rootの `update-request.json` にdaemon更新要求も残し、継続中daemonは次のpoll安全地点で自己更新・再起動します。安全地点はIssue claim、worktree、Codex完了処理、commit、push、draft PR作成、ラベル更新の途中ではない境界です。既存のCodex session、tmux window、direct runner processは停止せず、再起動後daemonがstate file、JSONLログ、last messageを再照合します。`install.sh` / `install.ps1` は常にlatest releaseを取得するため、`run-weaver install` 自体では自動更新を行いません。
 
 開発ビルドのversionは `dev` であり、自動更新は行いません。運用上、自動更新を止める必要がある場合は `RUN_WEAVER_NO_UPDATE=1` を設定します。
 

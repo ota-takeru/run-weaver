@@ -22,12 +22,23 @@ import (
 var errUpdateRestarting = errors.New("run-weaver update is restarting")
 
 var updateHTTPClient = &http.Client{Timeout: 30 * time.Second}
+var checkReleaseUpdateFunc = checkReleaseUpdate
+var installReleaseUpdateFunc = installReleaseUpdate
+
+const updateRequestSchemaVersion = 1
 
 type updateInfo struct {
 	Available bool
 	Version   string
 	AssetName string
 	AssetURL  string
+}
+
+type daemonUpdateRequest struct {
+	SchemaVersion int    `json:"schemaVersion"`
+	RequestedAt   string `json:"requestedAt"`
+	TargetVersion string `json:"targetVersion,omitempty"`
+	Source        string `json:"source"`
 }
 
 type githubRelease struct {
@@ -44,7 +55,7 @@ func maybeAutoUpdateOnStartup(args []string, stderr io.Writer) (int, bool) {
 	if !shouldAutoUpdate(args) {
 		return exitOK, false
 	}
-	result, err := checkReleaseUpdate(context.Background())
+	result, err := checkReleaseUpdateFunc(context.Background())
 	if err != nil {
 		fmt.Fprintf(stderr, "update warning: %v\n", err)
 		return exitOK, false
@@ -52,7 +63,7 @@ func maybeAutoUpdateOnStartup(args []string, stderr io.Writer) (int, bool) {
 	if !result.Available {
 		return exitOK, false
 	}
-	if err := installReleaseUpdate(context.Background(), result, argsForRestart(args)); err != nil {
+	if err := installReleaseUpdateFunc(context.Background(), result, argsForRestart(args)); err != nil {
 		if errors.Is(err, errUpdateRestarting) {
 			fmt.Fprintf(stderr, "updated run-weaver to %s; restarting\n", result.Version)
 			return exitOK, true
@@ -75,6 +86,85 @@ func shouldAutoUpdate(args []string) bool {
 		return false
 	}
 	return args[0] == "daemon"
+}
+
+func writeDaemonUpdateRequests(targetVersion string) ([]string, error) {
+	targets := defaultUpdateRequestTargets()
+	written := make([]string, 0, len(targets))
+	for _, target := range targets {
+		path := updateRequestPath(target)
+		if err := writeDaemonUpdateRequest(path, daemonUpdateRequest{
+			SchemaVersion: updateRequestSchemaVersion,
+			RequestedAt:   time.Now().UTC().Format(time.RFC3339),
+			TargetVersion: targetVersion,
+			Source:        "run-weaver update",
+		}); err != nil {
+			return written, err
+		}
+		written = append(written, path)
+	}
+	return written, nil
+}
+
+func defaultUpdateRequestTargets() []string {
+	if currentGOOS == "windows" {
+		return []string{"windows"}
+	}
+	return []string{"wsl"}
+}
+
+func updateRequestPath(target string) string {
+	return filepath.Join(defaultStateRoot(target), "update-request.json")
+}
+
+func writeDaemonUpdateRequest(path string, request daemonUpdateRequest) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(request, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	return os.WriteFile(path, data, 0o600)
+}
+
+func daemonUpdateRequested(target string) bool {
+	_, err := os.Stat(updateRequestPath(target))
+	return err == nil
+}
+
+func clearDaemonUpdateRequest(target string) {
+	_ = os.Remove(updateRequestPath(target))
+}
+
+func maybeApplyDaemonUpdateAtSafePoint(target string, restartArgs []string) (bool, error) {
+	if !shouldApplyDaemonSafeUpdate(target) || !daemonUpdateRequested(target) {
+		return false, nil
+	}
+	result, err := checkReleaseUpdateFunc(context.Background())
+	if err != nil {
+		return false, err
+	}
+	if !result.Available {
+		clearDaemonUpdateRequest(target)
+		return false, nil
+	}
+	if err := installReleaseUpdateFunc(context.Background(), result, argsForRestart(restartArgs)); err != nil {
+		if errors.Is(err, errUpdateRestarting) {
+			return true, nil
+		}
+		return false, err
+	}
+	clearDaemonUpdateRequest(target)
+	return false, nil
+}
+
+func shouldApplyDaemonSafeUpdate(target string) bool {
+	if target == "" || Version == "" || Version == "dev" {
+		return false
+	}
+	return os.Getenv("RUN_WEAVER_NO_UPDATE") == ""
 }
 
 func checkReleaseUpdate(ctx context.Context) (updateInfo, error) {

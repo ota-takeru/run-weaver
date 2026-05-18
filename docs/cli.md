@@ -382,7 +382,7 @@ run-weaver update --check
 run-weaver update
 ```
 
-release buildの `run-weaver daemon` は起動時に同じ更新確認を行います。`install.sh` / `install.ps1` は常にlatest releaseを取得するため、`run-weaver install` 自体では自動更新を行いません。`Version` が `dev` の開発ビルドでは自動更新しません。更新確認を一時停止する場合は `RUN_WEAVER_NO_UPDATE=1` を設定します。
+release buildの `run-weaver daemon` は起動時に同じ更新確認を行います。手動 `run-weaver update` はbinary更新に加えてstate rootの `update-request.json` にdaemon更新要求を残します。継続中daemonは次のpoll安全地点、つまりclaim、worktree、Codex完了処理、commit、push、PR作成、ラベル更新の途中ではないタイミングで要求を読み、同じ引数で自己更新・再起動します。実行中のCodex sessionやtmux windowは停止せず、再起動後daemonが既存state fileとログを再照合します。`install.sh` / `install.ps1` は常にlatest releaseを取得するため、`run-weaver install` 自体では自動更新を行いません。`Version` が `dev` の開発ビルドでは自動更新しません。更新確認を一時停止する場合は `RUN_WEAVER_NO_UPDATE=1` を設定します。
 
 更新確認はGitHub APIの `ota-takeru/run-weaver` latest releaseを読み、実行OS/ARCHに対応するassetだけを取得します。Windowsでは実行中のexeを直接置き換えられないため、更新用の一時exeを置いて現在のprocessを終了し、短い遅延後に置換して同じ引数で起動し直します。
 
