@@ -95,8 +95,13 @@ type campaignDecision struct {
 	ID               string   `json:"id"`
 	Title            string   `json:"title"`
 	Status           string   `json:"status"`
+	Context          string   `json:"context,omitempty"`
+	Evidence         []string `json:"evidence,omitempty"`
 	Options          []string `json:"options,omitempty"`
+	OptionDetails    []string `json:"optionDetails,omitempty"`
 	Recommendation   string   `json:"recommendation,omitempty"`
+	Impact           []string `json:"impact,omitempty"`
+	Reversibility    string   `json:"reversibility,omitempty"`
 	BlockedTasks     []string `json:"blockedTasks,omitempty"`
 	CanContinueTasks []string `json:"canContinueTasks,omitempty"`
 	CommentURL       string   `json:"commentUrl,omitempty"`

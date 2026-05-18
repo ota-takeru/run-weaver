@@ -62,7 +62,7 @@ Codexがrate limitで中断した場合、`run-weaver` はIssueを `blocked` に
 
 draft PR作成前のbase取り込みで通常のmerge conflictが出た場合、`run-weaver` は同じworktree上でCodexを `conflict-resolve` phaseとして1回だけ起動します。未解消のconflict marker、unmerged file、`git diff --check` の失敗が残る場合、またはlockfile、GitHub Actions workflow、migrationなど高リスクな競合を検出した場合はPRを作らず `blocked` にします。
 
-Campaign Issueでは、親Issue本文の大枠指示とrepository内docsをCodex Plannerが読み、PR単位のtask graphとdecision gateをJSONで生成します。Plannerはrepo docsを優先し、親Issue本文は「どのroadmapを進めるか」を伝える補助入力として扱います。Plannerが作った通常taskは `run-weaver:campaign-task` 付きの子Issueとして作成し、通常ready Issue取得からは除外します。人間判断が必要な箇所だけDecision Requestとして親Issueへコメントします。回答は `run-weaver-decision:<decision-id>:<option>` を含む親Issueコメントで返します。Dispatcherは子Issueを `plan`、`implement`、`review`、`verify` の順に処理し、taskごとにdraft PRを作成します。
+Campaign Issueでは、親Issue本文の大枠指示とrepository内docsをCodex Plannerが読み、PR単位のtask graphとdecision gateをJSONで生成します。Plannerはrepo docsを優先し、親Issue本文は「どのroadmapを進めるか」を伝える補助入力として扱います。Plannerが作った通常taskは `run-weaver:campaign-task` 付きの子Issueとして作成し、通常ready Issue取得からは除外します。人間判断が必要な箇所だけDecision Requestとして親Issueへコメントします。Decision Requestには判断理由、証拠、選択肢ごとの詳細、影響、可逆性を含め、secret値やログ本文は載せません。回答は `run-weaver-decision:<decision-id>:<option>` を含む親Issueコメントで返します。Dispatcherは子Issueを `plan`、`implement`、`review`、`verify` の順に処理し、taskごとにdraft PRを作成します。
 
 通常Issueが同じrepositoryに複数ある場合、daemonはIssue番号の小さい順に最大1件ずつ処理します。Issue本文、タイトル、人間コメントに `depends: #123`、`blocked by #123`、`stacked on #123`、`依存: #123`、`#123 の後` などの明確な依存があれば、依存先Issueが `done` になりPR branchを復元できるまで待機します。依存先が完了済みなら、そのbranchをbaseにしたstacked draft PRを作ります。依存表現が曖昧なIssueは `blocked` にし、次の実行可能Issueへ進みます。
 

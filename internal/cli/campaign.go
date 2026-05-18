@@ -244,10 +244,28 @@ func decisionRequestBody(decision campaignDecision) string {
 	return fmt.Sprintf(`<!-- run-weaver-decision-request:%s -->
 run-weaver decision request.
 
+## decision
+%s
+
+## context
+%s
+
+## evidence
+%s
+
 ## options
 %s
 
+## option details
+%s
+
 ## recommendation
+%s
+
+## impact
+%s
+
+## reversibility
 %s
 
 ## blocked tasks
@@ -259,7 +277,7 @@ run-weaver decision request.
 To answer, add a comment containing:
 
 run-weaver-decision:%s:<option>
-`, decision.ID, markdownList(decision.Options), emptyAsNone(decision.Recommendation), markdownList(decision.BlockedTasks), markdownList(decision.CanContinueTasks), decision.ID)
+`, decision.ID, emptyAsNone(decision.Title), emptyAsNone(decision.Context), markdownList(decision.Evidence), markdownList(decision.Options), markdownList(decision.OptionDetails), emptyAsNone(decision.Recommendation), markdownList(decision.Impact), emptyAsNone(decision.Reversibility), markdownList(decision.BlockedTasks), markdownList(decision.CanContinueTasks), decision.ID)
 }
 
 func markdownList(values []string) string {
@@ -288,8 +306,13 @@ type campaignPlannerTask struct {
 type campaignPlannerDecision struct {
 	ID               string   `json:"id"`
 	Title            string   `json:"title"`
+	Context          string   `json:"context"`
+	Evidence         []string `json:"evidence"`
 	Options          []string `json:"options"`
+	OptionDetails    []string `json:"optionDetails"`
 	Recommendation   string   `json:"recommendation"`
+	Impact           []string `json:"impact"`
+	Reversibility    string   `json:"reversibility"`
 	BlockedTasks     []string `json:"blockedTasks"`
 	CanContinueTasks []string `json:"canContinueTasks"`
 }
@@ -350,6 +373,14 @@ func parseCampaignPlannerOutput(data []byte) (campaignPlan, error) {
 		if len(options) == 0 {
 			return campaignPlan{}, fmt.Errorf("campaign decision %q must include options", id)
 		}
+		context := strings.TrimSpace(rawDecision.Context)
+		evidence := trimStringSlice(rawDecision.Evidence)
+		optionDetails := trimStringSlice(rawDecision.OptionDetails)
+		impact := trimStringSlice(rawDecision.Impact)
+		reversibility := strings.TrimSpace(rawDecision.Reversibility)
+		if context == "" || len(evidence) == 0 || len(optionDetails) < len(options) || len(impact) == 0 || reversibility == "" {
+			return campaignPlan{}, fmt.Errorf("campaign decision %q must include context, evidence, optionDetails, impact, and reversibility", id)
+		}
 		blocked := trimStringSlice(rawDecision.BlockedTasks)
 		canContinue := trimStringSlice(rawDecision.CanContinueTasks)
 		for _, taskID := range append(append([]string{}, blocked...), canContinue...) {
@@ -361,8 +392,13 @@ func parseCampaignPlannerOutput(data []byte) (campaignPlan, error) {
 			ID:               id,
 			Title:            title,
 			Status:           "pending",
+			Context:          context,
+			Evidence:         evidence,
 			Options:          options,
+			OptionDetails:    optionDetails,
 			Recommendation:   strings.TrimSpace(rawDecision.Recommendation),
+			Impact:           impact,
+			Reversibility:    reversibility,
 			BlockedTasks:     blocked,
 			CanContinueTasks: canContinue,
 		})

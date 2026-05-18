@@ -66,7 +66,7 @@
 - `status` はGitHub Issue照合が認証切れなどで失敗しても、state file、process、tmux、last-messageによるローカルruntime照合を続ける。終了コードは認証必須扱いだが、表示上の `runtimeState` は `codex_completed` などローカルに判断できる状態を保持する。
 - Campaign taskの開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issueラベル、Campaign task、Campaign status、state jobを `blocked` に揃える。blocked jobがstateに残っていてもCampaign dispatcherはrunning中とはみなさない。
 - Campaign子Issueには `run-weaver:campaign-task` を付け、通常ready Issue取得から除外する。
-- pending decision gateがある場合、Dispatcherは `can continue tasks` に含まれるtaskだけを実行し、それ以外は `decision_required` で停止する。
+- pending decision gateがある場合、Dispatcherは `can continue tasks` に含まれるtaskだけを実行し、それ以外は `decision_required` で停止する。Decision Requestには判断理由、客観的証拠、選択肢ごとの詳細、推奨、影響、可逆性を含め、secret値やJSONLログ本文は載せない。
 - 同一repository内の通常IssueはIssue番号昇順で評価し、repo内では常に最大1 jobだけ実行する。
 - 通常Issueのタイトル、本文、人間コメントから `depends: #123`、`blocked by #123`、`stacked on #123`、`依存: #123`、`#123 の後` などを検出し、依存先が未完了なら待機、曖昧またはPR branch / URL不足なら対象Issueを `blocked` にする。
 - 依存が解決済みの通常Issueは、依存先branchをbaseにしたstacked draft PRとして作成する。通常Issue完了後は後続依存解決用に `completedIssues` へPR URLとbranchを保存する。
@@ -111,7 +111,7 @@
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`run-weaver repo add` 済みであることを確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
 - Campaign実行時は、対象repositoryに子IssueとDecision Requestコメントを作成する。taskごとにdraft PRを作る。
-- Campaign decision answerは親Campaign Issueコメント内の `run-weaver-decision:<decision-id>:<option>` を読み取ってstateへ保存する。
+- Campaign decision answerは親Campaign Issueコメント内の `run-weaver-decision:<decision-id>:<option>` を読み取ってstateへ保存する。人間判断を求める前のレポート標準は `docs/decision-prep-standard.md` が正本。
 - Campaign task dependencyは `depends: task-...` のtask ID形式を使う。
 - 通常Issue dependencyは `depends: #123` などのIssue番号形式を使う。依存表現が曖昧な場合、agentは独立PRとして推測実行せず `blocked` にする。
 - Dopplerが必要なrepoは `run-weaver repo add --doppler required` で明示できる。Doppler不要repoは `--doppler optional` で自動検出を上書きできる。

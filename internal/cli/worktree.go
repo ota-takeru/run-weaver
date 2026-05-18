@@ -239,8 +239,13 @@ The JSON schema is:
     {
       "id": "decision-short-kebab-case-id",
       "title": "Decision needed from the human",
+      "context": "Neutral summary of why this decision is needed and what constraint triggered it.",
+      "evidence": ["Concrete repo file, issue, log, existing decision, or command result that supports the need for this decision."],
       "options": ["approve", "revise", "stop"],
+      "optionDetails": ["approve: what will happen if approved", "revise: what information is needed", "stop: what work remains blocked"],
       "recommendation": "approve",
+      "impact": ["Implementation, operations, security, cost, migration, or schedule impact."],
+      "reversibility": "Whether the choice can be changed later and what rollback or migration would require.",
       "blockedTasks": ["task-id-blocked-by-this-decision"],
       "canContinueTasks": ["task-id-that-can-run-before-the-answer"]
     }
@@ -253,6 +258,7 @@ Rules:
 - Do not ask for human approval of the whole plan.
 - Add decisions only where implementation would otherwise require a product, architecture, cost, secret, account, permission, or irreversible choice.
 - If the request or docs are too ambiguous to plan safely, return a decision that blocks the ambiguous tasks instead of guessing.
+- For every decision, provide objective context, evidence, option details, impact, and reversibility. Separate observed facts from recommendation. Do not include secrets, token values, or raw private log contents.
 `, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), codexSubagentGuidance)
 	return os.WriteFile(path, []byte(body), 0o600)
 }

@@ -18,8 +18,13 @@ func TestParseCampaignPlannerOutputBuildsTasksAndDecisionGates(t *testing.T) {
 			{
 				"id": "decision-retry-policy",
 				"title": "Choose retry policy",
+				"context": "Retry policy changes how failed jobs are resumed.",
+				"evidence": ["docs/progress.md lists rate limit resume as implemented."],
 				"options": ["approve", "revise", "stop"],
+				"optionDetails": ["approve: use the proposed retry policy", "revise: provide a different retry limit", "stop: leave retry policy unchanged"],
 				"recommendation": "approve",
+				"impact": ["Implementation affects daemon retry behavior."],
+				"reversibility": "Can be changed later by updating daemon policy and docs.",
 				"blockedTasks": ["task-add-dispatcher"],
 				"canContinueTasks": ["task-build-planner"]
 			}
@@ -44,6 +49,9 @@ func TestParseCampaignPlannerOutputBuildsTasksAndDecisionGates(t *testing.T) {
 	if len(plan.Decisions[0].BlockedTasks) != 1 || plan.Decisions[0].BlockedTasks[0] != "task-add-dispatcher" {
 		t.Fatalf("blocked tasks = %#v", plan.Decisions[0].BlockedTasks)
 	}
+	if plan.Decisions[0].Context == "" || len(plan.Decisions[0].Evidence) != 1 || len(plan.Decisions[0].OptionDetails) != 3 || len(plan.Decisions[0].Impact) != 1 || plan.Decisions[0].Reversibility == "" {
+		t.Fatalf("decision report fields = %#v", plan.Decisions[0])
+	}
 }
 
 func TestParseCampaignPlannerOutputRejectsInvalidPlans(t *testing.T) {
@@ -56,6 +64,8 @@ func TestParseCampaignPlannerOutputRejectsInvalidPlans(t *testing.T) {
 		{"duplicate task", `{"tasks":[{"id":"task-a","title":"A","body":"A"},{"id":"task-a","title":"B","body":"B"}]}`},
 		{"unknown dependency", `{"tasks":[{"id":"task-a","title":"A","body":"A","dependencies":["task-missing"]}]}`},
 		{"unknown decision task", `{"tasks":[{"id":"task-a","title":"A","body":"A"}],"decisions":[{"id":"decision-a","title":"A","options":["approve"],"blockedTasks":["task-missing"]}]}`},
+		{"decision missing report", `{"tasks":[{"id":"task-a","title":"A","body":"A"}],"decisions":[{"id":"decision-a","title":"A","options":["approve"],"blockedTasks":["task-a"]}]}`},
+		{"decision incomplete option details", `{"tasks":[{"id":"task-a","title":"A","body":"A"}],"decisions":[{"id":"decision-a","title":"A","context":"A","evidence":["A"],"options":["approve","stop"],"optionDetails":["approve: A"],"impact":["A"],"reversibility":"A","blockedTasks":["task-a"]}]}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -129,7 +139,7 @@ func TestCampaignPlannerCompletionCreatesChildIssues(t *testing.T) {
 			{"id": "task-add-dispatcher", "title": "Add dispatcher", "body": "Implement dispatcher.", "dependencies": ["task-add-planner"]}
 		],
 		"decisions": [
-			{"id": "decision-api", "title": "Choose API", "options": ["approve", "revise", "stop"], "recommendation": "approve", "blockedTasks": ["task-add-dispatcher"], "canContinueTasks": ["task-add-planner"]}
+			{"id": "decision-api", "title": "Choose API", "context": "API choice affects dispatcher implementation.", "evidence": ["Issue asks to choose an API before dispatcher work."], "options": ["approve", "revise", "stop"], "optionDetails": ["approve: use proposed API", "revise: provide API requirements", "stop: do not implement dispatcher"], "recommendation": "approve", "impact": ["Blocks dispatcher implementation."], "reversibility": "Can be changed before dispatcher PR is merged.", "blockedTasks": ["task-add-dispatcher"], "canContinueTasks": ["task-add-planner"]}
 		]
 	}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -176,7 +186,7 @@ func TestCampaignPlannerCompletionCreatesChildIssues(t *testing.T) {
 	if !slicesEqual(github.createdIssues[0].Labels, []string{readyLabel, campaignTaskLabel}) {
 		t.Fatalf("child labels = %#v", github.createdIssues[0].Labels)
 	}
-	if !strings.Contains(github.comments[len(github.comments)-1].Body, "## blocked tasks") {
+	if !strings.Contains(github.comments[len(github.comments)-1].Body, "## evidence") || !strings.Contains(github.comments[len(github.comments)-1].Body, "## blocked tasks") {
 		t.Fatalf("comments = %#v, want decision request", github.comments)
 	}
 	updated, err := readStateFile(defaultStateFile("wsl"))

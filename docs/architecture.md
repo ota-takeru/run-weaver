@@ -31,7 +31,7 @@ Campaign PlannerはCodexを非同期に起動し、親Campaign Issue本文の大
 
 Dispatcherはローカルstate fileの `campaign` を正本にして、依存関係が解決済みの次taskを選びます。taskごとに既存のclaim、worktree、tmux、Codex、draft PR flowを再利用します。Campaign taskは同じworktree上で `plan`、`implement`、`review`、`verify` の順にCodexを起動し、`verify` 完了後だけcommit、push、draft PR作成へ進みます。task開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えます。task完了後はPR URLをCampaign stateへ記録し、次taskへ進めます。
 
-Decision Requestには `options`、`recommendation`、`blocked tasks`、`can continue tasks` を含めます。人間は `run-weaver-decision:<decision-id>:<option>` を含むコメントで回答します。pending decisionがある間は `can continue tasks` に含まれるtaskだけを実行し、実行可能taskがないdecision gateではCampaignを `decision_required` として停止し、回答を読み取ったらstateへ保存して再開します。task dependencyは `depends: task-...` のtask ID形式を正とします。
+Decision Requestには `decision`、`context`、`evidence`、`options`、`option details`、`recommendation`、`impact`、`reversibility`、`blocked tasks`、`can continue tasks` を含めます。観測済み事実、推論、推奨を分け、secret値やJSONLログ本文は載せません。人間は `run-weaver-decision:<decision-id>:<option>` を含むコメントで回答します。pending decisionがある間は `can continue tasks` に含まれるtaskだけを実行し、実行可能taskがないdecision gateではCampaignを `decision_required` として停止し、回答を読み取ったらstateへ保存して再開します。task dependencyは `depends: task-...` のtask ID形式を正とします。
 
 ### Target Adapter
 

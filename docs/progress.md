@@ -166,6 +166,8 @@ Recommended Next Step:
 - `status` がGitHub照合失敗時にもローカルruntime照合を続け、last-messageがあるjobを `codex_completed` として表示できるようにした
 - `codex: command not found` 検出をshell起動失敗またはerror/failure系JSONL eventへ限定し、command outputやdocs本文の文言で誤blockedにしないようにした
 - Campaign taskの開始/phase進行時にworktree、Doppler、prompt、runnerで失敗した場合、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えるようにした
+- 人間判断が必要な場合の意思決定レポート標準を、判断理由、客観的証拠、選択肢ごとの詳細、推奨、影響、可逆性、人間の回答形式を含む形に更新した
+- Campaign Decision Requestがcontext、evidence、option details、impact、reversibilityを含むようにし、Planner JSONでも必須にした
 
 ## Upcoming Sequence
 

@@ -1,5 +1,22 @@
 # Process Log
 
+## 2026-05-18 - Human Decision Report Standard
+
+Review:
+
+- Immediate fixes:
+  - 現在の人間判断プロセスを確認し、AGENTS.mdの確認条件、`docs/decision-prep-standard.md`、Campaign Decision Request、blockedコメント仕様、handoff/progressの整合を点検した。
+  - 既存プロセスには人間確認が必要な条件とCampaign停止/再開flowはあるが、Decision Requestの必須情報が `options`、`recommendation`、`blocked tasks`、`can continue tasks` に偏り、判断理由、客観的証拠、option別影響、可逆性が不足し得ることを確認した。
+  - `docs/decision-prep-standard.md` を拡張し、Trigger、Evidence、option別詳細、Impact、Reversibility、Required Human Action、客観性ルール、現行プロセス評価を追加した。
+  - Campaign Planner JSONとDecision Requestコメントにcontext、evidence、option details、impact、reversibilityを追加し、これらが欠けたdecision plan、またはoption数分のdetailsがないdecision planを無効にするようにした。
+  - README、architecture、CLI、GitHub Issue flow、decision log、progress、handoffを同じ仕様へ更新した。
+- Future tasks:
+  - 実Campaignで新しいDecision Request本文が人間に過不足なく読めるかを確認し、長すぎる場合は要約と詳細リンクの分離を検討する。
+  - Campaign decision answerをGitHubコメント形式のまま運用するか、専用CLIを追加するかは引き続き別判断で扱う。
+- Human-facing reports:
+  - 今回の評価では、現行プロセスは「止まる条件」と「回答形式」は概ね定義済みだが、判断材料の客観性と詳細度に不足があった。
+  - 今回はドキュメント更新と単体テスト対象のコード変更のみで、実GitHub Issueコメント投稿、ラベル変更、push、release作成、secret表示、外部アカウント設定変更は行っていない。
+
 ## 2026-05-18 - Conflict Resolution Before Draft PR
 
 Review:
