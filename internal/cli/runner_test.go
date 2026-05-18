@@ -193,6 +193,7 @@ type fakeCommandRunner struct {
 	outputs             map[string][]byte
 	failFirstHasSession bool
 	failNewSession      bool
+	failNewWindow       bool
 }
 
 type commandCall struct {
@@ -208,6 +209,10 @@ func (r *fakeCommandRunner) Run(_ context.Context, name string, args ...string) 
 	}
 	if r.failNewSession && name == "tmux" && len(args) >= 1 && args[0] == "new-session" {
 		r.failNewSession = false
+		return errFakeCommand
+	}
+	if r.failNewWindow && name == "tmux" && len(args) >= 1 && args[0] == "new-window" {
+		r.failNewWindow = false
 		return errFakeCommand
 	}
 	return nil

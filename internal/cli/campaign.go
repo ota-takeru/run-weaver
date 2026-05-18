@@ -39,7 +39,7 @@ var decisionAnswerRE = regexp.MustCompile(`run-weaver-decision:([a-z0-9-]+):([A-
 
 func processCampaign(ctx context.Context, deps daemonDeps, opts daemonOptions, state *stateFile) (string, bool, error) {
 	if state != nil && state.Campaign != nil {
-		if state.Job != nil {
+		if state.Job != nil && state.Job.LabelState == runningLabel {
 			return "", false, nil
 		}
 		if state.Campaign.Status == campaignStatusPlanning {
@@ -462,26 +462,18 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 	}
 	spec, err := deps.worktree.PrepareForRepo(ctx, opts.target, opts.repo, claim.Issue, opts.repoURL)
 	if err != nil {
-		state.Campaign.Tasks[taskIndex].Status = campaignTaskBlocked
-		state.Campaign.Tasks[taskIndex].RetryCount++
-		_ = writeStateFile(opts.stateFilePath(), *state)
-		_ = markBlocked(ctx, deps.github, task.IssueNumber, "campaign worktree", err)
-		return "", true, err
+		return "", true, blockCampaignTaskStart(ctx, deps.github, opts, state, taskIndex, claim.Issue, claim.ClaimID, spec, nil, "campaign worktree", err)
 	}
 	runSpec := buildCodexRunSpecForRepo(opts.target, opts.repo, task.IssueNumber, spec.Path, pipelinePhasePlan)
 	if err := opts.prepareCodexRunSpec(&runSpec, spec.Path); err != nil {
-		state.Campaign.Tasks[taskIndex].Status = campaignTaskBlocked
-		state.Campaign.Tasks[taskIndex].RetryCount++
-		_ = writeStateFile(opts.stateFilePath(), *state)
-		_ = markBlocked(ctx, deps.github, task.IssueNumber, "campaign doppler", err)
-		return "", true, err
+		return "", true, blockCampaignTaskStart(ctx, deps.github, opts, state, taskIndex, claim.Issue, claim.ClaimID, spec, nil, "campaign doppler", err)
 	}
 	if err := writeCampaignPromptFile(runSpec.PromptPath, state.Campaign.Issue, task, claim.Issue, pipelinePhasePlan); err != nil {
-		return "", true, err
+		return "", true, blockCampaignTaskStart(ctx, deps.github, opts, state, taskIndex, claim.Issue, claim.ClaimID, spec, nil, "campaign prompt", err)
 	}
 	tmux, err := deps.runner.StartCodex(ctx, runSpec)
 	if err != nil {
-		return "", true, err
+		return "", true, blockCampaignTaskStart(ctx, deps.github, opts, state, taskIndex, claim.Issue, claim.ClaimID, spec, tmux, "campaign runner", err)
 	}
 	state.Campaign.Status = campaignStatusRunning
 	state.Campaign.CurrentTaskID = task.ID
@@ -512,6 +504,37 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		return "", true, err
 	}
 	return fmt.Sprintf("started campaign task %s issue #%d", task.ID, task.IssueNumber), true, nil
+}
+
+func blockCampaignTaskStart(ctx context.Context, client githubClient, opts daemonOptions, state *stateFile, taskIndex int, issue githubIssue, claimID string, spec worktreeSpec, tmux *tmuxRef, stage string, cause error) error {
+	if state != nil && state.Campaign != nil && taskIndex >= 0 && taskIndex < len(state.Campaign.Tasks) {
+		state.Campaign.Tasks[taskIndex].Status = campaignTaskBlocked
+		state.Campaign.Tasks[taskIndex].RetryCount++
+		state.Campaign.CurrentTaskID = ""
+		state.Campaign.Status = campaignStatusBlocked
+	}
+	message := fmt.Sprintf("%s: %s", stage, cause)
+	if state != nil {
+		state.Job = &stateJob{
+			Issue: issueRef{
+				Number:     issue.Number,
+				Title:      issue.Title,
+				URL:        issue.URL,
+				Repository: opts.repo,
+			},
+			LabelState: blockedLabel,
+			Branch:     spec.Branch,
+			Worktree:   spec.Path,
+			ClaimID:    claimID,
+			ClaimedAt:  time.Now().UTC().Format(time.RFC3339),
+			Tmux:       tmux,
+			LastError:  &message,
+		}
+		state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		_ = writeStateFile(opts.stateFilePath(), *state)
+	}
+	_ = markBlocked(ctx, client, issue.Number, stage, cause)
+	return cause
 }
 
 func campaignTaskAllowedByDecisions(taskID string, decisions []campaignDecision) bool {
@@ -712,9 +735,7 @@ func advanceCampaignPipeline(ctx context.Context, deps daemonDeps, opts daemonOp
 	}
 	runSpec := buildCodexRunSpecForRepo(opts.target, opts.repo, state.Job.Issue.Number, state.Job.Worktree, nextPhase)
 	if err := opts.prepareCodexRunSpec(&runSpec, state.Job.Worktree); err != nil {
-		markCampaignTaskRetry(state.Campaign, task.ID)
-		state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-		_ = writeStateFile(opts.stateFilePath(), *state)
+		blockCampaignTaskPhase(ctx, deps.github, opts, state, task.ID, "campaign doppler", err)
 		return true, "", err
 	}
 	issue := githubIssue{
@@ -725,13 +746,12 @@ func advanceCampaignPipeline(ctx context.Context, deps daemonDeps, opts daemonOp
 		Comments: nil,
 	}
 	if err := writeCampaignPromptFile(runSpec.PromptPath, state.Campaign.Issue, task, issue, nextPhase); err != nil {
+		blockCampaignTaskPhase(ctx, deps.github, opts, state, task.ID, "campaign prompt", err)
 		return true, "", err
 	}
 	tmux, err := deps.runner.StartCodex(ctx, runSpec)
 	if err != nil {
-		markCampaignTaskRetry(state.Campaign, task.ID)
-		state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-		_ = writeStateFile(opts.stateFilePath(), *state)
+		blockCampaignTaskPhase(ctx, deps.github, opts, state, task.ID, "campaign runner", err)
 		return true, "", err
 	}
 	state.Job.PipelinePhase = nextPhase
@@ -748,6 +768,24 @@ func advanceCampaignPipeline(ctx context.Context, deps daemonDeps, opts daemonOp
 		return true, "", err
 	}
 	return true, fmt.Sprintf("advanced campaign task %s to %s", task.ID, nextPhase), nil
+}
+
+func blockCampaignTaskPhase(ctx context.Context, client githubClient, opts daemonOptions, state *stateFile, taskID, stage string, cause error) {
+	markCampaignTaskRetry(state.Campaign, taskID)
+	if state.Campaign != nil {
+		state.Campaign.Status = campaignStatusBlocked
+		state.Campaign.CurrentTaskID = ""
+	}
+	message := fmt.Sprintf("%s: %s", stage, cause)
+	if state.Job != nil {
+		state.Job.LabelState = blockedLabel
+		state.Job.LastError = &message
+	}
+	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	_ = writeStateFile(opts.stateFilePath(), *state)
+	if state.Job != nil {
+		_ = markBlocked(ctx, client, state.Job.Issue.Number, stage, cause)
+	}
 }
 
 func nextCampaignPipelinePhase(phase string) string {

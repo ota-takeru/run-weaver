@@ -105,6 +105,11 @@ func blockFailedCodexStartup(ctx context.Context, deps daemonDeps, opts daemonOp
 	if tmuxState(opts.target, state.Job.Tmux) == "window_exists" {
 		return false, nil
 	}
+	if state.Job.Codex.LastMessagePath != "" {
+		if _, err := os.Stat(state.Job.Codex.LastMessagePath); err == nil {
+			return false, nil
+		}
+	}
 	if !codexLogLooksCommandNotFound(state.Job.Codex.JSONLogPath) {
 		return false, nil
 	}
@@ -290,7 +295,44 @@ func codexLogLooksCommandNotFound(path string) bool {
 	if err != nil {
 		return false
 	}
-	text := strings.ToLower(string(data))
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var value any
+		if err := json.Unmarshal([]byte(line), &value); err != nil {
+			if textLooksCommandNotFound(line) {
+				return true
+			}
+			continue
+		}
+		if codexJSONLineLooksCommandNotFound(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func codexJSONLineLooksCommandNotFound(value any) bool {
+	typed, ok := value.(map[string]any)
+	if !ok {
+		return false
+	}
+	if textLooksCommandNotFound(jsonFieldText(typed["error"])) {
+		return true
+	}
+	eventType := strings.ToLower(jsonFieldText(typed["type"]))
+	if !strings.Contains(eventType, "error") && !strings.Contains(eventType, "fail") {
+		return false
+	}
+	return textLooksCommandNotFound(jsonFieldText(typed["message"])) ||
+		textLooksCommandNotFound(jsonFieldText(typed["details"])) ||
+		textLooksCommandNotFound(jsonFieldText(typed["error"]))
+}
+
+func textLooksCommandNotFound(text string) bool {
+	text = strings.ToLower(text)
 	return strings.Contains(text, "codex: command not found") ||
 		strings.Contains(text, "codex: not found") ||
 		strings.Contains(text, "the term 'codex' is not recognized")

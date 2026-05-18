@@ -59,8 +59,11 @@
 - Doppler必須repoでは `doppler run -- codex ...`、不要repoでは通常の `codex ...` を使う。Doppler設定ファイルがあるだけでは認証済み扱いにしない。tokenやsecret値はstate、Issueコメント、PR本文、docs例に保存しない。
 - Windows targetのCodex起動はtmuxではなくdirect runnerに分岐する。WSL targetはtmux runnerを継続する。
 - WSLでtmux windowが終了し、JSONLログが `codex: command not found` などCodex起動失敗を示す場合、daemonは stuckした `running` のままにせずIssue/stateを `blocked` に更新する。
+- `codex: command not found` の判定はshell起動失敗行またはerror/failure系JSONL eventだけを見る。command outputやdocs本文に同じ文言が含まれても誤ってblockedへ寄せない。last-messageが存在する完了済みjobは完了処理を優先する。
 - rate limit resume attemptは `blocked` にせず `running` のまま扱い、Issueコメントにattempt番号、session、worktree、JSONLログpath、検出時刻を残す。state fileでは `retryCount`、`lastGitHubCommentAt`、`lastError` を更新する。secret値やJSONLログ本文はIssueコメントに載せない。
 - rate limit判定はJSONLログ全体の文字列検索ではなく、トップレベル `error` またはfailure/error系eventのmessage/details/errorだけを対象にする。docs本文やcommand outputに `rate limit` が含まれるだけでは `rate_limited_waiting` にしない。`last-message.txt` がある場合は完了を優先する。
+- `status` はGitHub Issue照合が認証切れなどで失敗しても、state file、process、tmux、last-messageによるローカルruntime照合を続ける。終了コードは認証必須扱いだが、表示上の `runtimeState` は `codex_completed` などローカルに判断できる状態を保持する。
+- Campaign taskの開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issueラベル、Campaign task、Campaign status、state jobを `blocked` に揃える。blocked jobがstateに残っていてもCampaign dispatcherはrunning中とはみなさない。
 - Campaign子Issueには `run-weaver:campaign-task` を付け、通常ready Issue取得から除外する。
 - pending decision gateがある場合、Dispatcherは `can continue tasks` に含まれるtaskだけを実行し、それ以外は `decision_required` で停止する。
 - 同一repository内の通常IssueはIssue番号昇順で評価し、repo内では常に最大1 jobだけ実行する。

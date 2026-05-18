@@ -123,6 +123,9 @@ Recommended Next Step:
 - WSL service PATH生成をOS非依存でLinux形式に固定し、Windows CI上でもWSL service fileテストが通るようにした
 - GitHub Actions CIがLinux / Windowsとも成功する状態になった
 - リリース前確認として、`go test ./...`、`go test -race ./...`、`go vet ./...`、Linux / Windows amd64 / arm64のrelease相当cross-build、latest release asset取得、`update --check` を確認した
+- `status` がGitHub照合失敗時にもローカルruntime照合を続け、last-messageがあるjobを `codex_completed` として表示できるようにした
+- `codex: command not found` 検出をshell起動失敗またはerror/failure系JSONL eventへ限定し、command outputやdocs本文の文言で誤blockedにしないようにした
+- Campaign taskの開始/phase進行時にworktree、Doppler、prompt、runnerで失敗した場合、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えるようにした
 
 ## Upcoming Sequence
 

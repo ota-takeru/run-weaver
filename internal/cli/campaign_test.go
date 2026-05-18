@@ -431,6 +431,115 @@ func TestDispatchCampaignTaskStartsReadyChildIssue(t *testing.T) {
 	}
 }
 
+func TestDispatchCampaignTaskBlocksWhenRunnerFails(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	t.Setenv("XDG_DATA_HOME", tempDir+"/data")
+	github := newFakeGitHubClient(githubIssue{Number: 101, Title: "Add planner", URL: "https://github.com/example/repo/issues/101", Labels: []githubLabel{{Name: readyLabel}}})
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign"},
+			Status: campaignStatusPlanned,
+			Tasks: []campaignTask{{
+				ID:          "task-add-planner",
+				Title:       "Add planner",
+				IssueNumber: 101,
+				Status:      campaignTaskPending,
+				Phase:       pipelinePhasePlan,
+			}},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	commands := &fakeCommandRunner{failNewWindow: true}
+
+	_, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl", repoURL: "https://github.com/example/repo.git"})
+
+	if err == nil {
+		t.Fatal("expected runner error")
+	}
+	if !github.added[blockedLabel] || !github.removed[runningLabel] {
+		t.Fatalf("labels added=%#v removed=%#v, want child blocked", github.added, github.removed)
+	}
+	updated, readErr := readStateFile(defaultStateFile("wsl"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if updated.Campaign.Status != campaignStatusBlocked || updated.Campaign.Tasks[0].Status != campaignTaskBlocked {
+		t.Fatalf("campaign = %#v, want blocked task", updated.Campaign)
+	}
+	if updated.Job == nil || updated.Job.LabelState != blockedLabel || updated.Job.LastError == nil || !strings.Contains(*updated.Job.LastError, "campaign runner") {
+		t.Fatalf("job = %#v, want blocked runner error", updated.Job)
+	}
+}
+
+func TestDispatchCampaignTaskBlocksWhenDopplerCheckFails(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	t.Setenv("XDG_DATA_HOME", tempDir+"/data")
+	github := newFakeGitHubClient(githubIssue{Number: 101, Title: "Add planner", URL: "https://github.com/example/repo/issues/101", Labels: []githubLabel{{Name: readyLabel}}})
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign"},
+			Status: campaignStatusPlanned,
+			Tasks: []campaignTask{{
+				ID:          "task-add-planner",
+				Title:       "Add planner",
+				IssueNumber: 101,
+				Status:      campaignTaskPending,
+				Phase:       pipelinePhasePlan,
+			}},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	commands := &fakeCommandRunner{}
+	originalLookPath := lookPath
+	lookPath = func(name string) (string, error) {
+		if name == "doppler" {
+			return "", errFakeCommand
+		}
+		return originalLookPath(name)
+	}
+	defer func() { lookPath = originalLookPath }()
+
+	_, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl", repoURL: "https://github.com/example/repo.git", dopplerMode: dopplerModeRequired})
+
+	if err == nil {
+		t.Fatal("expected doppler error")
+	}
+	if !github.added[blockedLabel] || !github.removed[runningLabel] {
+		t.Fatalf("labels added=%#v removed=%#v, want child blocked", github.added, github.removed)
+	}
+	if commands.ranPrefix("tmux", "new-window") {
+		t.Fatalf("commands = %#v, should not start codex", commands.calls)
+	}
+	updated, readErr := readStateFile(defaultStateFile("wsl"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if updated.Campaign.Status != campaignStatusBlocked || updated.Campaign.Tasks[0].Status != campaignTaskBlocked {
+		t.Fatalf("campaign = %#v, want blocked task", updated.Campaign)
+	}
+	if updated.Job == nil || updated.Job.LabelState != blockedLabel || updated.Job.LastError == nil || !strings.Contains(*updated.Job.LastError, "campaign doppler") {
+		t.Fatalf("job = %#v, want blocked doppler error", updated.Job)
+	}
+}
+
 func TestCompleteCampaignTaskAdvancesPipelinePhase(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
@@ -495,6 +604,72 @@ func TestCompleteCampaignTaskAdvancesPipelinePhase(t *testing.T) {
 	}
 	if updated.Campaign.Tasks[0].Phase != pipelinePhaseImplement {
 		t.Fatalf("campaign task = %#v", updated.Campaign.Tasks[0])
+	}
+}
+
+func TestCompleteCampaignTaskBlocksWhenNextPhaseRunnerFails(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	lastMessage := filepath.Join(tempDir, "last-message.txt")
+	if err := os.WriteFile(lastMessage, []byte("done"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	worktree := filepath.Join(tempDir, "worktrees", "issue-101")
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:          issueRef{Number: 101, Title: "Add planner"},
+			LabelState:     runningLabel,
+			Branch:         "codex/issue-101-add-planner",
+			Worktree:       worktree,
+			CampaignTaskID: "task-add-planner",
+			PipelinePhase:  pipelinePhasePlan,
+			Codex:          &codexState{LastMessagePath: lastMessage},
+		},
+		Campaign: &stateCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign"},
+			Status: campaignStatusRunning,
+			Tasks: []campaignTask{{
+				ID:          "task-add-planner",
+				Title:       "Add planner",
+				Body:        "Add planner",
+				IssueNumber: 101,
+				Status:      campaignTaskRunning,
+				Phase:       pipelinePhasePlan,
+			}},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	commands := &fakeCommandRunner{failNewWindow: true}
+	github := newFakeGitHubClient(githubIssue{Number: 101, Title: "Add planner"})
+
+	_, completed, err := completeCurrentJob(context.Background(), daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl"})
+
+	if err == nil {
+		t.Fatal("expected runner error")
+	}
+	if !completed {
+		t.Fatal("campaign phase failure should be handled in this cycle")
+	}
+	if !github.added[blockedLabel] || !github.removed[runningLabel] {
+		t.Fatalf("labels added=%#v removed=%#v, want child blocked", github.added, github.removed)
+	}
+	updated, readErr := readStateFile(defaultStateFile("wsl"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if updated.Campaign.Status != campaignStatusBlocked || updated.Campaign.Tasks[0].Status != campaignTaskBlocked {
+		t.Fatalf("campaign = %#v, want blocked task", updated.Campaign)
+	}
+	if updated.Job == nil || updated.Job.LabelState != blockedLabel || updated.Job.LastError == nil || !strings.Contains(*updated.Job.LastError, "campaign runner") {
+		t.Fatalf("job = %#v, want blocked runner error", updated.Job)
 	}
 }
 

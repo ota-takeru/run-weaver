@@ -578,6 +578,50 @@ func TestStatusRuntimeStateCompletedWinsOverRateLimitText(t *testing.T) {
 	}
 }
 
+func TestStatusKeepsLocalRuntimeWhenGitHubUnavailable(t *testing.T) {
+	restorePlatform := setTestGOOS(t, "linux")
+	defer restorePlatform()
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir)
+	lastMessage := filepath.Join(tempDir, "last-message.txt")
+	if err := os.WriteFile(lastMessage, []byte("done"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Job: &stateJob{
+			Issue:      issueRef{Number: 42, Title: "Add export"},
+			LabelState: runningLabel,
+			Tmux:       &tmuxRef{Session: "run-weaver", Window: "issue-42"},
+			Codex:      &codexState{LastMessagePath: lastMessage},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
+		return nil, errors.New("tmux window missing")
+	})
+	defer restoreCommands()
+	github := newFakeGitHubClient(githubIssue{Number: 42})
+	github.viewErr = errors.New("gh auth failed")
+
+	result := collectStatus(github)
+
+	if result.ExitCode != exitStatusAuthRequired {
+		t.Fatalf("exit code = %d, want %d", result.ExitCode, exitStatusAuthRequired)
+	}
+	if result.Output.Reconciliation.TmuxState != "window_missing" {
+		t.Fatalf("tmux state = %q, want window_missing", result.Output.Reconciliation.TmuxState)
+	}
+	if result.Output.Job == nil || result.Output.Job.RuntimeState != "codex_completed" {
+		t.Fatalf("job = %#v, want local codex_completed despite GitHub error", result.Output.Job)
+	}
+	if !containsString(result.Output.Reconciliation.Conflicts, "github_unavailable") {
+		t.Fatalf("conflicts = %#v, want github_unavailable", result.Output.Reconciliation.Conflicts)
+	}
+}
+
 func TestWindowsProcessRunningParsesTasklistCSV(t *testing.T) {
 	restoreCommands := stubCommandOutput(t, func(name string, args ...string) ([]byte, error) {
 		if name != "tasklist" {

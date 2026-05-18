@@ -1,5 +1,21 @@
 # Process Log
 
+## 2026-05-18 - Pre-Release Edge Case Audit
+
+Review:
+
+- Immediate fixes:
+  - GitHub照合が認証切れなどで失敗した `status` でも、tmux / last-message などのローカルruntime照合を続け、`codex_completed` などを表示できるようにした。
+  - `codex: command not found` 検出をJSONL全体の単純検索から、shell起動失敗行またはerror/failure系eventのmessage/details/errorへ絞り、command outputやdocs本文の文言で誤blockedにしないようにした。
+  - Campaign taskの開始時またはphase進行時にworktree / Doppler / prompt / runnerで失敗した場合、子Issueラベル、Campaign task、Campaign status、state jobを `blocked` に揃えるようにした。
+  - Campaign stateにblocked jobが残っている場合は、running jobとみなしてCampaign dispatchを止め続けないようにした。
+  - `GOCACHE=/tmp/run-weaver-go-build-cache go test ./internal/cli -run 'StatusKeepsLocalRuntime|CampaignTaskBlocks|DispatchCampaignTaskBlocks|CompleteCampaignTaskBlocks|CommandNotFound'`、`go test ./...`、`go vet ./...`、`go test -race ./...` で確認した。
+- Future tasks:
+  - Campaign planner自体の起動前失敗を、必要ならより詳細なplanner state付きblockedとして保存する。
+  - Codex CLIのJSONL schemaが変わった場合は、command-not-found判定対象のevent type / fieldを追加する。
+- Human-facing reports:
+  - 今回は実GitHub Issueへのコメント投稿、ラベル変更、push、release作成、secret表示、外部アカウント設定変更は行っていない。
+
 ## 2026-05-18 - Rate Limit Status False Positive
 
 Review:
