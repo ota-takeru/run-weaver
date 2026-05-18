@@ -176,7 +176,7 @@ Follow the repository AGENTS.md instructions, run focused verification, and leav
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 
-func writeCampaignPromptFile(path string, campaign issueRef, task campaignTask, issue githubIssue, phase string) error {
+func writeCampaignPromptFile(path string, campaign issueRef, decisions []campaignDecision, task campaignTask, issue githubIssue, phase string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -196,11 +196,44 @@ Task body:
 Relevant comments:
 %s
 
+Campaign decisions:
+%s
+
 Follow the repository AGENTS.md instructions. For the plan phase, produce and execute the minimum planning work needed before implementation. For implement, make the focused code change. For review, inspect the current task changes and fix regressions. For verify, run focused verification and fix task-local failures. Do not move to unrelated campaign tasks in this session.
 
 %s
-`, campaign.Number, campaign.Title, task.ID, emptyAsNone(phase), issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), codexSubagentGuidance)
+`, campaign.Number, campaign.Title, task.ID, emptyAsNone(phase), issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), campaignDecisionPromptSummary(decisions), codexSubagentGuidance)
 	return os.WriteFile(path, []byte(body), 0o600)
+}
+
+func campaignDecisionPromptSummary(decisions []campaignDecision) string {
+	if len(decisions) == 0 {
+		return "none"
+	}
+	lines := make([]string, 0, len(decisions)*6)
+	for _, decision := range decisions {
+		lines = append(lines, fmt.Sprintf("- %s: %s", decision.ID, emptyAsNone(decision.Title)))
+		lines = append(lines, fmt.Sprintf("  status: %s", emptyAsUnknown(decision.Status)))
+		if decision.Answer != "" {
+			lines = append(lines, fmt.Sprintf("  answer: %s", decision.Answer))
+		}
+		if decision.Recommendation != "" {
+			lines = append(lines, fmt.Sprintf("  recommendation: %s", decision.Recommendation))
+		}
+		if len(decision.OptionDetails) > 0 {
+			lines = append(lines, "  option details:")
+			for _, detail := range decision.OptionDetails {
+				lines = append(lines, "    - "+detail)
+			}
+		}
+		if len(decision.BlockedTasks) > 0 {
+			lines = append(lines, "  blocked tasks: "+strings.Join(decision.BlockedTasks, ", "))
+		}
+		if len(decision.CanContinueTasks) > 0 {
+			lines = append(lines, "  can continue tasks: "+strings.Join(decision.CanContinueTasks, ", "))
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func writeCampaignPlannerPromptFile(path string, issue githubIssue) error {

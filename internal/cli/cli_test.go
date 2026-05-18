@@ -358,6 +358,38 @@ func TestStatusIncludesCampaignProgress(t *testing.T) {
 	}
 }
 
+func TestStatusHumanShowsCampaignDecisionAnswerCommand(t *testing.T) {
+	output := statusOutput{
+		Target:    "wsl",
+		StateFile: "/tmp/state.json",
+		Daemon:    daemonStatus{},
+		Campaign: &statusCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign", Repository: "example/repo"},
+			Status: campaignStatusDecisionRequired,
+			Tasks: []campaignTask{{
+				ID:     "task-a",
+				Title:  "Task A",
+				Status: campaignTaskPending,
+			}},
+			Decisions: []campaignDecision{{
+				ID:      "decision-scope",
+				Title:   "Choose scope",
+				Status:  "pending",
+				Options: []string{"approve", "stop"},
+			}},
+		},
+		Reconciliation: reconciliationStatus{Conflicts: []string{}},
+	}
+	var stdout bytes.Buffer
+
+	printStatusHuman(&stdout, output)
+
+	got := stdout.String()
+	if !strings.Contains(got, "options: approve, stop") || !strings.Contains(got, "run-weaver decision answer --repo example/repo '#7' decision-scope <option>") {
+		t.Fatalf("status = %q, want decision answer command", got)
+	}
+}
+
 func TestInferRepoFromStateUsesIssueURL(t *testing.T) {
 	state := &stateFile{
 		Job: &stateJob{

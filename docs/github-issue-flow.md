@@ -222,10 +222,12 @@ Decision Requestコメントには以下を含めます。
 
 Decision Requestでは、観測済み事実、推論、推奨を分けます。secret、token、環境変数値、JSONLログ本文は含めず、必要な場合はローカルpathや確認済み事実の要約だけを含めます。人間が判断しやすいよう、各optionには実行内容、結果、主なリスク、止まるtaskを含めます。
 
-人間が判断を返す場合は、親Campaign Issueに以下の形式を含むコメントを追加します。
+人間が判断を返す場合は、`run-weaver status` に表示される回答用コマンドを実行します。
 
-```text
-run-weaver-decision:<decision-id>:<option>
+```sh
+run-weaver decision answer --repo <owner/repo> '#<campaign-issue>' <decision-id> <option>
 ```
+
+このコマンドはローカルstate fileから対象Campaignとoptionを検証し、親Campaign Issueへ内部marker `run-weaver-decision:<decision-id>:<option>` を含むコメントを投稿します。daemonはこのmarkerを読み取り、optionがDecision Requestの選択肢に含まれる場合だけstateへ保存します。回答済みdecisionの内容は後続Campaign task promptへ含めます。
 
 pending decisionがある場合、Dispatcherは `can continue tasks` に含まれるtaskだけを実行します。実行可能なtaskがなく、人間判断が必要な場合はCampaign stateを `decision_required` にして停止します。

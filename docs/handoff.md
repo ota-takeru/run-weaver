@@ -111,7 +111,7 @@
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`run-weaver repo add` 済みであることを確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
 - Campaign実行時は、対象repositoryに子IssueとDecision Requestコメントを作成する。taskごとにdraft PRを作る。
-- Campaign decision answerは親Campaign Issueコメント内の `run-weaver-decision:<decision-id>:<option>` を読み取ってstateへ保存する。人間判断を求める前のレポート標準は `docs/decision-prep-standard.md` が正本。
+- Campaign decision answerは `run-weaver decision answer --repo <owner/repo> '#<campaign-issue>' <decision-id> <option>` で投稿する。daemonは親Campaign Issueコメント内の内部marker `run-weaver-decision:<decision-id>:<option>` を読み取り、定義済みoptionだけをstateへ保存する。回答済みdecisionの内容は後続Campaign task promptへ渡る。人間判断を求める前のレポート標準は `docs/decision-prep-standard.md` が正本。
 - Campaign task dependencyは `depends: task-...` のtask ID形式を使う。
 - 通常Issue dependencyは `depends: #123` などのIssue番号形式を使う。依存表現が曖昧な場合、agentは独立PRとして推測実行せず `blocked` にする。
 - Dopplerが必要なrepoは `run-weaver repo add --doppler required` で明示できる。Doppler不要repoは `--doppler optional` で自動検出を上書きできる。

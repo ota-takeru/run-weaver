@@ -1,5 +1,22 @@
 # Process Log
 
+## 2026-05-18 - Campaign Decision Answer CLI
+
+Review:
+
+- Immediate fixes:
+  - `run-weaver decision answer --repo <owner/repo> '#<campaign-issue>' <decision-id> <option>` を追加し、人間が `run-weaver-decision:<decision-id>:<option>` markerを直接書かなくてよいようにした。
+  - 専用CLIはローカルstate fileから対象Campaign、pending decision、定義済みoptionを検証してから親Campaign Issueへ回答コメントを投稿する。
+  - daemon側も未定義optionのdecision answer markerを無視し、誤入力でCampaignが再開しないようにした。
+  - `status` のhuman outputにpending decisionのoptionsと回答用コマンドを表示するようにした。
+  - 回答済みdecisionの内容をCampaign task promptへ含め、後続taskが人間判断の内容を読めるようにした。
+- Future tasks:
+  - 実Campaignで `run-weaver decision answer` による回答投稿、daemon再開、後続task promptへのdecision context反映を確認する。
+  - optionごとにtaskを中止または再計画するような機械可読action schemaが必要かは、実運用で `stop` / `revise` を使う頻度を見て判断する。
+- Human-facing reports:
+  - 人間向けの標準操作は専用CLIになった。GitHubコメントmarkerは内部互換プロトコルとして残す。
+  - 今回は実GitHub Issueへのコメント投稿、ラベル変更、push、release作成、secret表示、外部アカウント設定変更は行っていない。
+
 ## 2026-05-18 - Human Decision Report Standard
 
 Review:
@@ -12,7 +29,7 @@ Review:
   - README、architecture、CLI、GitHub Issue flow、decision log、progress、handoffを同じ仕様へ更新した。
 - Future tasks:
   - 実Campaignで新しいDecision Request本文が人間に過不足なく読めるかを確認し、長すぎる場合は要約と詳細リンクの分離を検討する。
-  - Campaign decision answerをGitHubコメント形式のまま運用するか、専用CLIを追加するかは引き続き別判断で扱う。
+  - Campaign decision answerをGitHubコメント形式のまま運用するか、専用CLIを追加するかは、この後のCampaign Decision Answer CLIで解消済み。
 - Human-facing reports:
   - 今回の評価では、現行プロセスは「止まる条件」と「回答形式」は概ね定義済みだが、判断材料の客観性と詳細度に不足があった。
   - 今回はドキュメント更新と単体テスト対象のコード変更のみで、実GitHub Issueコメント投稿、ラベル変更、push、release作成、secret表示、外部アカウント設定変更は行っていない。

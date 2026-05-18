@@ -97,7 +97,7 @@ func TestPromptFilesIncludeSubagentGuidance(t *testing.T) {
 			return writePromptFile(path, issue)
 		},
 		"campaign-task": func(path string) error {
-			return writeCampaignPromptFile(path, issueRef{Number: 7, Title: "Roadmap"}, campaignTask{ID: "task-readme"}, issue, pipelinePhaseReview)
+			return writeCampaignPromptFile(path, issueRef{Number: 7, Title: "Roadmap"}, nil, campaignTask{ID: "task-readme"}, issue, pipelinePhaseReview)
 		},
 		"campaign-planner": func(path string) error {
 			return writeCampaignPlannerPromptFile(path, issue)
@@ -114,6 +114,31 @@ func TestPromptFilesIncludeSubagentGuidance(t *testing.T) {
 		if got := string(data); !strings.Contains(got, "Use Codex built-in subagents") || !strings.Contains(got, "repository AGENTS.md does not prohibit") || !strings.Contains(got, "higher-priority runtime instructions allow") || !strings.Contains(got, "continue with a self-review") {
 			t.Fatalf("%s prompt = %q, want subagent guidance", name, got)
 		}
+	}
+}
+
+func TestCampaignPromptIncludesDecisionAnswers(t *testing.T) {
+	path := t.TempDir() + "/campaign-task.md"
+
+	err := writeCampaignPromptFile(path, issueRef{Number: 7, Title: "Roadmap"}, []campaignDecision{{
+		ID:             "decision-scope",
+		Title:          "Choose scope",
+		Status:         "answered",
+		Answer:         "approve",
+		Recommendation: "approve",
+		OptionDetails:  []string{"approve: implement export", "stop: leave export out"},
+		BlockedTasks:   []string{"task-export"},
+	}}, campaignTask{ID: "task-export"}, githubIssue{Number: 101, Title: "Export"}, pipelinePhaseImplement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "Campaign decisions:") || !strings.Contains(got, "answer: approve") || !strings.Contains(got, "approve: implement export") {
+		t.Fatalf("prompt = %q, want decision answer context", got)
 	}
 }
 

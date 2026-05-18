@@ -39,6 +39,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "repo":
 		return runRepo(args[1:], stdout, stderr)
+	case "decision":
+		return runDecision(args[1:], stdout, stderr)
 	case "doctor":
 		return runDoctor(args[1:], stdout, stderr)
 	case "status":
@@ -373,6 +375,7 @@ func printRootUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
 	fmt.Fprintln(w, "  repo     Manage registered repositories")
+	fmt.Fprintln(w, "  decision Answer Campaign decision requests")
 	fmt.Fprintln(w, "  doctor   Check dependencies and authentication")
 	fmt.Fprintln(w, "  status   Show daemon and job status")
 	fmt.Fprintln(w, "  install  Install target-specific daemon configuration")

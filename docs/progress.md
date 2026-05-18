@@ -50,7 +50,6 @@ Recommended Next Step:
 - `run-weaver:ready` 以外のフィルタ。assignee、milestone、repository allowlistなど。
 - stale `running` の解除を将来も人間判断に固定するか、自動解除へ拡張するか。
 - GitHub API直実装へ移行する時期。
-- Campaign decision answerをGitHubコメント形式のまま運用するか、専用CLIを追加するか。
 
 ## Completed
 
@@ -168,6 +167,8 @@ Recommended Next Step:
 - Campaign taskの開始/phase進行時にworktree、Doppler、prompt、runnerで失敗した場合、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えるようにした
 - 人間判断が必要な場合の意思決定レポート標準を、判断理由、客観的証拠、選択肢ごとの詳細、推奨、影響、可逆性、人間の回答形式を含む形に更新した
 - Campaign Decision Requestがcontext、evidence、option details、impact、reversibilityを含むようにし、Planner JSONでも必須にした
+- `run-weaver decision answer` を追加し、Campaign Decision Requestへ専用CLIで回答できるようにした
+- Campaign decision answerは定義済みoptionだけを受け付け、回答済みdecisionの内容を後続Campaign task promptへ含めるようにした
 
 ## Upcoming Sequence
 
@@ -183,4 +184,3 @@ Recommended Next Step:
 - `run-weaver:ready` 以外のフィルタ。assignee、milestone、repository allowlistなど
 - stale `running` の解除を将来も人間判断に固定するか、自動解除へ拡張するか
 - GitHub API直実装へ移行する時期
-- Campaign decision answerをGitHubコメント形式のまま運用するか、専用CLIを追加するか

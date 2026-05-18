@@ -237,6 +237,21 @@ func printStatusHuman(w io.Writer, output statusOutput) {
 		if len(output.Campaign.PRs) > 0 {
 			fmt.Fprintf(w, "  PRs: %d\n", len(output.Campaign.PRs))
 		}
+		if len(output.Campaign.Decisions) > 0 {
+			fmt.Fprintln(w, "  Decisions:")
+			for _, decision := range output.Campaign.Decisions {
+				fmt.Fprintf(w, "    %s: %s\n", decision.ID, emptyAsUnknown(decision.Status))
+				if decision.Answer != "" {
+					fmt.Fprintf(w, "      answer: %s\n", decision.Answer)
+				}
+				if decision.Status == "pending" {
+					if len(decision.Options) > 0 {
+						fmt.Fprintf(w, "      options: %s\n", strings.Join(decision.Options, ", "))
+					}
+					fmt.Fprintf(w, "      answer command: %s\n", campaignDecisionAnswerCommand(output.Campaign, decision.ID))
+				}
+			}
+		}
 	}
 	if len(output.ReadyQueue) > 0 {
 		fmt.Fprintln(w)
@@ -270,6 +285,21 @@ func printStatusHuman(w io.Writer, output statusOutput) {
 		return
 	}
 	fmt.Fprintf(w, "  Conflicts: %s\n", strings.Join(output.Reconciliation.Conflicts, ", "))
+}
+
+func campaignDecisionAnswerCommand(campaign *statusCampaign, decisionID string) string {
+	if campaign == nil {
+		return ""
+	}
+	repo := campaign.Issue.Repository
+	if repo == "" {
+		repo = inferGitHubRepoFromIssueURL(campaign.Issue.URL)
+	}
+	repoArg := ""
+	if repo != "" {
+		repoArg = " --repo " + repo
+	}
+	return fmt.Sprintf("run-weaver decision answer%s '#%d' %s <option>", repoArg, campaign.Issue.Number, decisionID)
 }
 
 func collectReadyQueueStatus(client githubClient, state *stateFile) []readyQueueItem {

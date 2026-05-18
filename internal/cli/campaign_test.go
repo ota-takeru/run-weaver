@@ -776,9 +776,10 @@ func TestDecisionAnswerCommentResumesCampaign(t *testing.T) {
 				Status:      campaignTaskCompleted,
 			}},
 			Decisions: []campaignDecision{{
-				ID:     "decision-choose-api",
-				Title:  "Choose API",
-				Status: "pending",
+				ID:      "decision-choose-api",
+				Title:   "Choose API",
+				Status:  "pending",
+				Options: []string{"approve", "revise", "stop"},
 			}},
 		},
 	}
@@ -804,5 +805,60 @@ func TestDecisionAnswerCommentResumesCampaign(t *testing.T) {
 	}
 	if updated.Campaign.Status != campaignStatusDone || updated.Campaign.Decisions[0].Answer != "approve" {
 		t.Fatalf("campaign = %#v", updated.Campaign)
+	}
+}
+
+func TestDecisionAnswerCommentIgnoresUnknownOption(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	github := newFakeGitHubClient(githubIssue{
+		Number: 7,
+		Title:  "Campaign",
+		Comments: []githubComment{{
+			Body: "run-weaver-decision:decision-choose-api:bogus",
+		}},
+	})
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:  issueRef{Number: 7, Title: "Campaign"},
+			Status: campaignStatusDecisionRequired,
+			Tasks: []campaignTask{{
+				ID:          "task-add-planner",
+				Title:       "Add planner",
+				IssueNumber: 101,
+				Status:      campaignTaskCompleted,
+			}},
+			Decisions: []campaignDecision{{
+				ID:      "decision-choose-api",
+				Title:   "Choose API",
+				Status:  "pending",
+				Options: []string{"approve", "revise", "stop"},
+			}},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(&fakeCommandRunner{}),
+		runner:   newTmuxRunner(&fakeCommandRunner{}),
+	}, daemonOptions{target: "wsl", repoURL: "https://github.com/example/repo.git"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result != "campaign decision_required" {
+		t.Fatalf("result = %q", result)
+	}
+	updated, err := readStateFile(defaultStateFile("wsl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Campaign.Decisions[0].Status != "pending" || updated.Campaign.Decisions[0].Answer != "" {
+		t.Fatalf("decision = %#v, want still pending", updated.Campaign.Decisions[0])
 	}
 }

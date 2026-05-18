@@ -205,7 +205,7 @@ func createCampaignStateFromPlan(ctx context.Context, client githubClient, opts 
 		if decisions[i].Status == "" {
 			decisions[i].Status = "pending"
 		}
-		if err := client.Comment(ctx, parent.Number, decisionRequestBody(decisions[i])); err != nil {
+		if err := client.Comment(ctx, parent.Number, decisionRequestBody(state.Campaign.Issue, decisions[i])); err != nil {
 			return nil, err
 		}
 	}
@@ -240,7 +240,7 @@ Task ID: %s
 `, parent.Number, task.ID, emptyAsNone(strings.TrimSpace(task.Body)))
 }
 
-func decisionRequestBody(decision campaignDecision) string {
+func decisionRequestBody(parent issueRef, decision campaignDecision) string {
 	return fmt.Sprintf(`<!-- run-weaver-decision-request:%s -->
 run-weaver decision request.
 
@@ -274,10 +274,22 @@ run-weaver decision request.
 ## can continue tasks
 %s
 
-To answer, add a comment containing:
+To answer, run:
 
-run-weaver-decision:%s:<option>
-`, decision.ID, emptyAsNone(decision.Title), emptyAsNone(decision.Context), markdownList(decision.Evidence), markdownList(decision.Options), markdownList(decision.OptionDetails), emptyAsNone(decision.Recommendation), markdownList(decision.Impact), emptyAsNone(decision.Reversibility), markdownList(decision.BlockedTasks), markdownList(decision.CanContinueTasks), decision.ID)
+%s
+`, decision.ID, emptyAsNone(decision.Title), emptyAsNone(decision.Context), markdownList(decision.Evidence), markdownList(decision.Options), markdownList(decision.OptionDetails), emptyAsNone(decision.Recommendation), markdownList(decision.Impact), emptyAsNone(decision.Reversibility), markdownList(decision.BlockedTasks), markdownList(decision.CanContinueTasks), decisionRequestAnswerCommand(parent, decision.ID))
+}
+
+func decisionRequestAnswerCommand(parent issueRef, decisionID string) string {
+	repo := parent.Repository
+	if repo == "" {
+		repo = inferGitHubRepoFromIssueURL(parent.URL)
+	}
+	repoArg := ""
+	if repo != "" {
+		repoArg = " --repo " + repo
+	}
+	return fmt.Sprintf("run-weaver decision answer%s '#%d' %s <option>", repoArg, parent.Number, decisionID)
 }
 
 func markdownList(values []string) string {
@@ -504,7 +516,7 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 	if err := opts.prepareCodexRunSpec(&runSpec, spec.Path); err != nil {
 		return "", true, blockCampaignTaskStart(ctx, deps.github, opts, state, taskIndex, claim.Issue, claim.ClaimID, spec, nil, "campaign doppler", err)
 	}
-	if err := writeCampaignPromptFile(runSpec.PromptPath, state.Campaign.Issue, task, claim.Issue, pipelinePhasePlan); err != nil {
+	if err := writeCampaignPromptFile(runSpec.PromptPath, state.Campaign.Issue, state.Campaign.Decisions, task, claim.Issue, pipelinePhasePlan); err != nil {
 		return "", true, blockCampaignTaskStart(ctx, deps.github, opts, state, taskIndex, claim.Issue, claim.ClaimID, spec, nil, "campaign prompt", err)
 	}
 	tmux, err := deps.runner.StartCodex(ctx, runSpec)
@@ -646,14 +658,13 @@ func refreshCampaignDecisionAnswers(ctx context.Context, client githubClient, st
 	if err != nil {
 		return false, err
 	}
-	answers := decisionAnswersFromComments(issue.Comments)
 	updated := false
 	for i := range state.Campaign.Decisions {
 		decision := &state.Campaign.Decisions[i]
 		if decision.Status != "pending" {
 			continue
 		}
-		answer, ok := answers[decision.ID]
+		answer, ok := campaignDecisionAnswerFromComments(issue.Comments, *decision)
 		if !ok {
 			continue
 		}
@@ -671,17 +682,38 @@ func refreshCampaignDecisionAnswers(ctx context.Context, client githubClient, st
 	return updated, nil
 }
 
-func decisionAnswersFromComments(comments []githubComment) map[string]string {
-	answers := map[string]string{}
-	for _, comment := range comments {
-		matches := decisionAnswerRE.FindAllStringSubmatch(comment.Body, -1)
-		for _, match := range matches {
-			if len(match) == 3 {
-				answers[match[1]] = match[2]
+func campaignDecisionAnswerFromComments(comments []githubComment, decision campaignDecision) (string, bool) {
+	for i := len(comments) - 1; i >= 0; i-- {
+		matches := decisionAnswerRE.FindAllStringSubmatch(comments[i].Body, -1)
+		for j := len(matches) - 1; j >= 0; j-- {
+			match := matches[j]
+			if len(match) != 3 || match[1] != decision.ID {
+				continue
+			}
+			if campaignDecisionOptionValid(decision, match[2]) {
+				return match[2], true
 			}
 		}
 	}
-	return answers
+	return "", false
+}
+
+func campaignDecisionByID(decisions []campaignDecision, id string) *campaignDecision {
+	for i := range decisions {
+		if decisions[i].ID == id {
+			return &decisions[i]
+		}
+	}
+	return nil
+}
+
+func campaignDecisionOptionValid(decision campaignDecision, option string) bool {
+	for _, candidate := range decision.Options {
+		if candidate == option {
+			return true
+		}
+	}
+	return false
 }
 
 func readyCampaignTaskIDs(tasks []campaignTask, completed map[string]bool) []string {
@@ -781,7 +813,7 @@ func advanceCampaignPipeline(ctx context.Context, deps daemonDeps, opts daemonOp
 		Body:     task.Body,
 		Comments: nil,
 	}
-	if err := writeCampaignPromptFile(runSpec.PromptPath, state.Campaign.Issue, task, issue, nextPhase); err != nil {
+	if err := writeCampaignPromptFile(runSpec.PromptPath, state.Campaign.Issue, state.Campaign.Decisions, task, issue, nextPhase); err != nil {
 		blockCampaignTaskPhase(ctx, deps.github, opts, state, task.ID, "campaign prompt", err)
 		return true, "", err
 	}
