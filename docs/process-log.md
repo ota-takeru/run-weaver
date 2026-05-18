@@ -10,11 +10,12 @@ Review:
   - daemon側も未定義optionのdecision answer markerを無視し、誤入力でCampaignが再開しないようにした。
   - `status` のhuman outputにpending decisionのoptionsと回答用コマンドを表示するようにした。
   - 回答済みdecisionの内容をCampaign task promptへ含め、後続taskが人間判断の内容を読めるようにした。
+  - Decision Request本文にGitHub mobile向けquick replyを追加し、Issueコメントだけでも定義済みoptionを選べるようにした。
 - Future tasks:
-  - 実Campaignで `run-weaver decision answer` による回答投稿、daemon再開、後続task promptへのdecision context反映を確認する。
+  - 実Campaignで `run-weaver decision answer` とquick replyによる回答投稿、daemon再開、後続task promptへのdecision context反映を確認する。
   - optionごとにtaskを中止または再計画するような機械可読action schemaが必要かは、実運用で `stop` / `revise` を使う頻度を見て判断する。
 - Human-facing reports:
-  - 人間向けの標準操作は専用CLIになった。GitHubコメントmarkerは内部互換プロトコルとして残す。
+  - 人間向けの標準操作は、PCでは専用CLI、外出時はDecision Request内のquick replyになった。GitHubコメントmarkerは回答プロトコルとして残す。
   - 今回は実GitHub Issueへのコメント投稿、ラベル変更、push、release作成、secret表示、外部アカウント設定変更は行っていない。
 
 ## 2026-05-18 - Human Decision Report Standard

@@ -417,11 +417,11 @@ run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --
 
 Campaign開始時はまず `campaign.status: planning` としてCodex Plannerを非同期に起動します。Plannerはrepository docsと親Issue本文を読み、JSONの `tasks[]` / `decisions[]` を返します。JSON planの検証に通った場合だけ子Issueを作成します。Campaign taskでは `plan`、`implement`、`review`、`verify` のphaseを順に実行します。phaseごとにstate配下の別ログディレクトリを使い、Codex reasoning effortはrunner設定内で `campaign-planner` / `plan` / `review` をmedium、`implement` をlowとして渡せる場合だけCLI config overrideで渡します。task開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えます。
 
-Decision Requestは、親Campaign Issueコメントとして投稿されます。本文には判断内容、判断が必要な理由、証拠、選択肢、選択肢ごとの詳細、推奨、影響、可逆性、blocked tasks、can continue tasksを含めます。secret値、token値、環境変数値、JSONLログ本文は含めません。回答は `run-weaver decision answer` で投稿し、daemonは親Campaign Issueコメント内の内部marker `run-weaver-decision:<decision-id>:<option>` を読み取ります。optionがDecision Requestの選択肢に含まれる場合だけ、state fileの `campaign.decisions[].answer` に保存します。回答済みdecisionの内容は後続Campaign task promptへ含めます。
+Decision Requestは、親Campaign Issueコメントとして投稿されます。本文には判断内容、判断が必要な理由、証拠、選択肢、選択肢ごとの詳細、推奨、影響、可逆性、blocked tasks、can continue tasksを含めます。secret値、token値、環境変数値、JSONLログ本文は含めません。PCでは `run-weaver decision answer` で回答できます。外出先ではDecision Request内のquick replyから1行を選び、GitHub Issueへ新規コメントとして貼り付けます。daemonは親Campaign Issueコメント内のmarker `run-weaver-decision:<decision-id>:<option>` を読み取ります。optionがDecision Requestの選択肢に含まれる場合だけ、state fileの `campaign.decisions[].answer` に保存します。回答済みdecisionの内容は後続Campaign task promptへ含めます。
 
 ## `run-weaver decision answer`
 
-Campaign Decision Requestへ回答します。人間は内部markerを直接書かず、このコマンドを使います。`run-weaver status` はpending decisionごとに回答用コマンドの雛形を表示します。
+Campaign Decision Requestへ回答します。PCではこのコマンドを使います。`run-weaver status` はpending decisionごとに回答用コマンドの雛形を表示します。GitHub Issueだけを使える場合は、Decision Request内のquick replyから1行を選んで新規コメントとして投稿します。
 
 ```sh
 run-weaver decision answer --repo example/repo '#7' decision-id approve

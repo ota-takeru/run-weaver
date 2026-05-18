@@ -277,7 +277,11 @@ run-weaver decision request.
 To answer, run:
 
 %s
-`, decision.ID, emptyAsNone(decision.Title), emptyAsNone(decision.Context), markdownList(decision.Evidence), markdownList(decision.Options), markdownList(decision.OptionDetails), emptyAsNone(decision.Recommendation), markdownList(decision.Impact), emptyAsNone(decision.Reversibility), markdownList(decision.BlockedTasks), markdownList(decision.CanContinueTasks), decisionRequestAnswerCommand(parent, decision.ID))
+
+Or, from GitHub mobile, add a new comment containing exactly one of:
+
+%s
+`, decision.ID, emptyAsNone(decision.Title), emptyAsNone(decision.Context), markdownList(decision.Evidence), markdownList(decision.Options), markdownList(decision.OptionDetails), emptyAsNone(decision.Recommendation), markdownList(decision.Impact), emptyAsNone(decision.Reversibility), markdownList(decision.BlockedTasks), markdownList(decision.CanContinueTasks), decisionRequestAnswerCommand(parent, decision.ID), decisionQuickReplyLines(decision))
 }
 
 func decisionRequestAnswerCommand(parent issueRef, decisionID string) string {
@@ -290,6 +294,18 @@ func decisionRequestAnswerCommand(parent issueRef, decisionID string) string {
 		repoArg = " --repo " + repo
 	}
 	return fmt.Sprintf("run-weaver decision answer%s '#%d' %s <option>", repoArg, parent.Number, decisionID)
+}
+
+func decisionQuickReplyLines(decision campaignDecision) string {
+	options := trimStringSlice(decision.Options)
+	if len(options) == 0 {
+		return "```text\nrun-weaver-decision:" + decision.ID + ":<option>\n```"
+	}
+	lines := make([]string, 0, len(options))
+	for _, option := range options {
+		lines = append(lines, campaignDecisionAnswerMarker(decision.ID, option))
+	}
+	return "```text\n" + strings.Join(lines, "\n") + "\n```"
 }
 
 func markdownList(values []string) string {

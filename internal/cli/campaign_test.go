@@ -186,8 +186,12 @@ func TestCampaignPlannerCompletionCreatesChildIssues(t *testing.T) {
 	if !slicesEqual(github.createdIssues[0].Labels, []string{readyLabel, campaignTaskLabel}) {
 		t.Fatalf("child labels = %#v", github.createdIssues[0].Labels)
 	}
-	if !strings.Contains(github.comments[len(github.comments)-1].Body, "## evidence") || !strings.Contains(github.comments[len(github.comments)-1].Body, "## blocked tasks") {
+	decisionComment := github.comments[len(github.comments)-1].Body
+	if !strings.Contains(decisionComment, "## evidence") || !strings.Contains(decisionComment, "## blocked tasks") {
 		t.Fatalf("comments = %#v, want decision request", github.comments)
+	}
+	if !strings.Contains(decisionComment, "run-weaver decision answer") || !strings.Contains(decisionComment, "run-weaver-decision:decision-api:approve") {
+		t.Fatalf("decision comment = %q, want CLI command and mobile quick reply", decisionComment)
 	}
 	updated, err := readStateFile(defaultStateFile("wsl"))
 	if err != nil {

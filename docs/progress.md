@@ -169,6 +169,7 @@ Recommended Next Step:
 - Campaign Decision Requestがcontext、evidence、option details、impact、reversibilityを含むようにし、Planner JSONでも必須にした
 - `run-weaver decision answer` を追加し、Campaign Decision Requestへ専用CLIで回答できるようにした
 - Campaign decision answerは定義済みoptionだけを受け付け、回答済みdecisionの内容を後続Campaign task promptへ含めるようにした
+- Campaign Decision RequestにGitHub mobile向けquick replyを表示し、Issueコメントだけでも意思決定できるようにした
 
 ## Upcoming Sequence
 
