@@ -20,6 +20,8 @@ type worktreeSpec struct {
 	Branch   string
 }
 
+const codexSubagentGuidance = "Use Codex built-in subagents for suitable investigation, review, or delegable subtasks when the repository AGENTS.md does not prohibit them, higher-priority runtime instructions allow them, and the runtime provides them. If subagents are unavailable or prohibited, continue with a self-review."
+
 func newWorktreeManager(commands commandRunner) worktreeManager {
 	if commands == nil {
 		commands = execCommandRunner{}
@@ -121,7 +123,9 @@ Relevant comments:
 Implement the requested change using the issue title, body, and relevant human comments as the task source. If the body is empty but the title clearly describes a concrete change, proceed from the title. Ignore run-weaver claim/status comments. Only block when the title, body, and human comments together are not specific enough to identify an actionable change.
 
 Follow the repository AGENTS.md instructions, run focused verification, and leave a concise final summary.
-`, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments))
+
+%s
+`, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), codexSubagentGuidance)
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 
@@ -146,7 +150,9 @@ Relevant comments:
 %s
 
 Follow the repository AGENTS.md instructions. For the plan phase, produce and execute the minimum planning work needed before implementation. For implement, make the focused code change. For review, inspect the current task changes and fix regressions. For verify, run focused verification and fix task-local failures. Do not move to unrelated campaign tasks in this session.
-`, campaign.Number, campaign.Title, task.ID, emptyAsNone(phase), issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments))
+
+%s
+`, campaign.Number, campaign.Title, task.ID, emptyAsNone(phase), issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), codexSubagentGuidance)
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 
@@ -167,6 +173,8 @@ Relevant comments:
 %s
 
 You are planning a run-weaver Campaign. Inspect the repository before planning. Prefer repository documentation and roadmap/progress files over the issue body when they conflict. Useful places often include README files, docs/, roadmap, progress, handoff, architecture, and issue-flow documents, but do not assume fixed filenames.
+
+%s
 
 Return only valid JSON. Do not include Markdown fences or explanatory text.
 
@@ -198,7 +206,7 @@ Rules:
 - Do not ask for human approval of the whole plan.
 - Add decisions only where implementation would otherwise require a product, architecture, cost, secret, account, permission, or irreversible choice.
 - If the request or docs are too ambiguous to plan safely, return a decision that blocks the ambiguous tasks instead of guessing.
-`, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments))
+`, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), codexSubagentGuidance)
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 

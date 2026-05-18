@@ -89,6 +89,34 @@ func TestWritePromptFileIgnoresRunWeaverRateLimitComments(t *testing.T) {
 	}
 }
 
+func TestPromptFilesIncludeSubagentGuidance(t *testing.T) {
+	tempDir := t.TempDir()
+	issue := githubIssue{Number: 42, Title: "Add README", Body: "Add a README.", URL: "https://example.test/42"}
+	for name, write := range map[string]func(string) error{
+		"issue": func(path string) error {
+			return writePromptFile(path, issue)
+		},
+		"campaign-task": func(path string) error {
+			return writeCampaignPromptFile(path, issueRef{Number: 7, Title: "Roadmap"}, campaignTask{ID: "task-readme"}, issue, pipelinePhaseReview)
+		},
+		"campaign-planner": func(path string) error {
+			return writeCampaignPlannerPromptFile(path, issue)
+		},
+	} {
+		path := filepath.Join(tempDir, name+".md")
+		if err := write(path); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(data); !strings.Contains(got, "Use Codex built-in subagents") || !strings.Contains(got, "repository AGENTS.md does not prohibit") || !strings.Contains(got, "higher-priority runtime instructions allow") || !strings.Contains(got, "continue with a self-review") {
+			t.Fatalf("%s prompt = %q, want subagent guidance", name, got)
+		}
+	}
+}
+
 func TestWorktreePrepareClonesAndAddsWorktree(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tempDir)

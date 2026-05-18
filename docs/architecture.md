@@ -78,7 +78,7 @@ tmux attach -t run-weaver
 
 tmux window名はIssue番号を含めます。
 
-初期実装ではCodexを非対話モードの `codex exec` で起動します。worktreeは `--cd` で指定し、JSONLログと最終応答はstate配下のIssue別ディレクトリへ保存します。終了コード `0` 以外、JSONLログの異常終了、draft PR作成失敗は `blocked` として扱います。WSL targetのsystemd user serviceにはinstall時のPATHを保存し、tmux window終了後のJSONLログが `codex: command not found` などCodex起動失敗を示す場合も `blocked` にします。この判定はshell起動失敗行またはerror/failure系JSONL eventに限定し、command outputやdocs本文の文言ではblockedにしません。
+初期実装ではCodexを非対話モードの `codex exec` で起動します。worktreeは `--cd` で指定し、JSONLログと最終応答はstate配下のIssue別ディレクトリへ保存します。promptでは、repositoryの `AGENTS.md` が禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合、調査、レビュー、委譲可能な小タスクにCodex built-in subagentsを使うよう指示します。利用不可または禁止されている場合はセルフレビューで続行します。終了コード `0` 以外、JSONLログの異常終了、draft PR作成失敗は `blocked` として扱います。WSL targetのsystemd user serviceにはinstall時のPATHを保存し、tmux window終了後のJSONLログが `codex: command not found` などCodex起動失敗を示す場合も `blocked` にします。この判定はshell起動失敗行またはerror/failure系JSONL eventに限定し、command outputやdocs本文の文言ではblockedにしません。
 
 Codexがrate limitで中断した場合、agentはJSONLログからsession idを取得し、ローカルstateに保存します。次回pollでtmux windowが終了済みなら、Issueへrate limit検出と自動resume attemptの中間コメントを投稿してから、同じworktree上で `codex exec resume <session>` を起動し、前回sessionと作業ツリーを引き継ぎます。session idを取得できない場合は、同じworktree上で `codex exec resume --last` を試します。中間コメントにはattempt番号、session、worktree、JSONLログpath、検出時刻だけを含め、secretやログ本文は含めません。state fileには `retryCount`、`lastGitHubCommentAt`、rate limit resume中であることを示す `lastError` を残します。rate limit再開は人間確認条件を迂回しません。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回します。
 

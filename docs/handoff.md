@@ -22,7 +22,7 @@
 - Codex完了検出、git push、draft PR作成、`done` ラベル、結果コメント、state更新を実装済み。
 - `daemon` の継続poll loop、`--poll-interval`、claim後失敗時のblocked state file更新を実装済み。
 - 実GitHub Issue `ota-takeru/truth-table-app#1` で、本文付きIssueからCodex実行、README追加、commit、branch push、draft PR #2作成、`done` ラベル更新まで確認済み。
-- Issue本文と人間コメントはCodex promptへ渡される。本文なしでもタイトルが具体的なら実行し、情報不足の場合だけblockする方針。
+- Issue本文と人間コメントはCodex promptへ渡される。本文なしでもタイトルが具体的なら実行し、情報不足の場合だけblockする方針。AGENTS.mdが禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合、調査、レビュー、委譲可能な小タスクにはCodex built-in subagentsを使うようpromptで指示する。
 - Windows targetの `status` は、PID照合に `tasklist` のCSV出力を使うようにした。
 - Windows targetのdoctor / statusは、OS判定、Task Scheduler、state file path、process照合、tmux不使用、fake `gh` GitHub照合を単体テストで確認済み。
 - GitHub ActionsにLinux / Windows jobを追加済み。Windows jobでは `go test ./...`、`go build ./cmd/run-weaver`、`go test ./internal/cli -run Windows` を実行する。
@@ -99,7 +99,7 @@
 - 初期実装のCodex起動は `codex exec` を使う。
 - Codexは `--sandbox workspace-write --ask-for-approval never` で起動する。
 - Codex完了後、daemonがworktreeの変更をcommitしてからpush / draft PR作成へ進む。変更なしなら `blocked` にする。
-- Codex promptにはIssueタイトル、本文、run-weaver管理コメントを除いた人間コメントを渡す。本文なしでもタイトルが具体的なら実行する。
+- Codex promptにはIssueタイトル、本文、run-weaver管理コメントを除いた人間コメントを渡す。本文なしでもタイトルが具体的なら実行する。AGENTS.mdが禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合、調査、レビュー、委譲可能な小タスクにはCodex built-in subagentsを使うよう指示する。
 - status表示の細分化は実装済み。CI確認待ち。
 - rate limit再開は人間確認条件を迂回しない。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回す。rate limit中間コメントにもsecret値やJSONLログ本文は載せない。
 - self-updateはGitHub Releasesからbinary assetを取得するだけで、GitHub Issueや外部アカウント設定は変更しない。release作成にはtag pushが必要なため、実release workflow検証は人間のpush判断後に行う。

@@ -421,6 +421,7 @@ Codex CLI起動の初期仕様:
 
 - 非対話実行として `codex exec` を使う
 - worktreeを `codex exec --cd <worktree>` で指定する
+- promptでは、repositoryの `AGENTS.md` が禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合、調査、レビュー、委譲可能な小タスクにCodex built-in subagentsを使うよう指示する。利用不可または禁止されている場合はセルフレビューで続行する
 - 標準出力のJSONLログはstate配下のIssue別ディレクトリに保存する
 - 最終応答は `--output-last-message` でstate配下に保存する
 - 終了コード `0` 以外、JSONLログの異常終了、draft PR作成失敗は `blocked` とする

@@ -102,6 +102,7 @@ Recommended Next Step:
 - `run-weaver doctor --target wsl --json`、`status --json`、`daemon -h` 相当の基本動作を手元で確認した
 - 実GitHub Issue `ota-takeru/truth-table-app#1` でWSL統合テストを行い、本文付きIssueからCodex実行、README追加、commit、branch push、draft PR #2作成、`done` ラベル更新まで確認した
 - Issue本文をCodex promptへ渡し、本文なしでもタイトルが具体的なら実行できるようにした
+- AGENTS.mdが禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合、調査、レビュー、委譲可能な小タスクにはCodex built-in subagentsを使うようCodex promptで指示するようにした
 - Windows targetのstatus process照合を `tasklist` ベースにし、CSV解析の単体テストを追加した
 - Windows targetのdoctor / status検証用にOS判定、LookPath、外部コマンド出力をテスト注入可能にした
 - Windows targetのdoctor、Task Scheduler、state file path、status process、tmux不使用、fake `gh` 照合の単体テストを追加した

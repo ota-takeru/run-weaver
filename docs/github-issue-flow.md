@@ -70,6 +70,8 @@ agentがIssueを処理対象にしたら、以下を行います。
 8. Issue専用worktreeとbranchを作成する
 9. Codex CLIを起動する
 
+Codex promptでは、repositoryの `AGENTS.md` が禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合、調査、レビュー、委譲可能な小タスクにCodex built-in subagentsを使うよう指示します。利用不可または禁止されている場合はセルフレビューで続行します。
+
 開始コメントには以下を含めます。
 
 - claim ID
@@ -201,7 +203,7 @@ Campaign開始時にagentは以下を行います。
 
 Planner出力はJSONだけを正とします。`tasks[]` は `id`、`title`、`body`、`dependencies[]` を持ち、`decisions[]` は `id`、`title`、`options[]`、`recommendation`、`blockedTasks[]`、`canContinueTasks[]` を持ちます。task粒度は1 draft PR単位です。JSONが不正、taskが空、ID重複、未知のdependency、未知taskを参照するdecisionがある場合、親Campaignを `blocked` にします。
 
-Campaign taskは `plan`、`implement`、`review`、`verify` の順に進みます。同じtaskの各phaseは同じworktreeとbranchを使います。task dependencyを書く場合は `depends: task-...` のtask IDを使います。task開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えます。`verify` 完了後にtaskごとのdraft PRを作成し、PR URLをCampaign stateへ保存します。
+Campaign taskは `plan`、`implement`、`review`、`verify` の順に進みます。同じtaskの各phaseは同じworktreeとbranchを使います。Campaign Plannerと各phaseのpromptでも、AGENTS.mdが禁止しておらず上位の実行時指示が許可している場合はCodex built-in subagentsの利用を促します。task dependencyを書く場合は `depends: task-...` のtask IDを使います。task開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えます。`verify` 完了後にtaskごとのdraft PRを作成し、PR URLをCampaign stateへ保存します。
 
 Decision Requestコメントには以下を含めます。
 

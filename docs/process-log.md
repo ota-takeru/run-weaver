@@ -1,5 +1,17 @@
 # Process Log
 
+## 2026-05-18 - Codex Subagent Prompt Guidance
+
+Review:
+
+- Immediate fixes:
+  - 通常Issue、Campaign task、Campaign Plannerのpromptに、repositoryの `AGENTS.md` が禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合はCodex built-in subagentsを使うよう指示を追加した。
+  - prompt生成テストでサブエージェント利用ガイダンス、上位指示条件、セルフレビューfallbackが含まれることを固定した。
+- Future tasks:
+  - Codex CLI側でサブエージェント利用を明示制御する安定オプションが提供された場合は、prompt指示ではなくrunner設定として扱うか検討する。
+- Human-facing reports:
+  - `run-weaver` はサブエージェントを外部から強制起動せず、Codex promptで利用方針を伝える。AGENTS.mdで禁止されている場合や実行環境がサブエージェントを提供しない場合はセルフレビューにフォールバックする。
+
 ## 2026-05-18 - Remaining Task Inventory
 
 Review:
