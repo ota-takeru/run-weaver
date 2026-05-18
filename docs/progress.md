@@ -2,18 +2,55 @@
 
 ## Current Work Queue
 
-現在の優先タスクは、リリース前の残り実機確認です。
+現在の優先タスクは、リリース前の残り実機確認と、リリース作成前に人間判断が必要な操作の切り分けです。
 
 Definition of Done:
 
-- 複数repository登録後の実GitHub Issue処理を確認する
-- Windows target direct runnerを実機で確認する
-- self-updateとclone不要install手順のCI / release workflow結果を確認する
-- Doppler必須repositoryでCodex起動前にblockedへ止まることを実repoまたは明示的な検証repoで確認する
+- 複数repository登録後の実GitHub Issue処理を、少なくとも2つの登録repositoryで確認する
+- Windows target direct runnerを実機で確認し、Task Scheduler、daemon log、issue別Codex log、state更新がつながることを確認する
+- self-updateとclone不要install手順を、次release tagのworkflow結果とGitHub Release assetで確認する
+- Doppler必須repositoryで、Doppler認証が使えない場合にCodex起動前に `blocked` へ止まることを実repoまたは明示的な検証repoで確認する
+- 上記確認結果、残った外部操作、人間判断が必要な事項を `docs/process-log.md` と `docs/handoff.md` に反映する
 
 Recommended Next Step:
 
-- 複数repository登録後の実GitHub Issue処理、Windows target direct runner実機確認、release workflow結果確認を進める。Doppler必須repoの実blocked確認は、secret値を出さずに検証できる対象repoで行う。
+- まず副作用を許容できる検証repositoryを2つ用意し、`run-weaver repo add` 後の複数repository実GitHub Issue処理を確認する。続けてWindows実機direct runnerとDoppler必須repoの実blocked確認を行う。release workflow確認はtag pushが必要なため、人間が `scripts/release.sh --push --watch` を明示実行できるタイミングで行う。
+
+## Remaining Task Inventory
+
+### Release-blocking verification
+
+1. 複数repository登録後の実GitHub Issue処理確認
+   - 前提: 副作用を許容できるGitHub repositoryを2つ以上用意し、それぞれで `run-weaver repo add` を実行する。
+   - 確認すること: daemonが登録済みrepositoryを読み直し、repoごとに `gh --repo`、repo別clone、repo別worktree、repo別stateを使うこと。repo間で同時処理でき、同一repo内では最大1 jobに制限されること。`status` が集約表示と `--repo` 表示で矛盾しないこと。
+   - 完了条件: 各repoでready Issueからbranch push、draft PR、`done` または期待どおりの `blocked` コメントまで確認し、作成されたIssue / PR番号をprocess logに残す。
+
+2. Windows target direct runnerの実機確認
+   - 前提: Windows実機で `git`、`gh`、`codex` 認証、Task Scheduler、`%LOCALAPPDATA%` への書き込みが使えること。
+   - 確認すること: `scripts/check-windows.ps1`、`run-weaver install --target windows`、`doctor --target windows`、daemon起動、direct runnerのCodex起動、daemon log、issue別JSONL log、state更新。
+   - 完了条件: tmuxを使わずにCodex processを起動し、完了または安全な失敗がstate / GitHub Issue / logに反映されることを実機で確認する。実GitHub書き込みを行う場合は対象repoとIssueを明示してprocess logに残す。
+
+3. self-updateとclone不要installのrelease workflow確認
+   - 前提: 人間がtag pushを許可し、maintainerが `scripts/release.sh --push --watch` を実行できること。
+   - 確認すること: release workflowがLinux / Windows、amd64 / arm64の4 assetを作成すること。`scripts/install.sh` と `scripts/install.ps1` がclone不要でlatest assetを取得できること。旧release buildから `run-weaver update --check` / `update` / daemon起動時self-updateが期待どおり動くこと。
+   - 完了条件: 次releaseに未リリースのDoppler修正を含め、asset取得、install、update結果をprocess logへ記録する。
+
+4. Doppler必須repositoryでの実blocked確認
+   - 前提: secret値を出さずに使える検証repoを用意し、repo rootのDoppler設定ファイルまたは `run-weaver repo add --doppler required` でDoppler必須扱いにする。
+   - 確認すること: Doppler CLI / 認証 / 設定が使えない状態では、daemonがCodexを起動する前にIssueを `blocked` にし、state fileとIssueコメントにsecret値を含めないこと。
+   - 完了条件: `blocked` ラベル、blockedコメント、state fileの `lastError`、Codex未起動を確認し、secret値が出ていないことを記録する。
+
+5. stuck `running` Issueの整理
+   - 前提: 現ローカルstateでは `ota-takeru/run-weaver#1` が `running` ラベルのまま、tmux windowなし、JSONLに `codex: command not found` が残っている。
+   - 確認すること: 更新後daemonで `blocked` へ寄せるか、人間が `running` を外して再投入するかを選ぶ。
+   - 完了条件: Issueラベル / コメントの実変更を伴うため、人間判断後に実施し、結果をprocess logへ残す。
+
+### Backlog / non-blocking decisions
+
+- `run-weaver:ready` 以外のフィルタ。assignee、milestone、repository allowlistなど。
+- stale `running` の解除を将来も人間判断に固定するか、自動解除へ拡張するか。
+- GitHub API直実装へ移行する時期。
+- Campaign decision answerをGitHubコメント形式のまま運用するか、専用CLIを追加するか。
 
 ## Completed
 
@@ -126,9 +163,10 @@ Recommended Next Step:
 
 1. 複数repository登録後の実GitHub Issue処理確認
 2. Windows target direct runnerの実機確認
-3. self-updateとclone不要install手順のCI / release workflow結果確認
-4. Doppler必須repositoryでの実blocked確認
-5. `run-weaver:ready` 以外のフィルタ検討
+3. Doppler必須repositoryでの実blocked確認
+4. self-updateとclone不要install手順のrelease workflow確認
+5. stuck `running` Issueの人間判断後の整理
+6. `run-weaver:ready` 以外のフィルタ検討
 
 ## Open Decisions To Watch
 

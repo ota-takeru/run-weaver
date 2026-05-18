@@ -1,5 +1,19 @@
 # Process Log
 
+## 2026-05-18 - Remaining Task Inventory
+
+Review:
+
+- Immediate fixes:
+  - Issue #2の依頼に合わせ、残タスクを `docs/progress.md` の Remaining Task Inventory として棚卸しした。
+  - リリース前に残る確認を、複数repository実GitHub Issue処理、Windows direct runner実機確認、release workflow / clone不要install / self-update確認、Doppler必須repoの実blocked確認、stuck `running` Issue整理に分けた。
+  - `docs/handoff.md` に次作業者向けの残タスク要約と、tag pushやIssueラベル変更が人間判断を要することを反映した。
+- Future tasks:
+  - `docs/progress.md` の Remaining Task Inventory に従い、実GitHub書き込みやWindows実機、release tag pushを伴う確認を進める。
+  - `run-weaver:ready` 以外のフィルタ、stale `running` 自動解除、GitHub API直実装、Campaign decision回答形式はリリース後または別判断で扱う。
+- Human-facing reports:
+  - 今回は棚卸しとドキュメント更新のみで、GitHub Issueラベル / コメント変更、branch push、draft PR作成、release tag push、GitHub Release作成、secret表示、外部アカウント設定変更は行っていない。
+
 ## 2026-05-18 - Release Readiness Audit
 
 Review:
