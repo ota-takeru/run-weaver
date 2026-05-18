@@ -79,18 +79,20 @@ func collectStatusForRepo(client githubClient, repository string) statusResult {
 	}
 	output.Reconciliation.ProcessState = processState(output.Daemon.Running, state.Daemon.PID)
 
+	var githubErr error
 	if state.Job != nil {
 		output.Job = stateJobToStatusJob(state.Job)
 		githubState, err := githubLabelState(client, state.Job.Issue.Number)
 		if err != nil {
+			githubErr = err
 			output.Reconciliation.GitHubLabelState = "unavailable"
 			output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, "github_unavailable")
-			return statusResult{Output: output, ExitCode: exitStatusAuthRequired, Err: err}
-		}
-		output.Reconciliation.GitHubLabelState = githubState
-		if githubState != "none" && githubState != state.Job.LabelState {
-			output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, "github_label_mismatch")
-			output.Job.LabelState = githubState
+		} else {
+			output.Reconciliation.GitHubLabelState = githubState
+			if githubState != "none" && githubState != state.Job.LabelState {
+				output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, "github_label_mismatch")
+				output.Job.LabelState = githubState
+			}
 		}
 		output.Reconciliation.TmuxState = tmuxState(state.Target, state.Job.Tmux)
 	} else {
@@ -106,6 +108,9 @@ func collectStatusForRepo(client githubClient, repository string) statusResult {
 	output.Reconciliation.Conflicts = append(output.Reconciliation.Conflicts, conflicts...)
 	if output.Job != nil {
 		output.Job.RuntimeState = jobRuntimeState(output)
+	}
+	if stringSliceContains(output.Reconciliation.Conflicts, "github_unavailable") {
+		return statusResult{Output: output, ExitCode: exitStatusAuthRequired, Err: githubErr}
 	}
 	if len(output.Reconciliation.Conflicts) > 0 {
 		return statusResult{Output: output, ExitCode: exitStatusConflict}
@@ -361,7 +366,7 @@ func jobRuntimeState(output statusOutput) string {
 	if output.Job == nil {
 		return "none"
 	}
-	if len(output.Reconciliation.Conflicts) > 0 {
+	if hasRuntimeAttentionConflict(output.Reconciliation.Conflicts) {
 		return "needs_attention"
 	}
 	switch output.Job.LabelState {
@@ -370,11 +375,11 @@ func jobRuntimeState(output statusOutput) string {
 	case doneLabel:
 		return "done"
 	case runningLabel:
-		if codexRateLimited(output.Job) && output.Reconciliation.TmuxState != "window_exists" {
-			return "rate_limited_waiting"
-		}
 		if codexLastMessageExists(output.Job) && output.Reconciliation.TmuxState != "window_exists" {
 			return "codex_completed"
+		}
+		if codexRateLimited(output.Job) && output.Reconciliation.TmuxState != "window_exists" {
+			return "rate_limited_waiting"
 		}
 		if output.Reconciliation.TmuxState == "window_exists" {
 			return "codex_running"
@@ -383,6 +388,15 @@ func jobRuntimeState(output statusOutput) string {
 	default:
 		return "unknown"
 	}
+}
+
+func hasRuntimeAttentionConflict(conflicts []string) bool {
+	for _, conflict := range conflicts {
+		if conflict != "github_unavailable" {
+			return true
+		}
+	}
+	return false
 }
 
 func codexLastMessageExists(job *statusJob) bool {

@@ -33,6 +33,8 @@ func TestDetectIssueDependencies(t *testing.T) {
 			name: "ignore run-weaver comments",
 			issue: githubIssue{Comments: []githubComment{{
 				Body: "run-weaver completed this issue.\n\n- draft PR: https://github.com/example/repo/pull/1\n- branch: codex/issue-1",
+			}, {
+				Body: "<!-- run-weaver-rate-limit:claim:1 -->\nrun-weaver detected a Codex rate limit interruption after #99.",
 			}}},
 		},
 	}

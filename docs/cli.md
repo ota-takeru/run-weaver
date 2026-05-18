@@ -126,7 +126,7 @@ run-weaver status --repo example/repo
 
 process照合はtargetごとの実行環境に合わせます。WSLではPIDへsignal 0を送り、Windowsでは `tasklist` のPID検索結果を使います。tmux照合はWSL targetのみ対象です。
 
-`runtimeState` は `labelState` とreconciliationから算出する表示用の状態です。主な値は `running`、`codex_running`、`codex_completed`、`rate_limited_waiting`、`blocked`、`done`、`needs_attention` です。
+`runtimeState` は `labelState` とreconciliationから算出する表示用の状態です。主な値は `running`、`codex_running`、`codex_completed`、`rate_limited_waiting`、`blocked`、`done`、`needs_attention` です。GitHub照合が失敗しても、state file、process、tmux、last-messageから判断できるruntimeは表示します。
 
 `readyQueue` は同一repository内の通常Issue候補をIssue番号昇順で表示します。各項目の `state` は `ready`、`waiting_dependency`、`blocked_dependency` のいずれかです。依存関係はIssue本文、タイトル、人間コメントの明確な `depends: #123` などから判定し、run-weaver管理コメントは無視します。
 
@@ -413,7 +413,7 @@ run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --
 - Issueへ結果コメントを投稿
 - `done` または `blocked` ラベルへ更新
 
-Campaign開始時はまず `campaign.status: planning` としてCodex Plannerを非同期に起動します。Plannerはrepository docsと親Issue本文を読み、JSONの `tasks[]` / `decisions[]` を返します。JSON planの検証に通った場合だけ子Issueを作成します。Campaign taskでは `plan`、`implement`、`review`、`verify` のphaseを順に実行します。phaseごとにstate配下の別ログディレクトリを使い、Codex reasoning effortはrunner設定内で `campaign-planner` / `plan` / `review` をmedium、`implement` をlowとして渡せる場合だけCLI config overrideで渡します。
+Campaign開始時はまず `campaign.status: planning` としてCodex Plannerを非同期に起動します。Plannerはrepository docsと親Issue本文を読み、JSONの `tasks[]` / `decisions[]` を返します。JSON planの検証に通った場合だけ子Issueを作成します。Campaign taskでは `plan`、`implement`、`review`、`verify` のphaseを順に実行します。phaseごとにstate配下の別ログディレクトリを使い、Codex reasoning effortはrunner設定内で `campaign-planner` / `plan` / `review` をmedium、`implement` をlowとして渡せる場合だけCLI config overrideで渡します。task開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えます。
 
 Decision Requestへの回答は、親Campaign Issueコメント内の `run-weaver-decision:<decision-id>:<option>` を読み取り、state fileの `campaign.decisions[].answer` に保存します。
 
@@ -424,9 +424,11 @@ Codex CLI起動の初期仕様:
 - 標準出力のJSONLログはstate配下のIssue別ディレクトリに保存する
 - 最終応答は `--output-last-message` でstate配下に保存する
 - 終了コード `0` 以外、JSONLログの異常終了、draft PR作成失敗は `blocked` とする
-- tmux window終了後にJSONLログが `codex: command not found` などCodex起動失敗を示す場合は、stuckした `running` のままにせず `blocked` とする
+- tmux window終了後にJSONLログが `codex: command not found` などCodex起動失敗を示す場合は、stuckした `running` のままにせず `blocked` とする。判定対象はshell起動失敗行またはerror/failure系JSONL eventで、command outputやdocs本文の同文言は無視する
 - JSONLログがrate limitを示し、Codex session idを取得できる場合は `blocked` にせず、次回pollで `codex exec resume <session>` により同じworktreeと前回sessionから再開する
 - session idを取得できない場合でも、同じworktreeへ移動して `codex exec resume --last` を試す
+- rate limit検出時はIssueに中間コメントを投稿し、resume attempt番号、session、worktree、JSONLログpath、検出時刻を残す。secret値やJSONLログ本文はコメントしない
+- rate limit resume attemptはstate fileの `retryCount`、`lastGitHubCommentAt`、`lastError` にも反映する
 - Doppler必須repositoryでDoppler CLIまたは `doppler run` 可能な認証/設定がない場合はCodex起動前に `blocked` とし、Doppler不要repositoryではDoppler未インストールでも続行する
 - Codexに渡すDoppler service tokenは環境変数から注入し、ログ、Issueコメント、PR本文、state fileには値を出さない
 

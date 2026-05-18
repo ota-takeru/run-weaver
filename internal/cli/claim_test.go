@@ -110,6 +110,7 @@ func TestClaimIssueSkipsManagedLabel(t *testing.T) {
 type fakeGitHubClient struct {
 	issue         githubIssue
 	issues        []githubIssue
+	viewErr       error
 	added         map[string]bool
 	removed       map[string]bool
 	comments      []githubComment
@@ -139,6 +140,9 @@ func (c *fakeGitHubClient) ListCampaignIssues(context.Context) ([]githubIssue, e
 }
 
 func (c *fakeGitHubClient) ViewIssue(_ context.Context, number int) (githubIssue, error) {
+	if c.viewErr != nil {
+		return githubIssue{}, c.viewErr
+	}
 	issue := c.issue
 	for _, candidate := range c.issues {
 		if candidate.Number == number {

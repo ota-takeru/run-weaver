@@ -29,7 +29,7 @@ Issueを取得したagentは、`running` ラベル付与、開始コメント、
 
 Campaign PlannerはCodexを非同期に起動し、親Campaign Issue本文の大枠指示とrepository内docsからPR単位のtask graphを生成します。入力源はrepo docs優先で、親Issue本文は進めたいroadmapや目的を伝える補助入力です。Plannerの最終応答はJSONだけを正とし、`tasks[]` と `decisions[]` をstateへ取り込みます。Plannerが有効なJSON planを返せない場合は親Campaignを `blocked` にします。子Issue本文には親Campaign番号とtask IDを含め、子Issueには `run-weaver:campaign-task` を付けて通常task取得から除外します。
 
-Dispatcherはローカルstate fileの `campaign` を正本にして、依存関係が解決済みの次taskを選びます。taskごとに既存のclaim、worktree、tmux、Codex、draft PR flowを再利用します。Campaign taskは同じworktree上で `plan`、`implement`、`review`、`verify` の順にCodexを起動し、`verify` 完了後だけcommit、push、draft PR作成へ進みます。task完了後はPR URLをCampaign stateへ記録し、次taskへ進めます。
+Dispatcherはローカルstate fileの `campaign` を正本にして、依存関係が解決済みの次taskを選びます。taskごとに既存のclaim、worktree、tmux、Codex、draft PR flowを再利用します。Campaign taskは同じworktree上で `plan`、`implement`、`review`、`verify` の順にCodexを起動し、`verify` 完了後だけcommit、push、draft PR作成へ進みます。task開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えます。task完了後はPR URLをCampaign stateへ記録し、次taskへ進めます。
 
 Decision Requestには `options`、`recommendation`、`blocked tasks`、`can continue tasks` を含めます。人間は `run-weaver-decision:<decision-id>:<option>` を含むコメントで回答します。pending decisionがある間は `can continue tasks` に含まれるtaskだけを実行し、実行可能taskがないdecision gateではCampaignを `decision_required` として停止し、回答を読み取ったらstateへ保存して再開します。task dependencyは `depends: task-...` のtask ID形式を正とします。
 
@@ -78,9 +78,9 @@ tmux attach -t run-weaver
 
 tmux window名はIssue番号を含めます。
 
-初期実装ではCodexを非対話モードの `codex exec` で起動します。worktreeは `--cd` で指定し、JSONLログと最終応答はstate配下のIssue別ディレクトリへ保存します。終了コード `0` 以外、JSONLログの異常終了、draft PR作成失敗は `blocked` として扱います。WSL targetのsystemd user serviceにはinstall時のPATHを保存し、tmux window終了後のJSONLログが `codex: command not found` などCodex起動失敗を示す場合も `blocked` にします。
+初期実装ではCodexを非対話モードの `codex exec` で起動します。worktreeは `--cd` で指定し、JSONLログと最終応答はstate配下のIssue別ディレクトリへ保存します。終了コード `0` 以外、JSONLログの異常終了、draft PR作成失敗は `blocked` として扱います。WSL targetのsystemd user serviceにはinstall時のPATHを保存し、tmux window終了後のJSONLログが `codex: command not found` などCodex起動失敗を示す場合も `blocked` にします。この判定はshell起動失敗行またはerror/failure系JSONL eventに限定し、command outputやdocs本文の文言ではblockedにしません。
 
-Codexがrate limitで中断した場合、agentはJSONLログからsession idを取得し、ローカルstateに保存します。次回pollでtmux windowが終了済みなら、同じworktree上で `codex exec resume <session>` を起動し、前回sessionと作業ツリーを引き継ぎます。session idを取得できない場合は、同じworktree上で `codex exec resume --last` を試します。rate limit再開は人間確認条件を迂回しません。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回します。
+Codexがrate limitで中断した場合、agentはJSONLログからsession idを取得し、ローカルstateに保存します。次回pollでtmux windowが終了済みなら、Issueへrate limit検出と自動resume attemptの中間コメントを投稿してから、同じworktree上で `codex exec resume <session>` を起動し、前回sessionと作業ツリーを引き継ぎます。session idを取得できない場合は、同じworktree上で `codex exec resume --last` を試します。中間コメントにはattempt番号、session、worktree、JSONLログpath、検出時刻だけを含め、secretやログ本文は含めません。state fileには `retryCount`、`lastGitHubCommentAt`、rate limit resume中であることを示す `lastError` を残します。rate limit再開は人間確認条件を迂回しません。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回します。
 
 Codex完了の初期判定は、最終応答ファイルが存在し、対象tmux windowが終了していることです。完了後はbranchをpushし、draft PRを作成してIssueを `done` に更新します。
 
@@ -101,7 +101,7 @@ Doppler必須repositoryでは `doppler run -- codex ...` でCodexを起動しま
 - WSL: `$XDG_STATE_HOME/run-weaver/state.json`。未設定なら `~/.local/state/run-weaver/state.json`
 - Windows: `%LOCALAPPDATA%\\run-weaver\\state.json`
 
-`status` はstate fileを主情報源にし、process、tmux、GitHub Issueを照合して表示します。state fileとGitHubの状態が矛盾する場合はGitHubの `running` / `done` / `blocked` ラベルを優先し、矛盾を `last error` に表示します。
+`status` はstate fileを主情報源にし、process、tmux、GitHub Issueを照合して表示します。state fileとGitHubの状態が矛盾する場合はGitHubの `running` / `done` / `blocked` ラベルを優先し、矛盾を `last error` に表示します。GitHub照合が認証切れなどで失敗しても、process、tmux、last-messageによるローカルruntime照合は続けます。
 
 process照合はtargetごとに行います。WSLではPIDへsignal 0を送り、Windowsでは `tasklist` のPID検索結果を使います。tmux照合はWSL targetのみで行います。
 

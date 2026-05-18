@@ -14,6 +14,54 @@ Review:
 - Human-facing reports:
   - 今回は棚卸しとドキュメント更新のみで、GitHub Issueラベル / コメント変更、branch push、draft PR作成、release tag push、GitHub Release作成、secret表示、外部アカウント設定変更は行っていない。
 
+## 2026-05-18 - Pre-Release Edge Case Audit
+
+Review:
+
+- Immediate fixes:
+  - GitHub照合が認証切れなどで失敗した `status` でも、tmux / last-message などのローカルruntime照合を続け、`codex_completed` などを表示できるようにした。
+  - `codex: command not found` 検出をJSONL全体の単純検索から、shell起動失敗行またはerror/failure系eventのmessage/details/errorへ絞り、command outputやdocs本文の文言で誤blockedにしないようにした。
+  - Campaign taskの開始時またはphase進行時にworktree / Doppler / prompt / runnerで失敗した場合、子Issueラベル、Campaign task、Campaign status、state jobを `blocked` に揃えるようにした。
+  - Campaign stateにblocked jobが残っている場合は、running jobとみなしてCampaign dispatchを止め続けないようにした。
+  - `GOCACHE=/tmp/run-weaver-go-build-cache go test ./internal/cli -run 'StatusKeepsLocalRuntime|CampaignTaskBlocks|DispatchCampaignTaskBlocks|CompleteCampaignTaskBlocks|CommandNotFound'`、`go test ./...`、`go vet ./...`、`go test -race ./...` で確認した。
+- Future tasks:
+  - Campaign planner自体の起動前失敗を、必要ならより詳細なplanner state付きblockedとして保存する。
+  - Codex CLIのJSONL schemaが変わった場合は、command-not-found判定対象のevent type / fieldを追加する。
+- Human-facing reports:
+  - 今回は実GitHub Issueへのコメント投稿、ラベル変更、push、release作成、secret表示、外部アカウント設定変更は行っていない。
+
+## 2026-05-18 - Rate Limit Status False Positive
+
+Review:
+
+- Immediate fixes:
+  - `ota-takeru/run-weaver#2` のJSONLログでは、Codexが読んだdocs本文やdiff内の `rate limit` 文言が `aggregated_output` に残っており、実際のCodex rate limit errorではないことを確認した。
+  - `codexLogLooksRateLimited` をログ全体の単純な文字列検索から、JSONLのトップレベル `error` またはfailure/error系eventのmessage/details/errorだけを見る判定へ絞った。
+  - `last-message.txt` が存在する完了済みjobではrate limit resumeより完了処理を優先し、`status` でも `codex_completed` を `rate_limited_waiting` より優先するようにした。
+  - command output内の `rate limit` 文言では誤検出しないテストと、実error eventは検出するテストを追加した。
+  - `GOCACHE=/tmp/run-weaver-go-build-cache go test ./internal/cli -run 'RateLimited|RateLimit|CodexLogLooksRateLimited'` と `GOCACHE=/tmp/run-weaver-go-build-cache go test ./...` で確認した。
+- Future tasks:
+  - Codex CLIのJSONL error schemaが変わった場合は、rate limit判定対象のevent type / fieldを追加する。
+- Human-facing reports:
+  - 今回の `rate_limited_waiting` はrate limit残量不足ではなく、ログ本文検索による誤検出だった。
+  - 実GitHub Issueへのコメント投稿、ラベル変更、push、release作成、secret表示は行っていない。
+
+## 2026-05-18 - Rate Limit Issue Communication
+
+Review:
+
+- Immediate fixes:
+  - Codex rate limit検出時にIssueへ中間コメントを投稿し、resume attempt番号、session、worktree、JSONLログpath、検出時刻を残すようにした。
+  - rate limit resume attemptをstate fileの `retryCount`、`lastGitHubCommentAt`、`lastError` に反映するようにした。
+  - rate limit中間コメントが将来のCodex promptや依存検出で人間コメントとして混ざらないよう、run-weaver管理コメント除外条件に追加した。
+  - README、architecture、CLI、GitHub Issue flow、progress、handoffにrate limit中間通知仕様を反映した。
+  - `GOCACHE=/tmp/run-weaver-go-build-cache go test ./internal/cli -run 'RateLimited|WritePromptFileIgnores|DetectIssueDependencies'` と `GOCACHE=/tmp/run-weaver-go-build-cache go test ./...` で確認した。
+- Future tasks:
+  - 実運用でrate limitが長く続く場合、コメント頻度の上限や次回再開予定時刻の表示を追加するか検討する。
+- Human-facing reports:
+  - Issueコメントにはsecret値、環境変数値、JSONLログ本文を載せず、ローカルpathとsession情報だけを載せる。
+  - 今回は実GitHub Issueへのコメント投稿、ラベル変更、push、release作成、secret表示は行っていない。
+
 ## 2026-05-18 - Release Readiness Audit
 
 Review:

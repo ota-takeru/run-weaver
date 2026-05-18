@@ -221,6 +221,7 @@ func completedIssueFromComments(issue githubIssue) *completedIssue {
 
 func isRunWeaverComment(body string) bool {
 	return strings.Contains(body, claimMarkerPrefix) ||
+		strings.Contains(body, rateLimitCommentMarkerPrefix) ||
 		strings.HasPrefix(body, "run-weaver blocked") ||
 		strings.Contains(body, "run-weaver completed this issue")
 }

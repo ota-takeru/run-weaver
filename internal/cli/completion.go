@@ -12,6 +12,8 @@ import (
 
 const rateLimitResumePrompt = `Continue the interrupted work from the previous session. Review the existing worktree, git diff, and prior context before making changes. Preserve previous progress and continue toward the original GitHub Issue goal.`
 
+const rateLimitCommentMarkerPrefix = "run-weaver-rate-limit:"
+
 func completeCurrentJob(ctx context.Context, deps daemonDeps, opts daemonOptions) (string, bool, error) {
 	statePath := opts.stateFilePath()
 	state, err := readStateFile(statePath)
@@ -103,6 +105,11 @@ func blockFailedCodexStartup(ctx context.Context, deps daemonDeps, opts daemonOp
 	if tmuxState(opts.target, state.Job.Tmux) == "window_exists" {
 		return false, nil
 	}
+	if state.Job.Codex.LastMessagePath != "" {
+		if _, err := os.Stat(state.Job.Codex.LastMessagePath); err == nil {
+			return false, nil
+		}
+	}
 	if !codexLogLooksCommandNotFound(state.Job.Codex.JSONLogPath) {
 		return false, nil
 	}
@@ -135,6 +142,9 @@ func resumeRateLimitedCodex(ctx context.Context, deps daemonDeps, opts daemonOpt
 	if tmuxState(opts.target, state.Job.Tmux) == "window_exists" {
 		return false, nil
 	}
+	if _, err := os.Stat(state.Job.Codex.LastMessagePath); err == nil {
+		return false, nil
+	}
 	if !codexLogLooksRateLimited(state.Job.Codex.JSONLogPath) {
 		return false, nil
 	}
@@ -144,6 +154,15 @@ func resumeRateLimitedCodex(ctx context.Context, deps daemonDeps, opts daemonOpt
 	}
 	if sessionID == "" {
 		sessionID = "--last"
+	}
+	at := time.Now().UTC()
+	atText := at.Format(time.RFC3339)
+	attempt := state.Job.RetryCount + 1
+	lastError := ""
+	if err := commentRateLimitResume(ctx, deps.github, state.Job, attempt, sessionID, at); err != nil {
+		lastError = fmt.Sprintf("rate limit detected; failed to comment on issue: %s", err)
+	} else {
+		state.Job.LastGitHubCommentAt = atText
 	}
 	resumePromptPath := state.Job.Codex.LastMessagePath + ".resume.md"
 	if err := os.WriteFile(resumePromptPath, []byte(rateLimitResumePrompt), 0o600); err != nil {
@@ -159,17 +178,55 @@ func resumeRateLimitedCodex(ctx context.Context, deps daemonDeps, opts daemonOpt
 	}
 	tmux, err := deps.runner.StartCodex(ctx, spec)
 	if err != nil {
+		message := fmt.Sprintf("rate limit resume attempt %d failed to start: %s", attempt, err)
+		state.Job.LastError = &message
+		state.Job.RetryCount = attempt
+		state.UpdatedAt = atText
+		_ = writeStateFile(opts.stateFilePath(), *state)
 		return false, err
 	}
 	state.Job.Tmux = tmux
+	state.Job.RetryCount = attempt
+	if lastError != "" {
+		state.Job.LastError = &lastError
+	} else {
+		message := fmt.Sprintf("Codex hit a rate limit; resume attempt %d started with session %s", attempt, displayResumeSession(sessionID))
+		state.Job.LastError = &message
+	}
 	if sessionID != "--last" {
 		state.Job.Codex.SessionID = &sessionID
 	}
-	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	state.UpdatedAt = atText
 	if err := writeStateFile(opts.stateFilePath(), *state); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+func commentRateLimitResume(ctx context.Context, client githubClient, job *stateJob, attempt int, sessionID string, at time.Time) error {
+	if client == nil || job == nil || job.Issue.Number == 0 {
+		return nil
+	}
+	body := fmt.Sprintf(`<!-- %s%s:%d -->
+run-weaver detected a Codex rate limit interruption and started an automatic resume attempt.
+
+- attempt: %d
+- session: %s
+- worktree: %s
+- json log: %s
+- state: running
+- detected at: %s
+
+No secret values are included in this comment. If this keeps repeating, check the Codex account limit and the local JSONL log before removing the running label.
+`, rateLimitCommentMarkerPrefix, job.ClaimID, attempt, attempt, displayResumeSession(sessionID), job.Worktree, job.Codex.JSONLogPath, at.Format(time.RFC3339))
+	return client.Comment(ctx, job.Issue.Number, body)
+}
+
+func displayResumeSession(sessionID string) string {
+	if sessionID == "--last" || sessionID == "" {
+		return "last available session"
+	}
+	return sessionID
 }
 
 func codexLogLooksRateLimited(path string) bool {
@@ -177,7 +234,59 @@ func codexLogLooksRateLimited(path string) bool {
 	if err != nil {
 		return false
 	}
-	text := strings.ToLower(string(data))
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var value any
+		if err := json.Unmarshal([]byte(line), &value); err != nil {
+			if textLooksRateLimited(line) {
+				return true
+			}
+			continue
+		}
+		if codexJSONLineLooksRateLimited(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func codexJSONLineLooksRateLimited(value any) bool {
+	typed, ok := value.(map[string]any)
+	if !ok {
+		return false
+	}
+	if textLooksRateLimited(jsonFieldText(typed["error"])) {
+		return true
+	}
+	eventType := strings.ToLower(jsonFieldText(typed["type"]))
+	if !strings.Contains(eventType, "error") && !strings.Contains(eventType, "fail") {
+		return false
+	}
+	return textLooksRateLimited(jsonFieldText(typed["message"])) ||
+		textLooksRateLimited(jsonFieldText(typed["details"])) ||
+		textLooksRateLimited(jsonFieldText(typed["error"]))
+}
+
+func jsonFieldText(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case map[string]any, []any:
+		data, err := json.Marshal(typed)
+		if err != nil {
+			return ""
+		}
+		return string(data)
+	default:
+		return ""
+	}
+}
+
+func textLooksRateLimited(text string) bool {
+	text = strings.ToLower(text)
 	return strings.Contains(text, "rate limit") || strings.Contains(text, "rate_limit") || strings.Contains(text, "ratelimit")
 }
 
@@ -186,7 +295,44 @@ func codexLogLooksCommandNotFound(path string) bool {
 	if err != nil {
 		return false
 	}
-	text := strings.ToLower(string(data))
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var value any
+		if err := json.Unmarshal([]byte(line), &value); err != nil {
+			if textLooksCommandNotFound(line) {
+				return true
+			}
+			continue
+		}
+		if codexJSONLineLooksCommandNotFound(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func codexJSONLineLooksCommandNotFound(value any) bool {
+	typed, ok := value.(map[string]any)
+	if !ok {
+		return false
+	}
+	if textLooksCommandNotFound(jsonFieldText(typed["error"])) {
+		return true
+	}
+	eventType := strings.ToLower(jsonFieldText(typed["type"]))
+	if !strings.Contains(eventType, "error") && !strings.Contains(eventType, "fail") {
+		return false
+	}
+	return textLooksCommandNotFound(jsonFieldText(typed["message"])) ||
+		textLooksCommandNotFound(jsonFieldText(typed["details"])) ||
+		textLooksCommandNotFound(jsonFieldText(typed["error"]))
+}
+
+func textLooksCommandNotFound(text string) bool {
+	text = strings.ToLower(text)
 	return strings.Contains(text, "codex: command not found") ||
 		strings.Contains(text, "codex: not found") ||
 		strings.Contains(text, "the term 'codex' is not recognized")
