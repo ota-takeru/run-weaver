@@ -23,6 +23,7 @@
 - 2026-05-17: 同一repository内の通常IssueはIssue番号昇順で最大1件ずつ処理する。明確なIssue番号依存がある場合は依存先PR branchをbaseにしたstacked PRにし、曖昧な依存は推測せず `blocked` にする。
 - 2026-05-18: 人間判断が必要な場合は、判断理由、客観的証拠、選択肢ごとの詳細、推奨、影響、可逆性、人間が返すべき回答形式を含む意思決定レポートを作成してから停止する。Campaign Decision Requestもこの形式に揃える。
 - 2026-05-18: Campaign Decision Requestへの人間回答は、PCでは `run-weaver decision answer`、GitHub Issueだけを使える外出時はDecision Request内のquick replyを標準UIにする。GitHubコメント内の `run-weaver-decision:<decision-id>:<option>` markerは回答プロトコルとして残し、daemonは定義済みoptionだけを回答として受け付ける。
+- 2026-05-20: ドキュメント衝突は種類で扱いを分ける。`docs/progress.md`、`docs/handoff.md`、`docs/process-log.md` などの運用ドキュメントだけの重複ではstacked PRにせず、Campaignでは必要に応じて最後のドキュメント統合taskへ寄せる。README、architecture、CLI仕様、decision log、ADR、migration、lockfile、公開API、共有service/testなど意味的な重複は依存関係やstacked PRの判断材料にする。
 
 ## Superseded Decisions
 

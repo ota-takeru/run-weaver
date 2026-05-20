@@ -170,6 +170,7 @@ Recommended Next Step:
 - `run-weaver decision answer` を追加し、Campaign Decision Requestへ専用CLIで回答できるようにした
 - Campaign decision answerは定義済みoptionだけを受け付け、回答済みdecisionの内容を後続Campaign task promptへ含めるようにした
 - Campaign Decision RequestにGitHub mobile向けquick replyを表示し、Issueコメントだけでも意思決定できるようにした
+- Campaign Planner / task / conflict-resolve promptにドキュメント衝突ポリシーを追加し、`docs/progress.md`、`docs/handoff.md`、`docs/process-log.md` などの運用ドキュメントだけではstacked PRにせず、意味的ドキュメントや共有コード重複を依存判断に使うようにした
 
 ## Upcoming Sequence
 

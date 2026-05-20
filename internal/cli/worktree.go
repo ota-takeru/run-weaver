@@ -22,6 +22,12 @@ type worktreeSpec struct {
 
 const codexSubagentGuidance = "Use Codex built-in subagents for suitable investigation, review, or delegable subtasks when the repository AGENTS.md does not prohibit them, higher-priority runtime instructions allow them, and the runtime provides them. If subagents are unavailable or prohibited, continue with a self-review."
 
+const documentationConflictGuidance = `Documentation conflict policy:
+- Treat current-state and handoff files such as docs/progress.md, docs/handoff.md, and docs/process-log.md as operational documentation. Do not create task dependencies or stacked PRs solely because multiple tasks may update those files.
+- Prefer GitHub Issue comments, PR bodies, and run-weaver state for task-local progress, verification notes, and handoff details. If the repository requires operational docs updates, keep them minimal and task-local.
+- Treat semantic documentation such as README files, docs/architecture.md, docs/cli.md, docs/github-issue-flow.md, docs/decision-log.md, docs/adr/, migrations, lockfiles, public APIs, shared services, and shared tests as dependency signals when multiple tasks change the same behavior or decision.
+- For campaigns with several implementation tasks, prefer one final documentation consolidation task for operational current-state docs instead of making every implementation task depend on every other task only to avoid operational-doc conflicts.`
+
 func newWorktreeManager(commands commandRunner) worktreeManager {
 	if commands == nil {
 		commands = execCommandRunner{}
@@ -172,7 +178,9 @@ Implement the requested change using the issue title, body, and relevant human c
 Follow the repository AGENTS.md instructions, run focused verification, and leave a concise final summary.
 
 %s
-`, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), codexSubagentGuidance)
+
+%s
+`, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), documentationConflictGuidance, codexSubagentGuidance)
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 
@@ -202,7 +210,9 @@ Campaign decisions:
 Follow the repository AGENTS.md instructions. For the plan phase, produce and execute the minimum planning work needed before implementation. For implement, make the focused code change. For review, inspect the current task changes and fix regressions. For verify, run focused verification and fix task-local failures. Do not move to unrelated campaign tasks in this session.
 
 %s
-`, campaign.Number, campaign.Title, task.ID, emptyAsNone(phase), issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), campaignDecisionPromptSummary(decisions), codexSubagentGuidance)
+
+%s
+`, campaign.Number, campaign.Title, task.ID, emptyAsNone(phase), issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), campaignDecisionPromptSummary(decisions), documentationConflictGuidance, codexSubagentGuidance)
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 
@@ -252,7 +262,7 @@ Issue body:
 Relevant comments:
 %s
 
-You are planning a run-weaver Campaign. Inspect the repository before planning. Prefer repository documentation and roadmap/progress files over the issue body when they conflict. Useful places often include README files, docs/, roadmap, progress, handoff, architecture, and issue-flow documents, but do not assume fixed filenames.
+You are planning a run-weaver Campaign. Inspect the repository before planning. Prefer repository documentation, roadmap files, accepted decisions, and architecture notes over the issue body when they conflict. Treat progress, handoff, and process-log files as useful current-state inputs, not as reasons by themselves to serialize unrelated implementation tasks. Useful places often include README files, docs/, roadmap, progress, handoff, architecture, and issue-flow documents, but do not assume fixed filenames.
 
 %s
 
@@ -288,11 +298,13 @@ The JSON schema is:
 Rules:
 - Make each task roughly one draft PR.
 - Use task IDs for dependencies.
+- Apply the documentation conflict policy above when deciding dependencies. Operational current-state docs alone should not force stacked PRs; semantic docs, decisions, migrations, public APIs, shared services, or shared tests should.
+- If multiple tasks need to update operational current-state docs, add a final documentation consolidation task rather than chaining all implementation tasks only because of docs/progress.md, docs/handoff.md, or docs/process-log.md.
 - Do not ask for human approval of the whole plan.
 - Add decisions only where implementation would otherwise require a product, architecture, cost, secret, account, permission, or irreversible choice.
 - If the request or docs are too ambiguous to plan safely, return a decision that blocks the ambiguous tasks instead of guessing.
 - For every decision, provide objective context, evidence, option details, impact, and reversibility. Separate observed facts from recommendation. Do not include secrets, token values, or raw private log contents.
-`, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), codexSubagentGuidance)
+`, issue.Number, issue.Title, issue.URL, emptyAsNone(strings.TrimSpace(issue.Body)), relevantIssueComments(issue.Comments), documentationConflictGuidance+"\n\n"+codexSubagentGuidance)
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 

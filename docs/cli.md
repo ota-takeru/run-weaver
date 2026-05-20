@@ -404,6 +404,7 @@ run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --
 - `run-weaver:campaign` + `run-weaver:ready` ラベル付きのopen Campaign Issueを取得し、Codex Plannerでrepo docs優先のtask graphを生成してから子Issueへ展開
 - 通常taskとして `run-weaver:ready` ラベル付きのopen IssueをIssue番号昇順で取得し、同じrepository内では最大1件だけ実行
 - 明確な依存関係がある通常Issueは、依存先Issueの完了とPR branchを確認してstacked PRとして実行
+- `docs/progress.md`、`docs/handoff.md`、`docs/process-log.md` などの運用ドキュメントだけの重複ではstacked PRにせず、Campaignでは必要に応じて最後のドキュメント統合taskへ寄せる。README、architecture、CLI仕様、decision log、ADR、migration、lockfile、公開API、共有service/testなど意味的な重複は依存関係の判断材料にする
 - `running` ラベルと開始コメントを投稿
 - ローカルstate fileにclaimを保存
 - Codex専用cloneからIssue専用worktreeを作成
@@ -440,6 +441,7 @@ Codex CLI起動の初期仕様:
 - 非対話実行として `codex exec` を使う
 - worktreeを `codex exec --cd <worktree>` で指定する
 - promptでは、repositoryの `AGENTS.md` が禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合、調査、レビュー、委譲可能な小タスクにCodex built-in subagentsを使うよう指示する。利用不可または禁止されている場合はセルフレビューで続行する
+- promptでは、運用ドキュメントと意味的ドキュメントを分けるドキュメント衝突ポリシーも渡す。運用ドキュメントだけの衝突は依存拡大ではなく、Issueコメント、PR本文、run-weaver state、またはCampaign末尾の統合taskへ寄せる
 - 標準出力のJSONLログはstate配下のIssue別ディレクトリに保存する
 - 最終応答は `--output-last-message` でstate配下に保存する
 - 終了コード `0` 以外、JSONLログの異常終了、draft PR作成失敗は `blocked` とする

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -187,6 +188,32 @@ func TestCompleteCurrentJobStartsConflictResolutionBeforePush(t *testing.T) {
 	}
 	if updated.Job.Codex == nil || !strings.Contains(updated.Job.Codex.LastMessagePath, conflictResolvePhase) {
 		t.Fatalf("codex state = %#v, want conflict phase paths", updated.Job.Codex)
+	}
+}
+
+func TestConflictResolvePromptIncludesDocumentationConflictPolicy(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "conflict-prompt.md")
+
+	err := writeConflictResolvePromptFile(path, &stateJob{
+		Issue: issueRef{Number: 42, Title: "Add export", URL: "https://github.com/example/repo/issues/42"},
+	}, "origin/HEAD", []string{"docs/progress.md", "src/app.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	for _, want := range []string{
+		"Documentation conflict policy:",
+		"docs/progress.md",
+		"Do not create task dependencies or stacked PRs solely because multiple tasks may update those files.",
+		"semantic documentation",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt = %q, want %q", got, want)
+		}
 	}
 }
 

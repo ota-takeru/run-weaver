@@ -1,5 +1,26 @@
 # Process Log
 
+## 2026-05-20 - Documentation Conflict Policy
+
+Review:
+
+- Immediate fixes:
+  - Campaign Planner、Campaign task、通常Issue、`conflict-resolve` のpromptに共通のドキュメント衝突ポリシーを追加した。
+  - `docs/progress.md`、`docs/handoff.md`、`docs/process-log.md` などの運用ドキュメントだけではtask dependencyやstacked PRを作らず、GitHub Issueコメント、PR本文、run-weaver state、またはCampaign末尾のドキュメント統合taskへ寄せる方針にした。
+  - README、architecture、CLI仕様、decision log、ADR、migration、lockfile、公開API、共有service/testなど、意味的な重複は依存関係やstacked PRの判断材料にする方針を明文化した。
+  - prompt生成テストとconflict-resolve promptテストで、ドキュメント衝突ポリシーが渡されることを固定した。
+  - `go test ./...` は既定のGo build cacheがread-onlyで失敗したため、`GOCACHE=/tmp/go-cache` で再実行して通過した。
+- Verification:
+  - `GOCACHE=/tmp/go-cache go test ./...`
+  - `GOCACHE=/tmp/go-cache go vet ./...`
+  - `git diff --check`
+- Future tasks:
+  - 実Campaignで、複数taskが運用ドキュメントを触り得る場合にPlannerが不要なstackを作らず、必要なら最後のドキュメント統合taskを作ることを確認する。
+  - open PR changed-file overlapを開始前に取得し、意味的な重複だけを待機またはstackedに寄せる事前予測を追加するか検討する。
+- Human-facing reports:
+  - 運用ドキュメントもプロジェクトの一部として扱うが、それだけでPR stackを深くしない設計にした。
+  - 今回はローカルコードとドキュメント変更のみで、実GitHub Issueコメント投稿、ラベル変更、push、release作成、secret表示、外部アカウント設定変更は行っていない。
+
 ## 2026-05-18 - Campaign Decision Answer CLI
 
 Review:

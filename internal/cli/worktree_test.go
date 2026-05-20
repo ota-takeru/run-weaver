@@ -117,6 +117,64 @@ func TestPromptFilesIncludeSubagentGuidance(t *testing.T) {
 	}
 }
 
+func TestPromptFilesIncludeDocumentationConflictPolicy(t *testing.T) {
+	tempDir := t.TempDir()
+	issue := githubIssue{Number: 42, Title: "Add README", Body: "Add a README.", URL: "https://example.test/42"}
+	for name, write := range map[string]func(string) error{
+		"issue": func(path string) error {
+			return writePromptFile(path, issue)
+		},
+		"campaign-task": func(path string) error {
+			return writeCampaignPromptFile(path, issueRef{Number: 7, Title: "Roadmap"}, nil, campaignTask{ID: "task-readme"}, issue, pipelinePhaseReview)
+		},
+		"campaign-planner": func(path string) error {
+			return writeCampaignPlannerPromptFile(path, issue)
+		},
+	} {
+		path := filepath.Join(tempDir, name+".md")
+		if err := write(path); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := string(data)
+		for _, want := range []string{
+			"Documentation conflict policy:",
+			"docs/progress.md",
+			"docs/handoff.md",
+			"docs/process-log.md",
+			"Do not create task dependencies or stacked PRs solely because multiple tasks may update those files.",
+			"semantic documentation",
+		} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("%s prompt = %q, want %q", name, got, want)
+			}
+		}
+	}
+}
+
+func TestCampaignPlannerPromptAsksForOperationalDocsConsolidation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "campaign-planner.md")
+
+	err := writeCampaignPlannerPromptFile(path, githubIssue{Number: 7, Title: "Roadmap", Body: "Plan the work."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "Operational current-state docs alone should not force stacked PRs") {
+		t.Fatalf("planner prompt = %q, want non-stacking docs guidance", got)
+	}
+	if !strings.Contains(got, "add a final documentation consolidation task") {
+		t.Fatalf("planner prompt = %q, want docs consolidation guidance", got)
+	}
+}
+
 func TestCampaignPromptIncludesDecisionAnswers(t *testing.T) {
 	path := t.TempDir() + "/campaign-task.md"
 

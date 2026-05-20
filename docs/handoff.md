@@ -46,6 +46,7 @@
 - `install` / `daemon` の `--repo-url` 未指定時は、通常 `repos.json` の登録repositoryを使う。対象repository内では `run-weaver repo add` で登録する。
 - Campaign Issueは `run-weaver:campaign` と `run-weaver:ready` の両方が付いたopen Issueとして検出する。
 - Campaign PlannerはCodexを非同期起動し、repo docs優先で親Issue本文とrepository内roadmap/docsを読ませ、JSON task graphを生成させる。
+- Campaign Planner / task / conflict-resolve promptにはドキュメント衝突ポリシーを渡す。`docs/progress.md`、`docs/handoff.md`、`docs/process-log.md` などの運用ドキュメントだけではstacked PRにせず、必要なら最後のドキュメント統合taskへ寄せる。README、architecture、CLI仕様、decision log、ADR、migration、lockfile、公開API、共有service/testなど意味的な重複は依存関係やstacked PRの判断材料にする。
 - Planner JSONが有効な場合だけ通常taskを子Issueとして作成する。Planner不正出力、空task、ID重複、未知dependency、未知task参照decisionは親Campaignを `blocked` にする。
 - Campaign Dispatcherはstate fileの `campaign` を正本にし、依存関係が解けた次taskを `plan` / `implement` / `review` / `verify` の順に同じworktreeで実行する。
 - Campaign taskは `verify` 完了後にcommit、push、draft PR作成へ進み、PR URL、completed tasks、current taskをCampaign stateへ保存する。
@@ -101,6 +102,7 @@
 - Codexは `--sandbox workspace-write --ask-for-approval never` で起動する。
 - Codex完了後、daemonがworktreeの変更をcommitしてからpush / draft PR作成へ進む。変更なしなら `blocked` にする。
 - push / draft PR作成前に `origin` をfetchしてbaseをmergeする。通常のconflictはCodex `conflict-resolve` phaseで1回だけ解消を試し、lockfile / workflow / migrationなど高リスク競合または未解消競合はPRを作らず `blocked` にする。
+- `conflict-resolve` phaseでもドキュメント衝突ポリシーを渡し、運用ドキュメントだけの衝突は依存関係の追加ではなく最小限の統合として扱わせる。
 - Codex promptにはIssueタイトル、本文、run-weaver管理コメントを除いた人間コメントを渡す。本文なしでもタイトルが具体的なら実行する。AGENTS.mdが禁止しておらず、上位の実行時指示が許可し、Codex実行環境が提供している場合、調査、レビュー、委譲可能な小タスクにはCodex built-in subagentsを使うよう指示する。
 - status表示の細分化は実装済み。CI確認待ち。
 - rate limit再開は人間確認条件を迂回しない。push、deploy、外部課金、外部アカウント設定変更、secret表示、破壊的操作、ADR矛盾が必要な場合は従来どおり人間判断に回す。rate limit中間コメントにもsecret値やJSONLログ本文は載せない。

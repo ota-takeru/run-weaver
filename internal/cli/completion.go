@@ -278,8 +278,10 @@ Conflicted files:
 
 Resolve only the merge conflicts in the listed files. Preserve both the original issue change and the incoming base change when they are compatible. Do not add unrelated features or broad refactors. Do not edit files that are unrelated to this conflict unless required to make the resolution compile or pass focused checks.
 
+%s
+
 After resolving, run focused verification if practical. Leave a concise final summary with the files resolved and checks run.
-`, job.Issue.Number, job.Issue.Title, job.Issue.URL, baseRef, "- "+strings.Join(files, "\n- "))
+`, job.Issue.Number, job.Issue.Title, job.Issue.URL, baseRef, "- "+strings.Join(files, "\n- "), documentationConflictGuidance)
 	return os.WriteFile(path, []byte(body), 0o600)
 }
 
