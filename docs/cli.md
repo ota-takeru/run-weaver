@@ -404,6 +404,7 @@ run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --
 - `run-weaver:campaign` + `run-weaver:ready` ラベル付きのopen Campaign Issueを取得し、Codex Plannerでrepo docs優先のtask graphを生成してから子Issueへ展開
 - 通常taskとして `run-weaver:ready` ラベル付きのopen IssueをIssue番号昇順で取得し、同じrepository内では最大1件だけ実行
 - 明確な依存関係がある通常Issueは、依存先Issueの完了とPR branchを確認してstacked PRとして実行
+- Campaign taskは既定でcompletion orderのstacked PRにし、2件目以降は直前に完了したCampaign taskのbranchをworktree baseとdraft PR baseにする。Plannerの `dependencies[]` は意味的依存とdecision gate用に使う
 - `docs/progress.md`、`docs/handoff.md`、`docs/process-log.md` などの運用ドキュメントだけの重複ではstacked PRにせず、Campaignでは必要に応じて最後のドキュメント統合taskへ寄せる。README、architecture、CLI仕様、decision log、ADR、migration、lockfile、公開API、共有service/testなど意味的な重複は依存関係の判断材料にする
 - `running` ラベルと開始コメントを投稿
 - ローカルstate fileにclaimを保存
@@ -416,7 +417,7 @@ run-weaver daemon --target wsl --repo-url https://github.com/example/repo.git --
 - Issueへ結果コメントを投稿
 - `done` または `blocked` ラベルへ更新
 
-Campaign開始時はまず `campaign.status: planning` としてCodex Plannerを非同期に起動します。Plannerはrepository docsと親Issue本文を読み、JSONの `tasks[]` / `decisions[]` を返します。JSON planの検証に通った場合だけ子Issueを作成します。Campaign taskでは `plan`、`implement`、`review`、`verify` のphaseを順に実行します。phaseごとにstate配下の別ログディレクトリを使い、Codex reasoning effortはrunner設定内で `campaign-planner` / `plan` / `review` をmedium、`implement` をlowとして渡せる場合だけCLI config overrideで渡します。task開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えます。
+Campaign開始時はまず `campaign.status: planning` としてCodex Plannerを非同期に起動します。Plannerはrepository docsと親Issue本文を読み、JSONの `tasks[]` / `decisions[]` を返します。JSON planの検証に通った場合だけ子Issueを作成します。Campaign taskでは `plan`、`implement`、`review`、`verify` のphaseを順に実行します。phaseごとにstate配下の別ログディレクトリを使い、Codex reasoning effortはrunner設定内で `campaign-planner` / `plan` / `review` をmedium、`implement` をlowとして渡せる場合だけCLI config overrideで渡します。2件目以降のCampaign taskを開始するときは、直前に完了したCampaign taskの完了コメントまたはstateからdraft PR branchを復元し、そのbranchをbaseにしたstacked PRとして進めます。branchまたはPR URLを復元できない場合は、次taskを開始せず `blocked` にします。task開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えます。
 
 Decision Requestは、親Campaign Issueコメントとして投稿されます。本文には判断内容、判断が必要な理由、証拠、選択肢、選択肢ごとの詳細、推奨、影響、可逆性、blocked tasks、can continue tasksを含めます。secret値、token値、環境変数値、JSONLログ本文は含めません。PCでは `run-weaver decision answer` で回答できます。外出先ではDecision Request内のquick replyから1行を選び、GitHub Issueへ新規コメントとして貼り付けます。daemonは親Campaign Issueコメント内のmarker `run-weaver-decision:<decision-id>:<option>` を読み取ります。optionがDecision Requestの選択肢に含まれる場合だけ、state fileの `campaign.decisions[].answer` に保存します。回答済みdecisionの内容は後続Campaign task promptへ含めます。
 

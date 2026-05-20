@@ -26,6 +26,7 @@ const documentationConflictGuidance = `Documentation conflict policy:
 - Treat current-state and handoff files such as docs/progress.md, docs/handoff.md, and docs/process-log.md as operational documentation. Do not create task dependencies or stacked PRs solely because multiple tasks may update those files.
 - Prefer GitHub Issue comments, PR bodies, and run-weaver state for task-local progress, verification notes, and handoff details. If the repository requires operational docs updates, keep them minimal and task-local.
 - Treat semantic documentation such as README files, docs/architecture.md, docs/cli.md, docs/github-issue-flow.md, docs/decision-log.md, docs/adr/, migrations, lockfiles, public APIs, shared services, and shared tests as dependency signals when multiple tasks change the same behavior or decision.
+- Campaign task PRs are stacked by the dispatcher in completion order by default. Planner dependencies should express semantic or blocking dependencies, not mechanical PR stacking.
 - For campaigns with several implementation tasks, prefer one final documentation consolidation task for operational current-state docs instead of making every implementation task depend on every other task only to avoid operational-doc conflicts.`
 
 func newWorktreeManager(commands commandRunner) worktreeManager {

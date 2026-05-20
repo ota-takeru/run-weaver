@@ -13,7 +13,7 @@
 - 作業状態をCLI、tmux、GitHub Issue上で確認できるようにする
 - 作業後はdraft PRを作成する
 - agent自体はGitHub Releases経由で更新する
-- Campaign Issueから大きめtaskを子Issue化し、taskごとにPRを作る
+- Campaign Issueから大きめtaskを子Issue化し、taskごとにstacked PRを作る
 - 同一repository内の複数Issueを古いIssue順に1件ずつ処理し、明確な依存があるIssueはstacked PRにする
 
 ## 初期CLI
@@ -65,7 +65,7 @@ draft PR作成前のbase取り込みで通常のmerge conflictが出た場合、
 
 運用中の現在状態を表す `docs/progress.md`、`docs/handoff.md`、`docs/process-log.md` などは、複数taskが触るだけではstacked PRの理由にしません。taskごとの進捗や検証結果はGitHub Issueコメント、PR本文、run-weaver stateを優先し、必要ならCampaign末尾に運用ドキュメント統合taskを置きます。一方で、README、architecture、CLI仕様、decision log、ADR、migration、lockfile、公開API、共有service/testのような意味的な変更は依存関係やstacked PRの判断材料にします。
 
-Campaign Issueでは、親Issue本文の大枠指示とrepository内docsをCodex Plannerが読み、PR単位のtask graphとdecision gateをJSONで生成します。Plannerはrepo docsを優先し、親Issue本文は「どのroadmapを進めるか」を伝える補助入力として扱います。Plannerが作った通常taskは `run-weaver:campaign-task` 付きの子Issueとして作成し、通常ready Issue取得からは除外します。人間判断が必要な箇所だけDecision Requestとして親Issueへコメントします。Decision Requestには判断理由、証拠、選択肢ごとの詳細、影響、可逆性を含め、secret値やログ本文は載せません。PCでは `run-weaver status` に表示される `run-weaver decision answer --repo <owner/repo> '#<campaign-issue>' <decision-id> <option>` で回答できます。外出先ではDecision Request内のquick replyから1行を選び、そのままGitHub Issueへ新規コメントとして貼り付けます。daemonは親Issueコメントの `run-weaver-decision:<decision-id>:<option>` markerを読み取り、optionがDecision Requestの選択肢に含まれる場合だけstateへ保存します。Dispatcherは回答済みdecisionの内容をtask promptへ渡し、子Issueを `plan`、`implement`、`review`、`verify` の順に処理してtaskごとにdraft PRを作成します。
+Campaign Issueでは、親Issue本文の大枠指示とrepository内docsをCodex Plannerが読み、PR単位のtask graphとdecision gateをJSONで生成します。Plannerはrepo docsを優先し、親Issue本文は「どのroadmapを進めるか」を伝える補助入力として扱います。Plannerが作った通常taskは `run-weaver:campaign-task` 付きの子Issueとして作成し、通常ready Issue取得からは除外します。人間判断が必要な箇所だけDecision Requestとして親Issueへコメントします。Decision Requestには判断理由、証拠、選択肢ごとの詳細、影響、可逆性を含め、secret値やログ本文は載せません。PCでは `run-weaver status` に表示される `run-weaver decision answer --repo <owner/repo> '#<campaign-issue>' <decision-id> <option>` で回答できます。外出先ではDecision Request内のquick replyから1行を選び、そのままGitHub Issueへ新規コメントとして貼り付けます。daemonは親Issueコメントの `run-weaver-decision:<decision-id>:<option>` markerを読み取り、optionがDecision Requestの選択肢に含まれる場合だけstateへ保存します。Dispatcherは回答済みdecisionの内容をtask promptへ渡し、子Issueを `plan`、`implement`、`review`、`verify` の順に処理します。2件目以降のCampaign taskは直前に完了したCampaign taskのbranchをbaseにし、completion orderのstacked draft PRとして作成します。
 
 通常Issueが同じrepositoryに複数ある場合、daemonはIssue番号の小さい順に最大1件ずつ処理します。Issue本文、タイトル、人間コメントに `depends: #123`、`blocked by #123`、`stacked on #123`、`依存: #123`、`#123 の後` などの明確な依存があれば、依存先Issueが `done` になりPR branchを復元できるまで待機します。依存先が完了済みなら、そのbranchをbaseにしたstacked draft PRを作ります。依存表現が曖昧なIssueは `blocked` にし、次の実行可能Issueへ進みます。
 

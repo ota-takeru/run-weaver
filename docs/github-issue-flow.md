@@ -207,7 +207,7 @@ Campaign開始時にagentは以下を行います。
 
 Planner出力はJSONだけを正とします。`tasks[]` は `id`、`title`、`body`、`dependencies[]` を持ち、`decisions[]` は `id`、`title`、`options[]`、`recommendation`、`blockedTasks[]`、`canContinueTasks[]` を持ちます。task粒度は1 draft PR単位です。JSONが不正、taskが空、ID重複、未知のdependency、未知taskを参照するdecisionがある場合、親Campaignを `blocked` にします。
 
-Campaign taskは `plan`、`implement`、`review`、`verify` の順に進みます。同じtaskの各phaseは同じworktreeとbranchを使います。Campaign Plannerと各phaseのpromptでも、AGENTS.mdが禁止しておらず上位の実行時指示が許可している場合はCodex built-in subagentsの利用を促します。task dependencyを書く場合は `depends: task-...` のtask IDを使います。task開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えます。`verify` 完了後にtaskごとのdraft PRを作成し、PR URLをCampaign stateへ保存します。
+Campaign taskは `plan`、`implement`、`review`、`verify` の順に進みます。同じtaskの各phaseは同じworktreeとbranchを使います。Campaign Plannerと各phaseのpromptでも、AGENTS.mdが禁止しておらず上位の実行時指示が許可している場合はCodex built-in subagentsの利用を促します。task dependencyを書く場合は `depends: task-...` のtask IDを使います。task dependencyは意味的依存とdecision gate用であり、PR stack自体はDispatcherがcompletion orderで保証します。2件目以降のCampaign taskは、直前に完了したCampaign taskのbranchをbaseにしたstacked draft PRとして作成します。task開始時またはphase進行時にworktree、Doppler、prompt、runnerで失敗した場合は、子Issue、Campaign task、Campaign status、state jobを `blocked` に揃えます。`verify` 完了後にtaskごとのdraft PRを作成し、PR URLをCampaign stateへ保存します。
 
 Campaign Plannerには同じドキュメント衝突ポリシーを渡します。運用ドキュメントの衝突だけを避けるために全taskを直列化するのではなく、実装taskを必要な意味的依存で分け、複数taskの後に必要なら最後のドキュメント統合taskを作るよう指示します。
 

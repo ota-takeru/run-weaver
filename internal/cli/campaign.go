@@ -517,6 +517,17 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		_ = markBlocked(ctx, deps.github, state.Campaign.Issue.Number, "campaign decision", fmt.Errorf("decision required"))
 		return "campaign decision_required", true, nil
 	}
+	stackDependencies, stackBaseBranch, err := campaignStackDependencies(ctx, deps.github, state)
+	if err != nil {
+		state.Campaign.Tasks[taskIndex].Status = campaignTaskBlocked
+		state.Campaign.Tasks[taskIndex].RetryCount++
+		state.Campaign.CurrentTaskID = ""
+		state.Campaign.Status = campaignStatusBlocked
+		state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		_ = writeStateFile(opts.stateFilePath(), *state)
+		_ = markBlocked(ctx, deps.github, task.IssueNumber, "campaign stack", err)
+		return "", true, err
+	}
 	claim, err := claimIssue(ctx, deps.github, task.IssueNumber, opts.target)
 	if err != nil {
 		return "", true, err
@@ -524,7 +535,7 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 	if claim.Outcome != claimWon {
 		return fmt.Sprintf("campaign task %s claim %s", task.ID, claim.Outcome), true, nil
 	}
-	spec, err := deps.worktree.PrepareForRepo(ctx, opts.target, opts.repo, claim.Issue, opts.repoURL)
+	spec, err := deps.worktree.PrepareForRepoWithBase(ctx, opts.target, opts.repo, claim.Issue, opts.repoURL, stackBaseBranch)
 	if err != nil {
 		return "", true, blockCampaignTaskStart(ctx, deps.github, opts, state, taskIndex, claim.Issue, claim.ClaimID, spec, nil, "campaign worktree", err)
 	}
@@ -553,6 +564,8 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		LabelState:     runningLabel,
 		Branch:         spec.Branch,
 		Worktree:       spec.Path,
+		BaseBranch:     stackBaseBranch,
+		Dependencies:   stackDependencies,
 		ClaimID:        claim.ClaimID,
 		ClaimedAt:      time.Now().UTC().Format(time.RFC3339),
 		CampaignTaskID: task.ID,
@@ -568,6 +581,34 @@ func dispatchCampaignTask(ctx context.Context, deps daemonDeps, opts daemonOptio
 		return "", true, err
 	}
 	return fmt.Sprintf("started campaign task %s issue #%d", task.ID, task.IssueNumber), true, nil
+}
+
+func campaignStackDependencies(ctx context.Context, client githubClient, state *stateFile) ([]issueDependency, string, error) {
+	if state == nil || state.Campaign == nil || len(state.Campaign.CompletedTasks) == 0 {
+		return nil, "", nil
+	}
+	previousTaskID := state.Campaign.CompletedTasks[len(state.Campaign.CompletedTasks)-1]
+	previousTask, ok := campaignTaskByID(state.Campaign, previousTaskID)
+	if !ok || previousTask.IssueNumber == 0 {
+		return nil, "", fmt.Errorf("previous campaign task %q could not be resolved", previousTaskID)
+	}
+	completed := completedIssueForNumber(state, previousTask.IssueNumber)
+	if completed == nil || completed.Branch == "" || completed.PRURL == "" {
+		issue, err := client.ViewIssue(ctx, previousTask.IssueNumber)
+		if err != nil {
+			return nil, "", err
+		}
+		completed = completedIssueFromComments(issue)
+	}
+	if completed == nil || completed.Branch == "" || completed.PRURL == "" {
+		return nil, "", fmt.Errorf("previous campaign task %s issue #%d is completed, but its draft PR branch or URL could not be resolved", previousTask.ID, previousTask.IssueNumber)
+	}
+	dependency := issueDependency{
+		IssueNumber: previousTask.IssueNumber,
+		Branch:      completed.Branch,
+		PRURL:       completed.PRURL,
+	}
+	return []issueDependency{dependency}, completed.Branch, nil
 }
 
 func blockCampaignTaskStart(ctx context.Context, client githubClient, opts daemonOptions, state *stateFile, taskIndex int, issue githubIssue, claimID string, spec worktreeSpec, tmux *tmuxRef, stage string, cause error) error {

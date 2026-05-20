@@ -1,5 +1,26 @@
 # Process Log
 
+## 2026-05-20 - Campaign Default Stacked PRs
+
+Review:
+
+- Immediate fixes:
+  - Campaign Dispatcherが2件目以降のCampaign taskを開始するとき、直前に完了したCampaign taskのbranchをworktree baseとdraft PR baseに使うようにした。
+  - 既存の `stateJob.BaseBranch` / `stateJob.Dependencies` と `buildStackedDraftPRSpec` を再利用し、state schema変更なしでCampaign taskのcompletion order stackを表現した。
+  - 直前完了taskのbranch / PR URLはstateの `completedIssues` を優先し、不足する場合は子Issueのrun-weaver完了コメントから復元する。復元できない場合は次taskを開始せず `campaign stack` で `blocked` にする。
+  - Campaign Planner / task promptには、Campaign PR stackingはDispatcherが保証し、Plannerの `dependencies[]` は意味的依存とdecision gate用であることを明記した。
+  - Campaign task開始テスト、stack dependency復元テスト、直前task branch / PR URLを復元できない場合の開始前blockedテストを追加した。
+- Verification:
+  - `GOCACHE=/tmp/go-cache go test ./...`
+  - `GOCACHE=/tmp/go-cache go vet ./...`
+  - `git diff --check`
+- Future tasks:
+  - 実Campaignで2件目以降のdraft PR baseが直前task branchになることを確認する。
+  - 必要ならstatus表示にCampaign stack baseを明示する。
+- Human-facing reports:
+  - Campaignでは独立PRを乱立させず、review / merge順が明確なstacked PR列を既定にした。
+  - 今回はローカルコードとドキュメント変更のみで、実GitHub Issueコメント投稿、ラベル変更、push、release作成、secret表示、外部アカウント設定変更は行っていない。
+
 ## 2026-05-20 - Documentation Conflict Policy
 
 Review:

@@ -24,6 +24,7 @@
 - 2026-05-18: 人間判断が必要な場合は、判断理由、客観的証拠、選択肢ごとの詳細、推奨、影響、可逆性、人間が返すべき回答形式を含む意思決定レポートを作成してから停止する。Campaign Decision Requestもこの形式に揃える。
 - 2026-05-18: Campaign Decision Requestへの人間回答は、PCでは `run-weaver decision answer`、GitHub Issueだけを使える外出時はDecision Request内のquick replyを標準UIにする。GitHubコメント内の `run-weaver-decision:<decision-id>:<option>` markerは回答プロトコルとして残し、daemonは定義済みoptionだけを回答として受け付ける。
 - 2026-05-20: ドキュメント衝突は種類で扱いを分ける。`docs/progress.md`、`docs/handoff.md`、`docs/process-log.md` などの運用ドキュメントだけの重複ではstacked PRにせず、Campaignでは必要に応じて最後のドキュメント統合taskへ寄せる。README、architecture、CLI仕様、decision log、ADR、migration、lockfile、公開API、共有service/testなど意味的な重複は依存関係やstacked PRの判断材料にする。
+- 2026-05-20: Campaign task PRは既定でcompletion orderのstacked PRにする。2件目以降のCampaign taskは直前に完了したCampaign taskのbranchをworktree baseとdraft PR baseに使う。Plannerの `dependencies[]` は意味的依存とdecision gate用であり、機械的なPR stackingはDispatcherが保証する。
 
 ## Superseded Decisions
 

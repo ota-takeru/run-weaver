@@ -445,6 +445,166 @@ func TestDispatchCampaignTaskStartsReadyChildIssue(t *testing.T) {
 	}
 }
 
+func TestDispatchCampaignTaskStacksOnPreviousCompletedCampaignTask(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	t.Setenv("XDG_DATA_HOME", tempDir+"/data")
+	github := newFakeGitHubClient(githubIssue{Number: 102, Title: "Add dispatcher", URL: "https://github.com/example/repo/issues/102", Labels: []githubLabel{{Name: readyLabel}}})
+	github.issues = []githubIssue{
+		{Number: 101, Title: "Add planner", Labels: []githubLabel{{Name: doneLabel}}},
+		{Number: 102, Title: "Add dispatcher", URL: "https://github.com/example/repo/issues/102", Labels: []githubLabel{{Name: readyLabel}}},
+	}
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:          issueRef{Number: 7, Title: "Campaign"},
+			Status:         campaignStatusPlanned,
+			CompletedTasks: []string{"task-add-planner"},
+			Tasks: []campaignTask{{
+				ID:          "task-add-planner",
+				Title:       "Add planner",
+				IssueNumber: 101,
+				Status:      campaignTaskCompleted,
+				Phase:       pipelinePhaseVerify,
+				PRURL:       "https://github.com/example/repo/pull/101",
+			}, {
+				ID:          "task-add-dispatcher",
+				Title:       "Add dispatcher",
+				IssueNumber: 102,
+				Status:      campaignTaskPending,
+				Phase:       pipelinePhasePlan,
+			}},
+		},
+		CompletedIssues: []completedIssue{{
+			Issue:  issueRef{Number: 101, Title: "Add planner"},
+			Branch: "codex/issue-101-add-planner",
+			PRURL:  "https://github.com/example/repo/pull/101",
+		}},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	commands := &fakeCommandRunner{failFirstHasSession: true}
+
+	result, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl", repoURL: "https://github.com/example/repo.git"})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result, "started campaign task task-add-dispatcher issue #102") {
+		t.Fatalf("result = %q", result)
+	}
+	clonePath := filepath.Join(tempDir, "data", "run-weaver", "src")
+	worktreePath := filepath.Join(tempDir, "data", "run-weaver", "worktrees", "issue-102")
+	if !commands.ran("git", "-C", clonePath, "worktree", "add", "-B", "codex/issue-102-add-dispatcher", worktreePath, "origin/codex/issue-101-add-planner") {
+		t.Fatalf("commands = %#v, want stacked campaign worktree base", commands.calls)
+	}
+	updated, err := readStateFile(defaultStateFile("wsl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Job == nil || updated.Job.BaseBranch != "codex/issue-101-add-planner" || len(updated.Job.Dependencies) != 1 {
+		t.Fatalf("job = %#v, want campaign stack dependency", updated.Job)
+	}
+	if updated.Job.Dependencies[0].IssueNumber != 101 || updated.Job.Dependencies[0].PRURL != "https://github.com/example/repo/pull/101" {
+		t.Fatalf("dependencies = %#v", updated.Job.Dependencies)
+	}
+}
+
+func TestCampaignStackDependenciesFallbackToCompletedComment(t *testing.T) {
+	state := &stateFile{
+		Campaign: &stateCampaign{
+			CompletedTasks: []string{"task-add-planner"},
+			Tasks: []campaignTask{{
+				ID:          "task-add-planner",
+				Title:       "Add planner",
+				IssueNumber: 101,
+				Status:      campaignTaskCompleted,
+			}},
+		},
+	}
+	github := newFakeGitHubClient(githubIssue{
+		Number: 101,
+		Title:  "Add planner",
+		Comments: []githubComment{{
+			Body: "run-weaver completed this issue.\n\n- draft PR: https://github.com/example/repo/pull/101\n- branch: codex/issue-101-add-planner\n",
+		}},
+	})
+
+	dependencies, baseBranch, err := campaignStackDependencies(context.Background(), github, state)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseBranch != "codex/issue-101-add-planner" || len(dependencies) != 1 {
+		t.Fatalf("base = %q dependencies = %#v", baseBranch, dependencies)
+	}
+}
+
+func TestDispatchCampaignTaskBlocksWhenPreviousStackBranchMissing(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempDir+"/state")
+	t.Setenv("XDG_DATA_HOME", tempDir+"/data")
+	github := newFakeGitHubClient(githubIssue{Number: 102, Title: "Add dispatcher", URL: "https://github.com/example/repo/issues/102", Labels: []githubLabel{{Name: readyLabel}}})
+	github.issues = []githubIssue{
+		{Number: 101, Title: "Add planner", Labels: []githubLabel{{Name: doneLabel}}},
+		{Number: 102, Title: "Add dispatcher", URL: "https://github.com/example/repo/issues/102", Labels: []githubLabel{{Name: readyLabel}}},
+	}
+	state := stateFile{
+		SchemaVersion: stateSchemaVersion,
+		Target:        "wsl",
+		Campaign: &stateCampaign{
+			Issue:          issueRef{Number: 7, Title: "Campaign"},
+			Status:         campaignStatusPlanned,
+			CompletedTasks: []string{"task-add-planner"},
+			Tasks: []campaignTask{{
+				ID:          "task-add-planner",
+				Title:       "Add planner",
+				IssueNumber: 101,
+				Status:      campaignTaskCompleted,
+			}, {
+				ID:          "task-add-dispatcher",
+				Title:       "Add dispatcher",
+				IssueNumber: 102,
+				Status:      campaignTaskPending,
+				Phase:       pipelinePhasePlan,
+			}},
+		},
+	}
+	if err := writeStateFile(defaultStateFile("wsl"), state); err != nil {
+		t.Fatal(err)
+	}
+	commands := &fakeCommandRunner{}
+
+	_, err := processOneIssue(daemonDeps{
+		github:   github,
+		worktree: newWorktreeManager(commands),
+		runner:   newTmuxRunner(commands),
+	}, daemonOptions{target: "wsl", repoURL: "https://github.com/example/repo.git"})
+
+	if err == nil || !strings.Contains(err.Error(), "draft PR branch or URL could not be resolved") {
+		t.Fatalf("err = %v, want missing stack branch error", err)
+	}
+	if commands.ranPrefix("git", "clone") || commands.ranPrefix("git", "-C") {
+		t.Fatalf("commands = %#v, should not prepare worktree before stack dependency is resolved", commands.calls)
+	}
+	updated, readErr := readStateFile(defaultStateFile("wsl"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if updated.Campaign.Status != campaignStatusBlocked || updated.Campaign.Tasks[1].Status != campaignTaskBlocked {
+		t.Fatalf("campaign = %#v, want blocked missing stack branch", updated.Campaign)
+	}
+	if !github.added[blockedLabel] || github.added[runningLabel] {
+		t.Fatalf("labels added = %#v, want blocked without running claim", github.added)
+	}
+}
+
 func TestDispatchCampaignTaskBlocksWhenRunnerFails(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempDir+"/state")

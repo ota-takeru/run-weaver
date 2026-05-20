@@ -171,6 +171,7 @@ Recommended Next Step:
 - Campaign decision answerは定義済みoptionだけを受け付け、回答済みdecisionの内容を後続Campaign task promptへ含めるようにした
 - Campaign Decision RequestにGitHub mobile向けquick replyを表示し、Issueコメントだけでも意思決定できるようにした
 - Campaign Planner / task / conflict-resolve promptにドキュメント衝突ポリシーを追加し、`docs/progress.md`、`docs/handoff.md`、`docs/process-log.md` などの運用ドキュメントだけではstacked PRにせず、意味的ドキュメントや共有コード重複を依存判断に使うようにした
+- Campaign task PRを既定でcompletion orderのstacked PRにし、2件目以降のtaskが直前完了taskのbranchをworktree baseとdraft PR baseに使うようにした
 
 ## Upcoming Sequence
 

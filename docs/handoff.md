@@ -49,6 +49,7 @@
 - Campaign Planner / task / conflict-resolve promptにはドキュメント衝突ポリシーを渡す。`docs/progress.md`、`docs/handoff.md`、`docs/process-log.md` などの運用ドキュメントだけではstacked PRにせず、必要なら最後のドキュメント統合taskへ寄せる。README、architecture、CLI仕様、decision log、ADR、migration、lockfile、公開API、共有service/testなど意味的な重複は依存関係やstacked PRの判断材料にする。
 - Planner JSONが有効な場合だけ通常taskを子Issueとして作成する。Planner不正出力、空task、ID重複、未知dependency、未知task参照decisionは親Campaignを `blocked` にする。
 - Campaign Dispatcherはstate fileの `campaign` を正本にし、依存関係が解けた次taskを `plan` / `implement` / `review` / `verify` の順に同じworktreeで実行する。
+- Campaign taskは既定でcompletion orderのstacked PRにする。2件目以降のtaskは直前に完了したCampaign taskのbranchをworktree baseとdraft PR baseに使い、branchまたはPR URLを復元できない場合は次taskを開始せず `blocked` にする。
 - Campaign taskは `verify` 完了後にcommit、push、draft PR作成へ進み、PR URL、completed tasks、current taskをCampaign stateへ保存する。
 - Campaign task promptには親Campaign本文の詳細contextも含める。E2Eでroadmapの1行だけではtask詳細が落ちることを確認したため修正済み。
 - `status` はCampaign progressと通常Issueの `readyQueue` をhuman / JSONで表示する。state schemaは `3` で、schema `1` / `2` は読み込み時に互換扱いする。
@@ -112,7 +113,7 @@
 - Codex完了判定はlast message fileの存在とtmux window終了を最小条件にしている。
 - `daemon` はGitHub Issueのラベルとコメントを実際に変更する。実行前に対象repository、ready Issue、`run-weaver repo add` 済みであることを確認する。
 - 対象repositoryに `running` / `done` / `blocked` がない場合、daemonが管理ラベルとして作成または更新する。
-- Campaign実行時は、対象repositoryに子IssueとDecision Requestコメントを作成する。taskごとにdraft PRを作る。
+- Campaign実行時は、対象repositoryに子IssueとDecision Requestコメントを作成する。taskごとにdraft PRを作り、2件目以降は直前完了taskにstackする。
 - Campaign decision answerはPCでは `run-weaver decision answer --repo <owner/repo> '#<campaign-issue>' <decision-id> <option>` で投稿する。外出先ではDecision Request内のquick replyから1行を選び、親Campaign Issueへ新規コメントとして貼る。daemonは親Campaign Issueコメント内の `run-weaver-decision:<decision-id>:<option>` markerを読み取り、定義済みoptionだけをstateへ保存する。回答済みdecisionの内容は後続Campaign task promptへ渡る。人間判断を求める前のレポート標準は `docs/decision-prep-standard.md` が正本。
 - Campaign task dependencyは `depends: task-...` のtask ID形式を使う。
 - 通常Issue dependencyは `depends: #123` などのIssue番号形式を使う。依存表現が曖昧な場合、agentは独立PRとして推測実行せず `blocked` にする。
